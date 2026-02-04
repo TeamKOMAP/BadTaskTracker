@@ -1,0 +1,18 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Task Manager API",
+    "description": "API для управления задачами с N-слоистой архитектурой",
+    "contact": {
+      "name": "Task Manager Team",
+      "email": "support@taskmanager.com"
+    },
+    "license": {
+      "name": "MIT License",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "v1"
+  },
+  "paths": { },
+  "components": { }
+}
