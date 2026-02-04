@@ -1,8 +1,7 @@
 # GoodTaskTracker
 
 Мозг особо не ебите так чисто поспрашивайте 
-![Мозг особо не ебите так чисто поспрашивайте ](https://github.com/TeamKOMAP/GoodTaskTracker/blob/main/%D0%90%D0%90.jpg)
-
+![Мозг особо не ебите так чисто поспрашивайте ](https://github.com/TeamKOMAP/GoodTaskTracker/blob/main/%D0%A4%D0%90.jpg)
 
 
 Веб-приложение для создания, учета и контроля задач с базовой отчетностью. Учебный проект для практикантов.
