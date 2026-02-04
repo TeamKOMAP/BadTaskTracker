@@ -1,6 +1,6 @@
 # GoodTaskTracker
 
-
+Мозг особо не ебите так чисто поспрашивайте 
 ![Мозг особо не ебите так чисто поспрашивайте ](https://github.com/TeamKOMAP/GoodTaskTracker/blob/main/%D0%A4%D0%A4.jpg)
 
 
