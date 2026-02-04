@@ -20,40 +20,70 @@
 
 4. **Любой браузер**
 
-## 🗂️ Структура проекта (BACKEND)
+## 🗂️ Структура проекта (BACK-END)
 
 ```text
 TaskTracker/
 │
-├── TaskTracker.API/ # Presentation Layer (API)
-│ ├── Controllers/ # Контроллеры Web API
-│ ├── Program.cs # Точка входа
-│ └── appsettings.json # Конфигурация
+├── TaskTracker.API/               # Presentation Layer (API)
+│ ├── Controllers/                 # Контроллеры Web API
+│ ├── Program.cs                   # Точка входа
+│ └── appsettings.json             # Конфигурация
 │
-├── TaskTracker.Application/ # Application Layer
-│ ├── Services/ # Сервисы приложения
-│ ├── DTOs/ # Data Transfer Objects
-│ ├── Mappings/ # AutoMapper профили
-│ └── Validators/ # FluentValidation
+├── TaskTracker.Application/       # Application Layer
+│ ├── Services/                    # Сервисы приложения
+│ ├── DTOs/                        # Data Transfer Objects
+│ ├── Mappings/                    # AutoMapper профили
+│ └── Validators/                  # FluentValidation
 │
-├── TaskTracker.Domain/ # Domain Layer
-│ ├── Entities/ # Доменные модели
-│ ├── Enums/ # Перечисления
-│ └── Interfaces/ # Интерфейсы репозиториев
+├── TaskTracker.Domain/            # Domain Layer
+│ ├── Entities/                    # Доменные модели
+│ ├── Enums/                       # Перечисления
+│ └── Interfaces/                  # Интерфейсы репозиториев
 │
-├── TaskTracker.Infrastructure/ # Data Access Layer
-│ ├── Data/ # DbContext
-│ ├── Migrations/ # Миграции БД
-│ └── Repositories/ # Репозитории (если используются)
+├── TaskTracker.Infrastructure/    # Data Access Layer
+│ ├── Data/                        # DbContext
+│ ├── Migrations/                  # Миграции БД
+│ └── Repositories/                # Репозитории (если используются)
 │
-├── TaskTracker.Tests/ # Тесты
-│ ├── UnitTests/ # Модульные тесты
-│ ├── IntegrationTests/ # Интеграционные тесты
-│ └── TestHelpers/ # Вспомогательные классы
+├── TaskTracker.Tests/             # Тесты
+│ ├── UnitTests/                   # Модульные тесты
+│ ├── IntegrationTests/            # Интеграционные тесты
+│ └── TestHelpers/                 # Вспомогательные классы
 │
 ├── README.md # Это тут щас
 └── TaskTracker.sln
 ```
+
+## Структура проекта (FRONT-END) 
+
+```text
+TaskTracker.API/wwwroot/            # Статические файлы фронтенда
+│
+├── index.html                      # Главная страница
+├── css/                            # Стили
+│ ├── main.css                      # Основные стили
+│ └── components.css                # Стили компонентов
+│
+├── js/                             # JavaScript
+│ ├── api.js                        # Работа с API
+│ ├── tasks.js                      # Логика задач
+│ └── ui.js                         # Управление интерфейсом
+│
+├── pages/                          # HTML страницы
+│ ├── tasks/                        # Страницы задач
+│ │ ├── list.html                   # Список задач
+│ │ ├── create.html                 # Создание задачи
+│ │ └── edit.html                   # Редактирование задачи
+│ └── reports/                      # Страницы отчётов
+│ ├── status.html                   # Отчёт по статусам
+│ └── overdue.html                  # Просроченные задачи
+│
+└── assets/                         # Изображения, иконки
+├── icons/
+└── images/
+```
+
 ## 🚀 Запуск проекта (локально)
 
 ### Способ 1: Через Visual Studio (рекомендуется)
