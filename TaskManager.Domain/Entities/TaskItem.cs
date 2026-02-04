@@ -1,11 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 using TaskManager.Domain.Enums;
-using DomainTaskStatus = TaskManager.Domain.Enums.TaskStatus;
+
 namespace TaskManager.Domain.Entities
 {
     public class TaskItem
@@ -37,8 +33,13 @@ namespace TaskManager.Domain.Entities
 
         // Navigation properties
         public virtual User? Assignee { get; set; }
-        public virtual ICollection<Tag> Tags { get; set; } = new List<Tag>();
+        public virtual ICollection<TaskTag> TaskTags { get; set; } = new List<TaskTag>(); // ← ИЗМЕНИТЬ!
 
+        // Helper property to get Tags directly
+        [NotMapped]
+        public IEnumerable<Tag> Tags => TaskTags.Select(tt => tt.Tag);
+
+        // Computed property for overdue (business rule)
         public bool IsOverdue => Status != Enums.TaskStatus.Done && DueDate < DateTime.UtcNow;
     }
 }

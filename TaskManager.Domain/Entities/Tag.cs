@@ -1,9 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TaskManager.Domain.Entities
 {
@@ -17,7 +13,11 @@ namespace TaskManager.Domain.Entities
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        // (many-to-many)
-        public virtual ICollection<TaskItem> Tasks { get; set; } = new List<TaskItem>();
+        // Navigation properties (many-to-many)
+        public virtual ICollection<TaskTag> TaskTags { get; set; } = new List<TaskTag>(); // ← ИЗМЕНИТЬ!
+
+        // Helper property to get Tasks directly
+        [NotMapped]
+        public IEnumerable<TaskItem> Tasks => TaskTags.Select(tt => tt.Task);
     }
 }

@@ -9,6 +9,7 @@ namespace TaskManager.Domain.Entities
 {
     public class User
     {
+        public int Id { get; set; }
 
         [Required]
         [MaxLength(100)]
