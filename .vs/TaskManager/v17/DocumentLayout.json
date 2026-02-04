@@ -1,0 +1,164 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{754FC069-D67B-A9D7-50A1-8D1CA196D8F1}|\u042D\u043B\u0435\u043C\u0435\u043D\u0442\u044B \u0440\u0435\u0448\u0435\u043D\u0438\u044F{754FC069-D67B-A9D7-50A1-8D1CA196D8F1}|C:\\Users\\Makvay\\source\\repos\\TaskManager\\our.gitignore||{3B902123-F8A7-4915-9F01-361F908088D0}",
+      "RelativeMoniker": "D:0:0:{754FC069-D67B-A9D7-50A1-8D1CA196D8F1}|\u042D\u043B\u0435\u043C\u0435\u043D\u0442\u044B \u0440\u0435\u0448\u0435\u043D\u0438\u044F{754FC069-D67B-A9D7-50A1-8D1CA196D8F1}|solutionrelative:our.gitignore||{3B902123-F8A7-4915-9F01-361F908088D0}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{1BA7F871-072D-46FF-893C-10D3B9E28704}|TaskManager.Domain\\TaskManager.Domain.csproj|c:\\users\\makvay\\source\\repos\\taskmanager\\taskmanager.domain\\entities\\taskitem.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{1BA7F871-072D-46FF-893C-10D3B9E28704}|TaskManager.Domain\\TaskManager.Domain.csproj|solutionrelative:taskmanager.domain\\entities\\taskitem.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{1BA7F871-072D-46FF-893C-10D3B9E28704}|TaskManager.Domain\\TaskManager.Domain.csproj|c:\\users\\makvay\\source\\repos\\taskmanager\\taskmanager.domain\\enums\\taskstatus.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{1BA7F871-072D-46FF-893C-10D3B9E28704}|TaskManager.Domain\\TaskManager.Domain.csproj|solutionrelative:taskmanager.domain\\enums\\taskstatus.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{1BA7F871-072D-46FF-893C-10D3B9E28704}|TaskManager.Domain\\TaskManager.Domain.csproj|c:\\users\\makvay\\source\\repos\\taskmanager\\taskmanager.domain\\enums\\taskpriority.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{1BA7F871-072D-46FF-893C-10D3B9E28704}|TaskManager.Domain\\TaskManager.Domain.csproj|solutionrelative:taskmanager.domain\\enums\\taskpriority.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{1BA7F871-072D-46FF-893C-10D3B9E28704}|TaskManager.Domain\\TaskManager.Domain.csproj|c:\\users\\makvay\\source\\repos\\taskmanager\\taskmanager.domain\\entities\\user.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{1BA7F871-072D-46FF-893C-10D3B9E28704}|TaskManager.Domain\\TaskManager.Domain.csproj|solutionrelative:taskmanager.domain\\entities\\user.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{1BA7F871-072D-46FF-893C-10D3B9E28704}|TaskManager.Domain\\TaskManager.Domain.csproj|c:\\users\\makvay\\source\\repos\\taskmanager\\taskmanager.domain\\entities\\tag.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{1BA7F871-072D-46FF-893C-10D3B9E28704}|TaskManager.Domain\\TaskManager.Domain.csproj|solutionrelative:taskmanager.domain\\entities\\tag.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FE275C98-04FD-4551-91DC-D75E1CAAA2C6}|TaskManager.API\\TaskManager.API.csproj|c:\\users\\makvay\\source\\repos\\taskmanager\\taskmanager.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{FE275C98-04FD-4551-91DC-D75E1CAAA2C6}|TaskManager.API\\TaskManager.API.csproj|solutionrelative:taskmanager.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{FE275C98-04FD-4551-91DC-D75E1CAAA2C6}|TaskManager.API\\TaskManager.API.csproj|c:\\users\\makvay\\source\\repos\\taskmanager\\taskmanager.api\\properties\\launchsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{FE275C98-04FD-4551-91DC-D75E1CAAA2C6}|TaskManager.API\\TaskManager.API.csproj|solutionrelative:taskmanager.api\\properties\\launchsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 192,
+          "SelectedChildIndex": 2,
+          "Children": [
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{1c4feeaa-4718-4aa9-859d-94ce25d182ba}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "our.gitignore",
+              "DocumentMoniker": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\our.gitignore",
+              "RelativeDocumentMoniker": "our.gitignore",
+              "ToolTip": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\our.gitignore",
+              "RelativeToolTip": "our.gitignore",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABEAAAAHAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
+              "WhenOpened": "2026-02-04T14:27:04.02Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "TaskPriority.cs",
+              "DocumentMoniker": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\Enums\\TaskPriority.cs",
+              "RelativeDocumentMoniker": "TaskManager.Domain\\Enums\\TaskPriority.cs",
+              "ToolTip": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\Enums\\TaskPriority.cs",
+              "RelativeToolTip": "TaskManager.Domain\\Enums\\TaskPriority.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-04T14:19:14.338Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 2,
+              "Title": "TaskStatus.cs",
+              "DocumentMoniker": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\Enums\\TaskStatus.cs",
+              "RelativeDocumentMoniker": "TaskManager.Domain\\Enums\\TaskStatus.cs",
+              "ToolTip": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\Enums\\TaskStatus.cs",
+              "RelativeToolTip": "TaskManager.Domain\\Enums\\TaskStatus.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA0AAAAFAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-04T14:17:41.643Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 5,
+              "Title": "Tag.cs",
+              "DocumentMoniker": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\Entities\\Tag.cs",
+              "RelativeDocumentMoniker": "TaskManager.Domain\\Entities\\Tag.cs",
+              "ToolTip": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\Entities\\Tag.cs",
+              "RelativeToolTip": "TaskManager.Domain\\Entities\\Tag.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABcAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-04T14:16:31.893Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "TaskItem.cs",
+              "DocumentMoniker": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\Entities\\TaskItem.cs",
+              "RelativeDocumentMoniker": "TaskManager.Domain\\Entities\\TaskItem.cs",
+              "ToolTip": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\Entities\\TaskItem.cs",
+              "RelativeToolTip": "TaskManager.Domain\\Entities\\TaskItem.cs",
+              "ViewState": "AgIAABQAAAAAAAAAAAAwwCgAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-04T14:15:41.476Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "User.cs",
+              "DocumentMoniker": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\Entities\\User.cs",
+              "RelativeDocumentMoniker": "TaskManager.Domain\\Entities\\User.cs",
+              "ToolTip": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\Entities\\User.cs",
+              "RelativeToolTip": "TaskManager.Domain\\Entities\\User.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAB4AAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-04T14:14:37.078Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.API\\Program.cs",
+              "RelativeDocumentMoniker": "TaskManager.API\\Program.cs",
+              "ToolTip": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.API\\Program.cs",
+              "RelativeToolTip": "TaskManager.API\\Program.cs",
+              "ViewState": "AgIAAA8AAAAAAAAAAAAAAB0AAABcAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-04T14:08:10.324Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 7,
+              "Title": "launchSettings.json",
+              "DocumentMoniker": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.API\\Properties\\launchSettings.json",
+              "RelativeDocumentMoniker": "TaskManager.API\\Properties\\launchSettings.json",
+              "ToolTip": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.API\\Properties\\launchSettings.json",
+              "RelativeToolTip": "TaskManager.API\\Properties\\launchSettings.json",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-02-04T14:08:08.346Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
