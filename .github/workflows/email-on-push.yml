@@ -1,0 +1,45 @@
+name: Email on Every Push
+on: [push]
+
+jobs:
+  send-email:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate funny message
+        id: generate_message
+        run: |
+          MESSAGES=(
+            "🚶 ПЕШЕХОД – зашкваренный за то, что прошел босиком по полу в хате, особенно возле толчка, или в барачном толчке. Непроткнутая масть."
+            "🔄 КРУГЛЯК – петух, ебомый как орально, так и анально, иногда одновременно. Проткнутая масть."
+            "💨 ГАЗОНЮХ – Опущ, которого заставляют по команде «Пацан хочет пернуть» подбегать к блатным, присасываться ртом к их жопе и вдыхать в себя их выперженные газы, выдыхая их позже в форточку.'"
+            "👑 КОРОЛЬ ВСЕХ МАСТЕЙ – особо стремный петух, собравший все или многие из петушиных мастей. Естественно, масть проткнутая, с целым пуканом королем всех мастей не стать.'"
+            "✊ МАСЛОБОЙ – мастурбатор, который рукой дрочит хуй другим пацанам. Непроткнутая масть, хоть и через хуй.'"
+            "🦌 ГАШЕНЫЙ – зашкваренный за то, что по воле лизал бабе пилотку или целовал бабу в губы после сосания ею хуя. Естественно, признаются в этом на тюрячке только конченые долбоебы или пряники. После этого, естественно, немедленно отселяются в петушиный угол и получают дырявую миску. Непроткнутая масть.'"
+          )
+          RANDOM_INDEX=$(( RANDOM % ${#MESSAGES[@]} ))
+          echo "message=${MESSAGES[$RANDOM_INDEX]}" >> $GITHUB_OUTPUT
+      
+      - name: Send email notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: '🚀 Новый пуш в ${{ github.repository }} от ${{ github.actor }}'
+          to: ${{ secrets.TEAM_EMAIL }}
+          from: 'TeamKOMAP'
+          reply_to: 'noreply@github.com'
+          body: |
+            📌 Автор: ${{ github.actor }}
+            📦 Коммит: ${{ github.event.head_commit.message }}
+            🌿 Ветка: ${{ github.ref_name }}
+            📊 Коммитов в пуше: ${{ github.event.commits.length }}
+            
+            🎯 Масть тимлида:
+            ${{ steps.generate_message.outputs.message }}
+            
+            ——————————————
+            🔗 Ссылка на коммит: ${{ github.event.head_commit.url }}
+            
+            Это автоматическое уведомление о пуше в репозиторий.
