@@ -1,11 +1,11 @@
-name: Email on Every Push
+name: PushNotification
 on: [push]
 
 jobs:
   send-email:
     runs-on: ubuntu-latest
     steps:
-      - name: Generate funny message
+      - name: Masti
         id: generate_message
         run: |
           MESSAGES=(
@@ -19,7 +19,7 @@ jobs:
           RANDOM_INDEX=$(( RANDOM % ${#MESSAGES[@]} ))
           echo "message=${MESSAGES[$RANDOM_INDEX]}" >> $GITHUB_OUTPUT
       
-      - name: Send email notification
+      - name: Send email
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.gmail.com
