@@ -1,4 +1,6 @@
-﻿namespace TaskManager.Domain.Entities
+﻿using System;
+
+namespace TaskManager.Domain.Entities
 {
     public class TaskTag
     {

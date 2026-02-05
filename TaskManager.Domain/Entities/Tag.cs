@@ -1,5 +1,8 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Linq;
 
 namespace TaskManager.Domain.Entities
 {
@@ -14,7 +17,7 @@ namespace TaskManager.Domain.Entities
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation properties (many-to-many)
-        public virtual ICollection<TaskTag> TaskTags { get; set; } = new List<TaskTag>(); // ← ИЗМЕНИТЬ!
+        public virtual ICollection<TaskTag> TaskTags { get; set; } = new List<TaskTag>(); 
 
         // Helper property to get Tasks directly
         [NotMapped]

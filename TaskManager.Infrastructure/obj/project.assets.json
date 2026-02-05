@@ -2,32 +2,6 @@
   "version": 3,
   "targets": {
     "net8.0": {
-      "AutoMapper/12.0.1": {
-        "type": "package",
-        "compile": {
-          "lib/netstandard2.1/AutoMapper.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/netstandard2.1/AutoMapper.dll": {
-            "related": ".xml"
-          }
-        }
-      },
-      "FluentValidation/11.8.1": {
-        "type": "package",
-        "compile": {
-          "lib/net7.0/FluentValidation.dll": {
-            "related": ".xml"
-          }
-        },
-        "runtime": {
-          "lib/net7.0/FluentValidation.dll": {
-            "related": ".xml"
-          }
-        }
-      },
       "Humanizer.Core/2.14.1": {
         "type": "package",
         "compile": {
@@ -897,22 +871,6 @@
           "buildTransitive/netcoreapp3.1/_._": {}
         }
       },
-      "TaskManager.Application/1.0.0": {
-        "type": "project",
-        "framework": ".NETCoreApp,Version=v8.0",
-        "dependencies": {
-          "AutoMapper": "12.0.1",
-          "FluentValidation": "11.8.1",
-          "Microsoft.EntityFrameworkCore": "8.0.0",
-          "TaskManager.Domain": "1.0.0"
-        },
-        "compile": {
-          "bin/placeholder/TaskManager.Application.dll": {}
-        },
-        "runtime": {
-          "bin/placeholder/TaskManager.Application.dll": {}
-        }
-      },
       "TaskManager.Domain/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v8.0",
@@ -926,44 +884,6 @@
     }
   },
   "libraries": {
-    "AutoMapper/12.0.1": {
-      "sha512": "hvV62vl6Hp/WfQ24yzo3Co9+OPl8wH8hApwVtgWpiAynVJkUcs7xvehnSftawL8Pe8FrPffBRM3hwzLQqWDNjA==",
-      "type": "package",
-      "path": "automapper/12.0.1",
-      "files": [
-        ".nupkg.metadata",
-        ".signature.p7s",
-        "README.md",
-        "automapper.12.0.1.nupkg.sha512",
-        "automapper.nuspec",
-        "icon.png",
-        "lib/netstandard2.1/AutoMapper.dll",
-        "lib/netstandard2.1/AutoMapper.xml"
-      ]
-    },
-    "FluentValidation/11.8.1": {
-      "sha512": "N72rnlE99XYB7EGA1u9y7m7kNTTynqOPBhZqDE8zr1Y0aSR4t5si94LRA7UVdAV09GaXWCErW+EiFhfbg3DSbg==",
-      "type": "package",
-      "path": "fluentvalidation/11.8.1",
-      "files": [
-        ".nupkg.metadata",
-        ".signature.p7s",
-        "README.md",
-        "fluent-validation-icon.png",
-        "fluentvalidation.11.8.1.nupkg.sha512",
-        "fluentvalidation.nuspec",
-        "lib/net5.0/FluentValidation.dll",
-        "lib/net5.0/FluentValidation.xml",
-        "lib/net6.0/FluentValidation.dll",
-        "lib/net6.0/FluentValidation.xml",
-        "lib/net7.0/FluentValidation.dll",
-        "lib/net7.0/FluentValidation.xml",
-        "lib/netstandard2.0/FluentValidation.dll",
-        "lib/netstandard2.0/FluentValidation.xml",
-        "lib/netstandard2.1/FluentValidation.dll",
-        "lib/netstandard2.1/FluentValidation.xml"
-      ]
-    },
     "Humanizer.Core/2.14.1": {
       "sha512": "lQKvtaTDOXnoVJ20ibTuSIOf2i0uO0MPbDhd1jm238I+U/2ZnRENj0cktKZhtchBMtCUSRQ5v4xBCUbKNmyVMw==",
       "type": "package",
@@ -2222,11 +2142,6 @@
         "useSharedDesignerContext.txt"
       ]
     },
-    "TaskManager.Application/1.0.0": {
-      "type": "project",
-      "path": "../TaskManager.Application/TaskManager.Application.csproj",
-      "msbuildProject": "../TaskManager.Application/TaskManager.Application.csproj"
-    },
     "TaskManager.Domain/1.0.0": {
       "type": "project",
       "path": "../TaskManager.Domain/TaskManager.Domain.csproj",
@@ -2238,7 +2153,7 @@
       "Microsoft.EntityFrameworkCore.Relational >= 8.0.0",
       "Microsoft.EntityFrameworkCore.Sqlite >= 8.0.0",
       "Microsoft.EntityFrameworkCore.Tools >= 8.0.0",
-      "TaskManager.Application >= 1.0.0"
+      "TaskManager.Domain >= 1.0.0"
     ]
   },
   "packageFolders": {
@@ -2274,8 +2189,8 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Application\\TaskManager.Application.csproj": {
-              "projectPath": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Application\\TaskManager.Application.csproj"
+            "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\TaskManager.Domain.csproj": {
+              "projectPath": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Domain\\TaskManager.Domain.csproj"
             }
           }
         }

@@ -1,11 +1,9 @@
 {
   "version": 2,
-  "dgSpecHash": "QgBT1E783vM=",
+  "dgSpecHash": "HLRZRITmsWk=",
   "success": true,
   "projectFilePath": "C:\\Users\\Makvay\\source\\repos\\TaskManager\\TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj",
   "expectedPackageFiles": [
-    "C:\\Users\\Makvay\\.nuget\\packages\\automapper\\12.0.1\\automapper.12.0.1.nupkg.sha512",
-    "C:\\Users\\Makvay\\.nuget\\packages\\fluentvalidation\\11.8.1\\fluentvalidation.11.8.1.nupkg.sha512",
     "C:\\Users\\Makvay\\.nuget\\packages\\humanizer.core\\2.14.1\\humanizer.core.2.14.1.nupkg.sha512",
     "C:\\Users\\Makvay\\.nuget\\packages\\microsoft.bcl.asyncinterfaces\\6.0.0\\microsoft.bcl.asyncinterfaces.6.0.0.nupkg.sha512",
     "C:\\Users\\Makvay\\.nuget\\packages\\microsoft.codeanalysis.analyzers\\3.3.3\\microsoft.codeanalysis.analyzers.3.3.3.nupkg.sha512",

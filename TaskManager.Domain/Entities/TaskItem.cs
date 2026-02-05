@@ -15,31 +15,28 @@ namespace TaskManager.Domain.Entities
         [MaxLength(1000)]
         public string? Description { get; set; }
 
-        // Foreign key to User
         public int? AssigneeId { get; set; }
 
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public System.DateTime CreatedAt { get; set; } = System.DateTime.UtcNow;
+        public System.DateTime? UpdatedAt { get; set; }
 
         [Required]
-        public DateTime DueDate { get; set; }
+        public System.DateTime DueDate { get; set; }
 
-        public DateTime? CompletedAt { get; set; }
+        public System.DateTime? CompletedAt { get; set; }
 
         [Required]
-        public Enums.TaskStatus Status { get; set; } = Enums.TaskStatus.New;
+        public TaskItemStatus Status { get; set; } = TaskItemStatus.New; 
 
         [Required]
         public TaskPriority Priority { get; set; } = TaskPriority.Medium;
 
-        // Navigation properties
         public virtual User? Assignee { get; set; }
-        public virtual ICollection<TaskTag> TaskTags { get; set; } = new List<TaskTag>(); // ← ИЗМЕНИТЬ!
+        public virtual System.Collections.Generic.ICollection<TaskTag> TaskTags { get; set; } = new System.Collections.Generic.List<TaskTag>();
 
-        // Helper property to get Tags directly
         [NotMapped]
-        public IEnumerable<Tag> Tags => TaskTags.Select(tt => tt.Tag);
+        public System.Collections.Generic.IEnumerable<Tag> Tags => TaskTags.Select(tt => tt.Tag);
 
-        // Computed property for overdue (business rule)
-        public bool IsOverdue => Status != Enums.TaskStatus.Done && DueDate < DateTime.UtcNow;
+        public bool IsOverdue => Status != TaskItemStatus.Done && DueDate < System.DateTime.UtcNow;  // ИЗМЕНИ!
     }
 }

@@ -2,7 +2,9 @@ C:\Users\Makvay\source\repos\TaskManager\TaskManager.Application\bin\Debug\net8.
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Application\bin\Debug\net8.0\TaskManager.Application.dll
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Application\bin\Debug\net8.0\TaskManager.Application.pdb
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Application\bin\Debug\net8.0\TaskManager.Domain.dll
+C:\Users\Makvay\source\repos\TaskManager\TaskManager.Application\bin\Debug\net8.0\TaskManager.Infrastructure.dll
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Application\bin\Debug\net8.0\TaskManager.Domain.pdb
+C:\Users\Makvay\source\repos\TaskManager\TaskManager.Application\bin\Debug\net8.0\TaskManager.Infrastructure.pdb
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Application\obj\Debug\net8.0\TaskManager.Application.csproj.AssemblyReference.cache
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Application\obj\Debug\net8.0\TaskManager.Application.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Application\obj\Debug\net8.0\TaskManager.Application.AssemblyInfoInputs.cache

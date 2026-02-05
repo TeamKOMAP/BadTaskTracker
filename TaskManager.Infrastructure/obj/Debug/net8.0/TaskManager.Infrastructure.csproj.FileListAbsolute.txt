@@ -1,9 +1,8 @@
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\bin\Debug\net8.0\TaskManager.Infrastructure.deps.json
+C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\bin\Debug\net8.0\TaskManager.Infrastructure.runtimeconfig.json
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\bin\Debug\net8.0\TaskManager.Infrastructure.dll
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\bin\Debug\net8.0\TaskManager.Infrastructure.pdb
-C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\bin\Debug\net8.0\TaskManager.Application.dll
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\bin\Debug\net8.0\TaskManager.Domain.dll
-C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\bin\Debug\net8.0\TaskManager.Application.pdb
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\bin\Debug\net8.0\TaskManager.Domain.pdb
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\obj\Debug\net8.0\TaskManager.Infrastructure.csproj.AssemblyReference.cache
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\obj\Debug\net8.0\TaskManager.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
@@ -15,4 +14,5 @@ C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\obj\Debug\ne
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\obj\Debug\net8.0\TaskManager.Infrastructure.dll
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\obj\Debug\net8.0\refint\TaskManager.Infrastructure.dll
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\obj\Debug\net8.0\TaskManager.Infrastructure.pdb
+C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\obj\Debug\net8.0\TaskManager.Infrastructure.genruntimeconfig.cache
 C:\Users\Makvay\source\repos\TaskManager\TaskManager.Infrastructure\obj\Debug\net8.0\ref\TaskManager.Infrastructure.dll
