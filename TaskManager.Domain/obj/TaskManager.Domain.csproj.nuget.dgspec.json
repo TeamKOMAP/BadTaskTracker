@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\saren\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {}
+    "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {}
   },
   "projects": {
-    "C:\\Users\\saren\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {
+    "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\saren\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj",
+        "projectUniqueName": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj",
         "projectName": "TaskManager.Domain",
-        "projectPath": "C:\\Users\\saren\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj",
-        "packagesPath": "C:\\Users\\saren\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\saren\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\obj\\",
+        "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj",
+        "packagesPath": "C:\\Users\\0_offlayt\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\saren\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\0_offlayt\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -44,7 +44,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "10.0.100"
+        "SdkAnalysisLevel": "9.0.300"
       },
       "frameworks": {
         "net8.0": {
@@ -65,7 +65,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.102/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
