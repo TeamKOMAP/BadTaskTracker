@@ -7,12 +7,16 @@ const addColumnBtn = document.getElementById("add-column");
 const viewButtons = document.querySelectorAll(".view-btn");
 const viewToggle = document.querySelector(".view-toggle");
 const styleToggle = document.getElementById("style-toggle");
+const styleSwitch = document.getElementById("style-switch");
+const styleToggleTitleEl = document.getElementById("style-toggle-title");
+const styleToggleSubEl = document.getElementById("style-toggle-sub");
 const flowLayout = document.getElementById("flow-layout");
 const flowCanvas = document.getElementById("flow-canvas");
 const flowLinks = document.getElementById("flow-links");
 const flowDropzone = document.getElementById("flow-dropzone");
 const flowListItems = document.querySelector(".flow-list-items");
 const flowAddTaskBtn = document.getElementById("flow-add-task");
+const calendarLayout = document.getElementById("calendar-layout");
 const taskModal = document.getElementById("task-modal");
 const taskForm = document.getElementById("task-form");
 const taskTheme = document.getElementById("task-theme");
@@ -33,11 +37,48 @@ const userAddInput = document.getElementById("user-add-input");
 const userAddBtn = document.getElementById("user-add-btn");
 const themeToggleBtn = document.getElementById("theme-toggle");
 const taskBgInput = document.getElementById("task-bg-input");
+const taskAttachmentsInput = document.getElementById("task-attachments-input");
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const brandTitleEl = document.querySelector(".brand-title");
+const userNameEl = document.querySelector(".user-name");
 
 const taskModalKicker = taskModal?.querySelector(".task-modal-kicker") || null;
 const taskModalTitleEl = document.getElementById("task-modal-title");
 const taskFormSubmitBtn = taskForm?.querySelector('button[type="submit"]') || null;
+
+const taskDetailModal = document.getElementById("task-detail-modal");
+const taskDetailTitleEl = document.getElementById("task-detail-title");
+const taskDetailEditBtn = document.getElementById("task-detail-edit");
+const taskDetailThemeBadge = document.getElementById("task-detail-theme-badge");
+const taskDetailStatusBadge = document.getElementById("task-detail-status-badge");
+const taskDetailPriorityBadge = document.getElementById("task-detail-priority-badge");
+const taskDetailDueBadge = document.getElementById("task-detail-due-badge");
+const taskDetailThemeEl = document.getElementById("task-detail-theme");
+const taskDetailStatusEl = document.getElementById("task-detail-status");
+const taskDetailPriorityEl = document.getElementById("task-detail-priority");
+const taskDetailIdEl = document.getElementById("task-detail-id");
+const taskDetailAssigneeEl = document.getElementById("task-detail-assignee");
+const taskDetailDueEl = document.getElementById("task-detail-due");
+const taskDetailCreatedEl = document.getElementById("task-detail-created");
+const taskDetailUpdatedEl = document.getElementById("task-detail-updated");
+const taskDetailCompletedEl = document.getElementById("task-detail-completed");
+const taskDetailTagsEl = document.getElementById("task-detail-tags");
+const taskDetailDescriptionEl = document.getElementById("task-detail-description");
+const taskDetailPhotoWrap = document.getElementById("task-detail-photo");
+const taskDetailPhotoImg = document.getElementById("task-detail-photo-img");
+const taskDetailPhotoBtn = document.getElementById("task-detail-photo-btn");
+const taskDetailPhotoClearBtn = document.getElementById("task-detail-photo-clear-btn");
+
+const taskAttachBtn = document.getElementById("task-attach-btn");
+const taskAttachmentsList = document.getElementById("task-attachments-list");
+const taskAttachmentsEmpty = document.getElementById("task-attachments-empty");
+
+let detailTaskId = null;
+let detailTaskCard = null;
+let pendingPhotoTaskId = null;
+
+let lastNormalizedTasks = [];
 
 const API_BASE = (() => {
   const params = new URLSearchParams(window.location.search);
@@ -48,6 +89,14 @@ const API_BASE = (() => {
 const DEFAULT_ASSIGNEE_ID = 1;
 const DEFAULT_DUE_DAYS = 7;
 const DEFAULT_PRIORITY_VALUE = 2;
+
+let currentAssigneeIdFilter = null;
+let currentUserId = null;
+
+let tagsLoaded = false;
+let tagList = [];
+const tagById = new Map();
+const tagByName = new Map();
 
 const URGENCY = {
   green: "green",
@@ -82,14 +131,45 @@ const STATUS_TO_COLUMN = {
   1: "todo",
   2: "progress",
   3: "done",
-  4: "archive"
+  4: "overdue"
 };
 
 const COLUMN_TO_STATUS = {
   todo: 1,
   progress: 2,
   done: 3,
-  archive: 4
+  overdue: 4
+};
+
+const buildApiUrl = (path, params) => {
+  const base = API_BASE.startsWith("http")
+    ? API_BASE
+    : `${window.location.origin}${API_BASE}`;
+  const url = new URL(`${base}${path.startsWith("/") ? "" : "/"}${path}`);
+  if (params && typeof params === "object") {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === "") return;
+      if (Array.isArray(value)) {
+        value.forEach((v) => url.searchParams.append(key, String(v)));
+        return;
+      }
+      url.searchParams.set(key, String(value));
+    });
+  }
+  return url.toString();
+};
+
+const fetchJsonOrNull = async (url, context, options) => {
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    await handleApiError(response, context);
+    return null;
+  }
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
 };
 
 const PRIORITY_VALUE_MAP = {
@@ -168,28 +248,56 @@ const setLayoutStyle = (style) => {
   }
 
   if (styleToggle) {
-    const title = styleToggle.querySelector(".style-toggle-title");
-    const sub = styleToggle.querySelector(".style-toggle-sub");
-    styleToggle.classList.toggle("is-flow", nextStyle === "flow");
     styleToggle.setAttribute("aria-pressed", nextStyle === "flow" ? "true" : "false");
-    if (title && sub) {
-      if (nextStyle === "flow") {
-        title.textContent = "Flow Map";
-        sub.textContent = "Back to Columns Board";
-      } else {
-        title.textContent = "Columns Board";
-        sub.textContent = "Switch to Flow Map";
-      }
+    if (nextStyle === "flow") {
+      styleToggle.setAttribute("aria-label", "Switch to Columns Board");
+      styleToggle.setAttribute("title", "Switch to Columns Board");
+    } else {
+      styleToggle.setAttribute("aria-label", "Switch to Flow Map");
+      styleToggle.setAttribute("title", "Switch to Flow Map");
     }
+  }
+
+  if (styleSwitch) {
+    styleSwitch.classList.toggle("is-flow", nextStyle === "flow");
+  }
+
+  if (styleToggleTitleEl) {
+    styleToggleTitleEl.textContent = nextStyle === "flow" ? "Flow Map" : "Columns Board";
+  }
+
+  if (styleToggleSubEl) {
+    styleToggleSubEl.textContent = "Click to switch";
   }
 
   if (viewToggle) {
     viewToggle.toggleAttribute("hidden", nextStyle === "flow");
   }
 
+  if (nextStyle === "flow") {
+    // Flow and Calendar/List share the same page; force board view so calendar doesn't linger.
+    setBoardView("board");
+    if (calendarLayout) {
+      calendarLayout.setAttribute("aria-hidden", "true");
+      calendarLayout.innerHTML = "";
+    }
+  }
+
   requestAnimationFrame(() => {
     updateFlowLines();
   });
+};
+
+const setBoardView = (view) => {
+  if (!board) return;
+  const next = view === "calendar" ? "calendar" : (view === "list" ? "list" : "board");
+  board.dataset.view = next;
+  viewButtons.forEach((btn) => {
+    const isActive = (btn.dataset.view || "board") === next;
+    btn.classList.toggle("is-active", isActive);
+    btn.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+  renderCurrentView();
 };
 
 const updateFlowEmptyState = () => {
@@ -221,6 +329,167 @@ const normalizeEmail = (value) => {
   if (!raw) return "";
   if (raw.includes("@")) return raw.toLowerCase();
   return `${raw.toLowerCase()}@goodtask.com`;
+};
+
+const upsertTagCache = (tag) => {
+  const id = Number(tag?.id);
+  const name = normalizeToken(tag?.name);
+  if (!Number.isFinite(id) || !name) return;
+  tagById.set(id, name);
+  tagByName.set(name.toLowerCase(), { id, name });
+};
+
+const loadTagsFromApi = async () => {
+  const tags = await fetchJsonOrNull(buildApiUrl("/tags"), "Load tags", {
+    headers: { Accept: "application/json" }
+  });
+  if (!Array.isArray(tags)) return;
+
+  tagList = tags
+    .map((t) => ({ id: Number(t.id), name: normalizeToken(t.name) }))
+    .filter((t) => Number.isFinite(t.id) && t.name)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  tagById.clear();
+  tagByName.clear();
+  tagList.forEach((t) => upsertTagCache(t));
+  tagsLoaded = true;
+};
+
+const ensureTagsLoaded = async () => {
+  if (tagsLoaded) return;
+  await loadTagsFromApi();
+};
+
+const ensureTagId = async (name) => {
+  const cleaned = normalizeToken(name).replace(/^#/, "");
+  if (!cleaned) return null;
+
+  await ensureTagsLoaded();
+  const cached = tagByName.get(cleaned.toLowerCase());
+  if (cached) return cached.id;
+
+  const created = await fetchJsonOrNull(buildApiUrl("/tags"), "Create tag", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({ name: cleaned })
+  });
+
+  if (created && created.id) {
+    upsertTagCache(created);
+    tagList = Array.from(tagById.entries())
+      .map(([id, tagName]) => ({ id, name: tagName }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return Number(created.id);
+  }
+
+  await loadTagsFromApi();
+  const again = tagByName.get(cleaned.toLowerCase());
+  return again ? again.id : null;
+};
+
+const resolveTagIdsForTask = async (theme, tags) => {
+  const names = [];
+  const add = (value) => {
+    const cleaned = normalizeToken(value).replace(/^#/, "");
+    if (!cleaned) return;
+    const key = cleaned.toLowerCase();
+    if (!names.some((n) => n.toLowerCase() === key)) names.push(cleaned);
+  };
+  add(theme);
+  (Array.isArray(tags) ? tags : []).forEach(add);
+
+  const ids = [];
+  for (const tagName of names) {
+    // eslint-disable-next-line no-await-in-loop
+    const id = await ensureTagId(tagName);
+    if (Number.isFinite(Number(id))) ids.push(Number(id));
+  }
+  return ids;
+};
+
+const buildUserItemFromApi = (user, options) => {
+  const id = Number(user?.id);
+  const name = normalizeToken(user?.name) || "UnnamedUser";
+  const email = normalizeToken(user?.email);
+
+  const item = buildUserItem(name, email);
+  item.dataset.userId = Number.isFinite(id) ? String(id) : "";
+  item.dataset.userKey = `${id} ${name} ${email}`.toLowerCase();
+  if (options?.isCurrent) item.classList.add("is-current");
+  return item;
+};
+
+const setCurrentUser = (user) => {
+  const id = user && Number.isFinite(Number(user.id)) ? Number(user.id) : null;
+  currentUserId = id;
+  currentAssigneeIdFilter = id;
+
+  if (brandTitleEl) brandTitleEl.textContent = user?.name || "All";
+  if (userNameEl) userNameEl.textContent = user?.email || "All tasks";
+
+  if (userList) {
+    Array.from(userList.querySelectorAll(".user-item")).forEach((el) => {
+      const elId = el.dataset.userId ? Number.parseInt(el.dataset.userId, 10) : null;
+      const isCurrent = id !== null && Number.isFinite(elId) && elId === id;
+      el.classList.toggle("is-current", isCurrent);
+    });
+  }
+};
+
+const setAllUsersMode = () => {
+  currentUserId = null;
+  currentAssigneeIdFilter = null;
+
+  if (brandTitleEl) brandTitleEl.textContent = "All";
+  if (userNameEl) userNameEl.textContent = "All tasks";
+
+  if (userList) {
+    Array.from(userList.querySelectorAll(".user-item")).forEach((el) => {
+      el.classList.toggle("is-current", el.dataset.userId === "");
+    });
+  }
+};
+
+const loadUsersFromApi = async () => {
+  const users = await fetchJsonOrNull(buildApiUrl("/users"), "Load users", {
+    headers: { Accept: "application/json" }
+  });
+  if (!Array.isArray(users) || !userList) return;
+
+  userList.innerHTML = "";
+
+  const allItem = buildUserItem("All", "All tasks");
+  allItem.dataset.userId = "";
+  allItem.classList.add("is-current");
+  allItem.addEventListener("click", async () => {
+    setAllUsersMode();
+    await loadTasksFromApi();
+  });
+  userList.appendChild(allItem);
+
+  users
+    .map((u) => ({
+      id: Number(u.id),
+      name: normalizeToken(u.name),
+      email: normalizeToken(u.email)
+    }))
+    .filter((u) => Number.isFinite(u.id) && u.name && u.email)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .forEach((u) => {
+      const item = buildUserItemFromApi(u);
+      item.addEventListener("click", async () => {
+        setCurrentUser(u);
+        await loadTasksFromApi();
+      });
+      userList.appendChild(item);
+    });
+
+  refreshUserFilter();
+  setAllUsersMode();
 };
 
 const toStatusValue = (status) => {
@@ -489,29 +758,303 @@ const addUniqueToken = (map, value) => {
 
 const collectThemeOptions = () => {
   const map = new Map();
-  document.querySelectorAll(".task-tag").forEach((el) => {
-    if (el.closest(".task-card.is-empty")) return;
-    addUniqueToken(map, el.textContent);
-  });
-  document.querySelectorAll(".flow-task-tag").forEach((el) => {
-    addUniqueToken(map, el.textContent);
-  });
+  tagList.forEach((t) => addUniqueToken(map, t.name));
   if (map.size === 0) {
     map.set("general", "General");
   }
   return Array.from(map.values());
 };
 
+const setTaskCardAttachmentCount = (card, count) => {
+  if (!card) return;
+  const indicator = card.querySelector(".task-attachment-indicator");
+  const countEl = card.querySelector(".task-attachment-count");
+  const n = Number(count);
+  const has = Number.isFinite(n) && n > 0;
+  if (indicator) {
+    indicator.hidden = !has;
+    indicator.title = has ? `${n} attachment${n === 1 ? "" : "s"}` : "";
+  }
+  if (countEl) {
+    countEl.textContent = has ? String(n) : "";
+  }
+  card.dataset.attachmentCount = has ? String(n) : "0";
+};
+
+const applyAttachmentCountToCards = (id, count) => {
+  document.querySelectorAll(`.task-card[data-task-id="${id}"]`).forEach((card) => {
+    setTaskCardAttachmentCount(card, count);
+  });
+};
+
+// No auth in this demo UI; allow admin actions.
+const isAdmin = () => true;
+
+const formatIso = (iso) => {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleString();
+};
+
+const formatBytes = (value) => {
+  const size = Number(value);
+  if (!Number.isFinite(size) || size <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  let u = 0;
+  let n = size;
+  while (n >= 1024 && u < units.length - 1) {
+    n /= 1024;
+    u += 1;
+  }
+  const digits = u === 0 ? 0 : (u === 1 ? 0 : 1);
+  return `${n.toFixed(digits)} ${units[u]}`;
+};
+
+const renderAttachments = (attachments) => {
+  if (!taskAttachmentsList || !taskAttachmentsEmpty) return;
+  taskAttachmentsList.innerHTML = "";
+
+  const list = Array.isArray(attachments) ? attachments : [];
+  taskAttachmentsEmpty.hidden = list.length > 0;
+  if (list.length === 0) {
+    taskAttachmentsEmpty.textContent = "No attachments";
+  }
+
+  list.forEach((att) => {
+    const id = normalizeToken(att?.id);
+    const name = normalizeToken(att?.fileName) || "file";
+    const url = normalizeToken(att?.downloadUrl) || buildApiUrl(`/tasks/${detailTaskId}/attachments/${id}`);
+    const size = formatBytes(att?.size);
+    const uploaded = att?.uploadedAtUtc ? formatIso(att.uploadedAtUtc) : "-";
+
+    const row = document.createElement("div");
+    row.className = "task-attachment";
+
+    const ico = document.createElement("div");
+    ico.className = "task-attachment-ico";
+    ico.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M14 2H7a3 3 0 0 0-3 3v14a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3V8l-6-6z" />
+        <path d="M14 2v6h6" />
+      </svg>
+    `;
+
+    const main = document.createElement("div");
+    main.className = "task-attachment-main";
+    const title = document.createElement("div");
+    title.className = "task-attachment-name";
+    title.textContent = name;
+    const sub = document.createElement("div");
+    sub.className = "task-attachment-sub";
+    sub.textContent = `${size} · ${uploaded}`;
+    main.append(title, sub);
+
+    const actions = document.createElement("div");
+    actions.className = "task-attachment-actions";
+    const link = document.createElement("a");
+    link.className = "task-attachment-link";
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener";
+    link.textContent = "Download";
+    actions.appendChild(link);
+
+    if (isAdmin()) {
+      const del = document.createElement("button");
+      del.type = "button";
+      del.className = "task-attachment-del";
+      del.textContent = "Delete";
+      del.addEventListener("click", async () => {
+        if (!detailTaskId || !id) return;
+        await fetch(buildApiUrl(`/tasks/${detailTaskId}/attachments/${id}`), { method: "DELETE" });
+        void loadAttachmentsForDetail();
+      });
+      actions.appendChild(del);
+    }
+
+    row.append(ico, main, actions);
+    taskAttachmentsList.appendChild(row);
+  });
+};
+
+const loadAttachmentsForDetail = async () => {
+  if (!detailTaskId) return;
+  const attachments = await fetchJsonOrNull(buildApiUrl(`/tasks/${detailTaskId}/attachments`), "Load attachments", {
+    headers: { Accept: "application/json" }
+  });
+  if (!attachments) {
+    if (taskAttachmentsList) taskAttachmentsList.innerHTML = "";
+    if (taskAttachmentsEmpty) {
+      taskAttachmentsEmpty.hidden = false;
+      taskAttachmentsEmpty.textContent = "Failed to load attachments";
+    }
+    return;
+  }
+  const list = Array.isArray(attachments) ? attachments : [];
+  renderAttachments(list);
+  applyAttachmentCountToCards(detailTaskId, list.length);
+};
+
+const uploadAttachmentsForDetail = async (files) => {
+  if (!detailTaskId) return;
+  const list = Array.isArray(files) ? files.filter(Boolean) : Array.from(files || []).filter(Boolean);
+  if (!list.length) return;
+
+  const form = new FormData();
+  list.forEach((file) => form.append("files", file));
+
+  const response = await fetch(buildApiUrl(`/tasks/${detailTaskId}/attachments`), {
+    method: "POST",
+    body: form
+  });
+  if (!response.ok) {
+    await handleApiError(response, "Upload attachments");
+    if (taskAttachmentsEmpty) {
+      taskAttachmentsEmpty.hidden = false;
+      taskAttachmentsEmpty.textContent = "Upload failed. Open console for details.";
+    }
+    return;
+  }
+  await loadAttachmentsForDetail();
+};
+
+const setDetailField = (el, value) => {
+  if (!el) return;
+  el.textContent = normalizeToken(value) || "-";
+};
+
+const renderDetailTags = (tagIds, fallbackNames) => {
+  if (!taskDetailTagsEl) return;
+  taskDetailTagsEl.innerHTML = "";
+
+  const ids = Array.isArray(tagIds) ? tagIds : [];
+  const names = ids
+    .map((id) => tagById.get(Number(id)) || "")
+    .map((name) => normalizeToken(name))
+    .filter(Boolean);
+  const merged = names.length ? names : (Array.isArray(fallbackNames) ? fallbackNames : []);
+
+  if (!merged.length) {
+    const empty = document.createElement("span");
+    empty.className = "task-chip";
+    empty.textContent = "No tags";
+    taskDetailTagsEl.appendChild(empty);
+    return;
+  }
+
+  merged.forEach((name) => {
+    const chip = document.createElement("span");
+    chip.className = "task-chip";
+    chip.textContent = name;
+    taskDetailTagsEl.appendChild(chip);
+  });
+};
+
+const closeTaskDetailModal = () => {
+  if (!taskDetailModal) return;
+  taskDetailModal.setAttribute("hidden", "");
+  detailTaskId = null;
+  detailTaskCard = null;
+  if (taskAttachmentsList) taskAttachmentsList.innerHTML = "";
+  if (taskAttachmentsEmpty) taskAttachmentsEmpty.hidden = true;
+};
+
+const openTaskDetailModalForTask = async (taskId, card) => {
+  if (!taskDetailModal) return;
+  const id = Number(taskId);
+  if (!Number.isFinite(id)) return;
+
+  detailTaskId = id;
+  detailTaskCard = card || null;
+
+  await ensureTagsLoaded();
+  const task = await fetchJsonOrNull(buildApiUrl(`/tasks/${id}`), "Load task", {
+    headers: { Accept: "application/json" }
+  });
+  if (!task) return;
+
+  const statusValue = toStatusValue(task.status);
+  const priorityValue = toPriorityValue(task.priority);
+  const tagIds = Array.isArray(task.tagIds) ? task.tagIds : [];
+  const meta = getStoredTaskMeta(id);
+  const theme = normalizeToken(meta?.theme) || (tagIds[0] ? (tagById.get(Number(tagIds[0])) || "") : "");
+  const title = normalizeToken(task.title);
+  const description = normalizeToken(task.description);
+  const dueLabel = formatDueLabel(task.dueDate, statusValue);
+  const urgency = getUrgency(task.dueDate, statusValue);
+
+  if (taskDetailTitleEl) taskDetailTitleEl.textContent = title || `Task #${id}`;
+  setDetailField(taskDetailIdEl, `#${id}`);
+
+  if (taskDetailThemeBadge) {
+    taskDetailThemeBadge.dataset.kind = "theme";
+    taskDetailThemeBadge.textContent = theme || "Theme";
+  }
+  if (taskDetailStatusBadge) {
+    taskDetailStatusBadge.dataset.kind = "status";
+    taskDetailStatusBadge.dataset.status = String(statusValue);
+    taskDetailStatusBadge.textContent = STATUS_LABELS[statusValue] || "Status";
+  }
+  if (taskDetailPriorityBadge) {
+    taskDetailPriorityBadge.dataset.kind = "priority";
+    taskDetailPriorityBadge.dataset.priority = String(priorityValue);
+    taskDetailPriorityBadge.textContent = `Priority: ${PRIORITY_LABELS[priorityValue] || "medium"}`;
+  }
+  if (taskDetailDueBadge) {
+    taskDetailDueBadge.dataset.kind = "due";
+    taskDetailDueBadge.dataset.urgency = urgency;
+    taskDetailDueBadge.textContent = dueLabel;
+  }
+
+  setDetailField(taskDetailThemeEl, theme || STATUS_LABELS[statusValue]);
+  setDetailField(taskDetailStatusEl, STATUS_LABELS[statusValue]);
+  setDetailField(taskDetailPriorityEl, PRIORITY_LABELS[priorityValue] || "medium");
+  setDetailField(taskDetailAssigneeEl, task.assigneeName ? `${task.assigneeName} (#${task.assigneeId})` : (task.assigneeId ? `#${task.assigneeId}` : "Not assigned"));
+  setDetailField(taskDetailDueEl, `${dueLabel} (${formatIso(task.dueDate)})`);
+  setDetailField(taskDetailCreatedEl, formatIso(task.createdAt));
+  setDetailField(taskDetailUpdatedEl, formatIso(task.updatedAt));
+  setDetailField(taskDetailCompletedEl, formatIso(task.completedAt));
+  setDetailField(taskDetailDescriptionEl, description || "-");
+
+  const metaTags = Array.isArray(meta?.tags) ? meta.tags : [];
+  renderDetailTags(tagIds, metaTags);
+
+  const photo = getStoredTaskBg(id);
+  if (taskDetailPhotoWrap && taskDetailPhotoImg) {
+    if (photo) {
+      taskDetailPhotoImg.src = photo;
+      taskDetailPhotoWrap.removeAttribute("hidden");
+    } else {
+      taskDetailPhotoImg.removeAttribute("src");
+      taskDetailPhotoWrap.setAttribute("hidden", "");
+    }
+  }
+
+  if (taskAttachBtn) {
+    taskAttachBtn.toggleAttribute("hidden", !isAdmin());
+  }
+
+  await loadAttachmentsForDetail();
+
+  if (taskDetailEditBtn) {
+    taskDetailEditBtn.toggleAttribute("hidden", !isAdmin());
+  }
+
+  if (taskDetailPhotoBtn) {
+    taskDetailPhotoBtn.toggleAttribute("hidden", !isAdmin());
+  }
+
+  if (taskDetailPhotoClearBtn) {
+    taskDetailPhotoClearBtn.toggleAttribute("hidden", !isAdmin());
+  }
+
+  taskDetailModal.removeAttribute("hidden");
+};
+
 const collectTagOptions = () => {
   const map = new Map();
-  document.querySelectorAll(".task-chip").forEach((chip) => {
-    addUniqueToken(map, chip.textContent);
-  });
-  document.querySelectorAll(".flow-task").forEach((task) => {
-    const note = normalizeToken(task.dataset.taskNote);
-    if (!note || note.toLowerCase() === "no tags") return;
-    note.split("•").forEach((token) => addUniqueToken(map, token));
-  });
+  tagList.forEach((t) => addUniqueToken(map, t.name));
   return Array.from(map.values());
 };
 
@@ -649,6 +1192,9 @@ const openTaskModal = (column) => {
   if (taskDue) {
     taskDue.value = getDefaultDueDateLocalValue();
   }
+  if (taskAssignee) {
+    taskAssignee.value = currentUserId ? String(currentUserId) : String(DEFAULT_ASSIGNEE_ID);
+  }
   renderThemeOptions();
   renderTagOptions();
   renderTagPreview([]);
@@ -776,7 +1322,22 @@ const createTaskCard = (taskData) => {
   const time = document.createElement("span");
   time.className = "task-time";
   time.textContent = formatDueLabel(card.dataset.dueDate || taskData.dueDate, statusValue);
-  head.append(tag, time);
+
+  const meta = document.createElement("div");
+  meta.className = "task-head-meta";
+
+  const attachments = document.createElement("span");
+  attachments.className = "task-attachment-indicator";
+  attachments.hidden = true;
+  attachments.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M21 11.5l-8.6 8.6a6 6 0 0 1-8.5-8.5l9.2-9.2a4.5 4.5 0 0 1 6.4 6.4l-9.2 9.2a3 3 0 0 1-4.2-4.2l8.6-8.6" />
+    </svg>
+    <span class="task-attachment-count"></span>
+  `;
+
+  meta.append(time, attachments);
+  head.append(tag, meta);
 
   const title = document.createElement("h3");
   title.textContent = taskData.title || "Untitled task";
@@ -794,37 +1355,12 @@ const createTaskCard = (taskData) => {
     footer.appendChild(chip);
   });
 
-  if (taskData.id !== undefined && taskData.id !== null) {
-    const actions = document.createElement("div");
-    actions.className = "task-actions";
-
-    const editBtn = document.createElement("button");
-    editBtn.type = "button";
-    editBtn.className = "task-action-btn";
-    editBtn.textContent = "Edit";
-    editBtn.dataset.action = "task-edit";
-    editBtn.dataset.taskId = String(taskData.id);
-
-    const photoBtn = document.createElement("button");
-    photoBtn.type = "button";
-    photoBtn.className = "task-action-btn";
-    photoBtn.textContent = "Photo";
-    photoBtn.dataset.action = "task-photo";
-    photoBtn.dataset.taskId = String(taskData.id);
-
-    const clearBtn = document.createElement("button");
-    clearBtn.type = "button";
-    clearBtn.className = "task-action-btn";
-    clearBtn.textContent = "Clear";
-    clearBtn.dataset.action = "task-photo-clear";
-    clearBtn.dataset.taskId = String(taskData.id);
-
-    actions.append(editBtn, photoBtn, clearBtn);
-    footer.appendChild(actions);
-  }
-
   card.append(head, title, text, footer);
   initTaskCard(card);
+  if (taskData.id !== undefined && taskData.id !== null) {
+    // will be refreshed after load; keep initial hidden
+    setTaskCardAttachmentCount(card, Number(card.dataset.attachmentCount || 0));
+  }
   return card;
 };
 
@@ -832,13 +1368,8 @@ const createFlowTaskItem = (taskData) => {
   const item = document.createElement("div");
   item.className = "flow-task";
   item.setAttribute("draggable", "true");
-  const tags = Array.isArray(taskData.tags) ? taskData.tags : [];
-  const statusValue = toStatusValue(taskData.statusValue ?? taskData.status);
-  const dueShort = formatShortDate(taskData.dueDate);
-  const noteParts = [];
-  if (dueShort) noteParts.push(`Due ${dueShort}`);
-  if (tags.length) noteParts.push(tags.join(" • "));
-  const note = noteParts.length ? noteParts.join(" • ") : formatDueLabel(taskData.dueDate, statusValue);
+  const statusValue = toStatusValue(taskData?.statusValue ?? taskData?.status);
+  const note = buildFlowNote(taskData);
   item.dataset.taskTitle = taskData.title || "New task";
   item.dataset.taskTag = taskData.theme || "Task";
   item.dataset.taskNote = note;
@@ -846,6 +1377,11 @@ const createFlowTaskItem = (taskData) => {
   if (taskData.id !== undefined && taskData.id !== null) {
     item.dataset.taskId = String(taskData.id);
   }
+  item.dataset.taskKey = buildTaskKey({
+    title: item.dataset.taskTitle,
+    tag: item.dataset.taskTag,
+    note: item.dataset.taskNote
+  });
   if (taskData.dueDate) item.dataset.taskDueDate = taskData.dueDate;
   item.dataset.taskUrgency = getUrgency(taskData.dueDate, statusValue);
 
@@ -964,6 +1500,11 @@ const normalizeApiTask = (task) => {
   const meta = task?.id !== undefined && task?.id !== null ? getStoredTaskMeta(task.id) : null;
   const metaTheme = meta?.theme ? meta.theme : "";
   const metaTags = meta?.tags && meta.tags.length ? meta.tags : null;
+  const apiTagNames = tagIds
+    .map((id) => tagById.get(Number(id)) || "")
+    .map((name) => normalizeToken(name))
+    .filter(Boolean);
+  const fallbackTheme = apiTagNames[0] || STATUS_LABELS[statusValue] || "Task";
   return {
     id: task?.id,
     title: task?.title || "Untitled task",
@@ -972,8 +1513,8 @@ const normalizeApiTask = (task) => {
     priorityValue,
     assigneeId: task?.assigneeId ?? null,
     dueDate: task?.dueDate,
-    theme: metaTheme || STATUS_LABELS[statusValue] || "Task",
-    tags: metaTags || tagIds.map((id) => `Tag-${id}`),
+    theme: metaTheme || fallbackTheme,
+    tags: metaTags || (apiTagNames.length ? apiTagNames : tagIds.map((id) => `Tag-${id}`)),
     tagIds
   };
 };
@@ -986,27 +1527,21 @@ const addTaskToBoard = (taskData) => {
   addTaskToColumn(column, taskCard);
   ensureColumnPlaceholder(column);
   updateColumnCount(column);
-  const flowItem = createFlowTaskItem(taskData);
-  if (flowListItems) {
-    flowListItems.appendChild(flowItem);
-    if (typeof initFlowTask === "function") {
-      initFlowTask(flowItem);
-    }
-  }
 };
 
-const clearExistingTasks = () => {
+const clearBoardTasks = () => {
   document.querySelectorAll(".column .task-card").forEach((card) => card.remove());
-  if (flowListItems) {
-    flowListItems.querySelectorAll(".flow-task").forEach((item) => item.remove());
-  }
-  if (flowCanvas) {
-    flowCanvas.querySelectorAll(".flow-node").forEach((node) => node.remove());
-  }
-  if (flowLinks) {
-    flowLinks.querySelectorAll(".flow-line").forEach((line) => line.remove());
-  }
-  flowConnections.clear();
+};
+
+const rebuildFlowPool = (tasks) => {
+  if (!flowListItems) return;
+  flowListItems.querySelectorAll(".flow-task").forEach((item) => item.remove());
+
+  (Array.isArray(tasks) ? tasks : []).forEach((taskData) => {
+    const flowItem = createFlowTaskItem(taskData);
+    flowListItems.appendChild(flowItem);
+    initFlowTask(flowItem);
+  });
 };
 
 const handleApiError = async (response, context) => {
@@ -1020,7 +1555,9 @@ const handleApiError = async (response, context) => {
 };
 
 const fetchTasks = async () => {
-  const response = await fetch(`${API_BASE}/tasks`, {
+  const response = await fetch(buildApiUrl("/tasks", {
+    assigneeId: currentAssigneeIdFilter
+  }), {
     headers: {
       Accept: "application/json"
     }
@@ -1049,7 +1586,7 @@ const createTaskViaApi = async (uiTaskData) => {
     tagIds
   };
 
-  const response = await fetch(`${API_BASE}/tasks`, {
+  const response = await fetch(buildApiUrl("/tasks"), {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -1073,8 +1610,8 @@ const createTaskViaApi = async (uiTaskData) => {
   }
   if (theme) taskData.theme = theme;
   if (tags.length) taskData.tags = tags;
-  addTaskToBoard(taskData);
   closeTaskModal();
+  await loadTasksFromApi();
 };
 
 const upsertTaskChips = (footer, tags) => {
@@ -1114,6 +1651,11 @@ const updateFlowTaskItemForId = (id, taskData) => {
   item.dataset.taskTag = taskData.theme || "Task";
   item.dataset.taskNote = note;
   item.dataset.taskDescription = taskData.description || "";
+  item.dataset.taskKey = buildTaskKey({
+    title: item.dataset.taskTitle,
+    tag: item.dataset.taskTag,
+    note: item.dataset.taskNote
+  });
   if (taskData.dueDate) {
     item.dataset.taskDueDate = taskData.dueDate;
   } else {
@@ -1127,6 +1669,7 @@ const updateFlowTaskItemForId = (id, taskData) => {
   if (titleEl) titleEl.textContent = taskData.title || "New task";
   const noteEl = item.querySelector(".flow-task-note");
   if (noteEl) noteEl.textContent = note;
+
 };
 
 const updateTaskViaApi = async (id, uiTaskData) => {
@@ -1135,7 +1678,7 @@ const updateTaskViaApi = async (id, uiTaskData) => {
   if (!(card instanceof Element)) return;
 
   const statusValue = toStatusValue(card.dataset.taskStatus);
-  const tagIds = parseTagIds(card.dataset.tagIds);
+  const tagIds = Array.isArray(uiTaskData.tagIds) ? uiTaskData.tagIds : [];
 
   const assigneeIdParsed = Number.parseInt(String(uiTaskData.assigneeId ?? ""), 10);
   const assigneeId = Number.isFinite(assigneeIdParsed) && assigneeIdParsed > 0 ? assigneeIdParsed : null;
@@ -1155,7 +1698,7 @@ const updateTaskViaApi = async (id, uiTaskData) => {
     tagIds
   };
 
-  const response = await fetch(`${API_BASE}/tasks/${id}`, {
+  const response = await fetch(buildApiUrl(`/tasks/${id}`), {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -1190,6 +1733,7 @@ const updateTaskViaApi = async (id, uiTaskData) => {
   card.dataset.dueDate = dueDate;
   card.dataset.priorityValue = String(priority);
   card.dataset.priority = getPriorityLabel(priority);
+  card.dataset.tagIds = tagIds.join(",");
 
   const footer = card.querySelector(".task-footer");
   upsertTaskChips(footer, tags);
@@ -1206,9 +1750,8 @@ const updateTaskViaApi = async (id, uiTaskData) => {
   });
 
   closeTaskModal();
+  await loadTasksFromApi();
 };
-
-let pendingPhotoTaskId = null;
 
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -1243,7 +1786,7 @@ const updateTaskStatus = async (card, statusValue) => {
   const id = Number.parseInt(card.dataset.taskId || "", 10);
   if (!Number.isFinite(id)) return;
   const payload = buildUpdatePayloadFromCard(card, statusValue);
-  const response = await fetch(`${API_BASE}/tasks/${id}`, {
+  const response = await fetch(buildApiUrl(`/tasks/${id}`), {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -1253,16 +1796,162 @@ const updateTaskStatus = async (card, statusValue) => {
   });
   if (!response.ok) {
     await handleApiError(response, "Update task");
+    return;
   }
+
+  await loadTasksFromApi();
 };
 
 const loadTasksFromApi = async () => {
+  await ensureTagsLoaded();
   const tasks = await fetchTasks();
   if (!Array.isArray(tasks)) return;
-  clearExistingTasks();
-  tasks.forEach((task) => {
-    addTaskToBoard(normalizeApiTask(task));
+  lastNormalizedTasks = tasks.map(normalizeApiTask);
+  rebuildFlowPool(lastNormalizedTasks);
+  renderCurrentView();
+};
+
+const syncAttachmentIndicators = async () => {
+  const cards = Array.from(document.querySelectorAll('.task-card[data-task-id]:not(.is-empty)'));
+  const ids = Array.from(new Set(cards
+    .map((c) => Number.parseInt(c.dataset.taskId || "", 10))
+    .filter((id) => Number.isFinite(id))));
+  if (!ids.length) return;
+
+  const concurrency = 8;
+  let index = 0;
+
+  const worker = async () => {
+    while (index < ids.length) {
+      const id = ids[index];
+      index += 1;
+      const meta = await fetchJsonOrNull(buildApiUrl(`/tasks/${id}/attachments/exists`), "Attachments meta", {
+        headers: { Accept: "application/json" }
+      });
+      const count = meta && Number.isFinite(Number(meta.count)) ? Number(meta.count) : 0;
+      applyAttachmentCountToCards(id, count);
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, ids.length) }, worker));
+};
+
+const startOfLocalDay = (date) => {
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+};
+
+const getCalendarBucketId = (task) => {
+  const statusValue = toStatusValue(task?.statusValue ?? task?.status);
+  if (statusValue === 3) return "done";
+
+  const priorityValue = toPriorityValue(task?.priorityValue ?? task?.priority);
+
+  const due = task?.dueDate ? new Date(task.dueDate) : null;
+  if (!due || Number.isNaN(due.getTime())) {
+    return priorityValue === 3 ? "high" : "gtmonth";
+  }
+
+  const now = new Date();
+  if (due.getTime() < now.getTime()) return "overdue";
+
+  // Spotlight: keep overdue/done separate, then lift high priority tasks.
+  if (priorityValue === 3) return "high";
+
+  const today = startOfLocalDay(now);
+  const dueDay = startOfLocalDay(due);
+  if (!today || !dueDay) return "gtmonth";
+
+  const msDay = 24 * 60 * 60 * 1000;
+  const diffDays = Math.floor((dueDay.getTime() - today.getTime()) / msDay);
+  if (diffDays <= 0) return "today";
+  if (diffDays <= 7) return "week";
+  if (diffDays <= 30) return "gtweek";
+  return "gtmonth";
+};
+
+const renderCalendarView = (tasks) => {
+  if (!calendarLayout || !board) return;
+  clearBoardTasks();
+  calendarLayout.innerHTML = "";
+  calendarLayout.setAttribute("aria-hidden", "false");
+
+  const buckets = [
+    { id: "high", title: "High priority" },
+    { id: "today", title: "Today" },
+    { id: "week", title: "Within a week" },
+    { id: "gtweek", title: "More than a week" },
+    { id: "gtmonth", title: "More than a month" },
+    { id: "done", title: "Completed" },
+    { id: "overdue", title: "Overdue" }
+  ];
+
+  const lists = new Map(buckets.map((b) => [b.id, []]));
+  (Array.isArray(tasks) ? tasks : []).forEach((t) => {
+    const id = getCalendarBucketId(t);
+    const arr = lists.get(id);
+    if (arr) arr.push(t);
   });
+
+  const sortTasks = (a, b) => {
+    const ad = a?.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
+    const bd = b?.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
+    const ap = toPriorityValue(a?.priorityValue ?? a?.priority);
+    const bp = toPriorityValue(b?.priorityValue ?? b?.priority);
+    if (ad !== bd) return ad - bd;
+    if (ap !== bp) return bp - ap;
+    return String(a?.title || "").localeCompare(String(b?.title || ""));
+  };
+
+  buckets.forEach((bucket) => {
+    const group = document.createElement("section");
+    group.className = "calendar-group";
+    group.dataset.groupId = bucket.id;
+
+    const header = document.createElement("header");
+    header.className = "calendar-group-header";
+    const title = document.createElement("div");
+    title.className = "calendar-group-title";
+    title.textContent = bucket.title;
+    const count = document.createElement("span");
+    count.className = "calendar-group-count";
+
+    const body = document.createElement("div");
+    body.className = "calendar-group-body";
+
+    const list = (lists.get(bucket.id) || []).slice().sort(sortTasks);
+    count.textContent = String(list.length);
+
+    if (list.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "task-detail-attachments-empty";
+      empty.textContent = "No tasks";
+      body.appendChild(empty);
+    } else {
+      list.forEach((t) => {
+        const card = createTaskCard(t);
+        card.setAttribute("draggable", "false");
+        body.appendChild(card);
+      });
+    }
+
+    header.append(title, count);
+    group.append(header, body);
+    calendarLayout.appendChild(group);
+  });
+
+  void syncAttachmentIndicators();
+};
+
+const renderBoardView = (tasks) => {
+  if (calendarLayout) {
+    calendarLayout.setAttribute("aria-hidden", "true");
+    calendarLayout.innerHTML = "";
+  }
+  clearBoardTasks();
+  (Array.isArray(tasks) ? tasks : []).forEach((task) => addTaskToBoard(task));
+
   document.querySelectorAll(".column").forEach((column) => {
     updateColumnCount(column);
     ensureColumnPlaceholder(column);
@@ -1270,6 +1959,16 @@ const loadTasksFromApi = async () => {
   updateFlowEmptyState();
   setColumnDelays();
   refreshAllTaskTimings();
+  void syncAttachmentIndicators();
+};
+
+const renderCurrentView = () => {
+  const view = board?.dataset.view || "board";
+  if (view === "calendar") {
+    renderCalendarView(lastNormalizedTasks);
+    return;
+  }
+  renderBoardView(lastNormalizedTasks);
 };
 
 const clampValue = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -1285,9 +1984,21 @@ const clampNodePosition = (node, left, top) => {
   };
 };
 
-const buildTaskKey = (taskData) => [taskData.title, taskData.tag, taskData.note]
+const buildTaskKey = (taskData) => [taskData?.title, taskData?.tag, taskData?.note]
   .map((value) => String(value || "").trim().toLowerCase())
   .join("|");
+
+const buildFlowNote = (taskData) => {
+  const tags = Array.isArray(taskData?.tags) ? taskData.tags : [];
+  const statusValue = toStatusValue(taskData?.statusValue ?? taskData?.status);
+  const dueShort = formatShortDate(taskData?.dueDate);
+  const noteParts = [];
+  if (dueShort) noteParts.push(`Due ${dueShort}`);
+  if (tags.length) noteParts.push(tags.join(" • "));
+  return noteParts.length ? noteParts.join(" • ") : formatDueLabel(taskData?.dueDate, statusValue);
+};
+
+
 
 const highlightDuplicateNode = (node) => {
   if (!node) return;
@@ -1503,7 +2214,10 @@ const createFlowNode = (taskData, position) => {
   const node = document.createElement("div");
   node.className = "flow-node";
   node.dataset.nodeId = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  node.dataset.taskKey = buildTaskKey(taskData);
+  node.dataset.taskKey = taskData?.taskKey ? String(taskData.taskKey) : buildTaskKey(taskData);
+  if (taskData?.taskId) {
+    node.dataset.taskId = String(taskData.taskId);
+  }
   node.innerHTML = `
     <button class="flow-node-remove" type="button" aria-label="Clear outgoing links">
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1668,6 +2382,11 @@ const initTaskCard = (card) => {
   card.setAttribute("draggable", "true");
   card.addEventListener("dragstart", onTaskDragStart);
   card.addEventListener("dragend", onTaskDragEnd);
+  card.addEventListener("dblclick", () => {
+    const id = Number.parseInt(card.dataset.taskId || "", 10);
+    if (!Number.isFinite(id)) return;
+    void openTaskDetailModalForTask(id, card);
+  });
 };
 
 const onTaskDragStart = (event) => {
@@ -1828,8 +2547,14 @@ const initFlowTask = (task) => {
     const payload = {
       title: task.dataset.taskTitle || task.textContent.trim(),
       tag: task.dataset.taskTag || "Task",
-      note: task.dataset.taskDescription || task.dataset.taskNote || ""
+      note: task.dataset.taskDescription || task.dataset.taskNote || "",
+      taskKey: task.dataset.taskKey || "",
+      taskId: task.dataset.taskId || ""
     };
+    if (!payload.taskKey) {
+      payload.taskKey = buildTaskKey(payload);
+      task.dataset.taskKey = payload.taskKey;
+    }
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = "copy";
       event.dataTransfer.setData("text/plain", JSON.stringify(payload));
@@ -1862,16 +2587,27 @@ if (userSearch) {
 
 if (userAddBtn) {
   userAddBtn.addEventListener("click", () => {
-    if (!userList || !userAddInput) return;
-    const email = normalizeEmail(userAddInput.value);
-    if (!email) return;
-    const existing = userList.querySelector(`[data-user-email="${email}"]`);
-    if (!existing) {
-      const item = buildUserItem("UnnamedUser", email);
-      userList.appendChild(item);
-    }
-    userAddInput.value = "";
-    refreshUserFilter();
+    if (!userAddInput) return;
+    void (async () => {
+      const email = normalizeEmail(userAddInput.value);
+      if (!email) return;
+      const name = email.split("@")[0] || "UnnamedUser";
+      const created = await fetchJsonOrNull(buildApiUrl("/users"), "Create user", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({ name, email })
+      });
+
+      userAddInput.value = "";
+      await loadUsersFromApi();
+      if (created && created.id) {
+        setCurrentUser({ id: Number(created.id), name: created.name, email: created.email });
+        await loadTasksFromApi();
+      }
+    })();
   });
 }
 
@@ -1953,6 +2689,7 @@ document.addEventListener("keydown", (event) => {
       setPanelOpen(false);
     }
     closeTaskModal();
+    closeTaskDetailModal();
   }
 });
 
@@ -1974,6 +2711,7 @@ if (taskForm) {
     }
     const assigneeId = normalizeToken(taskAssignee?.value);
     const priorityValue = normalizeToken(taskPriority?.value) || `${DEFAULT_PRIORITY_VALUE}`;
+    const tagIds = await resolveTagIdsForTask(theme, tags);
     const taskData = {
       theme,
       title,
@@ -1982,7 +2720,7 @@ if (taskForm) {
       dueDateIso,
       assigneeId,
       priorityValue,
-      tagIds: []
+      tagIds
     };
     if (editingTaskId) {
       await updateTaskViaApi(editingTaskId, taskData);
@@ -2000,36 +2738,63 @@ if (themeToggleBtn) {
 
 setTheme(getPreferredTheme());
 
-document.addEventListener("click", (event) => {
-  const target = event.target instanceof Element ? event.target : null;
-  if (!target) return;
-  const actionBtn = target.closest("[data-action]");
-  if (!actionBtn) return;
-  const action = actionBtn.getAttribute("data-action");
-  const idRaw = actionBtn.getAttribute("data-task-id") || "";
-  const id = Number.parseInt(idRaw, 10);
-  if (!Number.isFinite(id)) return;
+if (taskDetailModal) {
+  taskDetailModal.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    if (target.closest("[data-close-detail]")) {
+      closeTaskDetailModal();
+    }
+  });
+}
 
-  if (action === "task-edit") {
-    const card = actionBtn.closest(".task-card")
-      || document.querySelector(`.task-card[data-task-id="${id}"]`);
+if (taskDetailEditBtn) {
+  taskDetailEditBtn.addEventListener("click", () => {
+    if (!isAdmin() || !detailTaskId) return;
+    const card = detailTaskCard
+      || document.querySelector(`.task-card[data-task-id="${detailTaskId}"]`);
     if (card) {
+      closeTaskDetailModal();
       openTaskModalForEdit(card);
     }
-    return;
-  }
+  });
+}
 
-  if (action === "task-photo") {
-    pendingPhotoTaskId = id;
+if (taskDetailPhotoBtn) {
+  taskDetailPhotoBtn.addEventListener("click", () => {
+    if (!isAdmin() || !detailTaskId) return;
+    pendingPhotoTaskId = detailTaskId;
     taskBgInput?.click();
-    return;
-  }
-  if (action === "task-photo-clear") {
-    clearStoredTaskBg(id);
-    applyTaskBgToCards(id, "");
-    return;
-  }
-});
+  });
+}
+
+if (taskDetailPhotoClearBtn) {
+  taskDetailPhotoClearBtn.addEventListener("click", () => {
+    if (!isAdmin() || !detailTaskId) return;
+    clearStoredTaskBg(detailTaskId);
+    applyTaskBgToCards(detailTaskId, "");
+    if (taskDetailPhotoWrap && taskDetailPhotoImg) {
+      taskDetailPhotoImg.removeAttribute("src");
+      taskDetailPhotoWrap.setAttribute("hidden", "");
+    }
+  });
+}
+
+if (taskAttachBtn) {
+  taskAttachBtn.addEventListener("click", () => {
+    if (!isAdmin() || !detailTaskId) return;
+    taskAttachmentsInput?.click();
+  });
+}
+
+if (taskAttachmentsInput) {
+  taskAttachmentsInput.addEventListener("change", async () => {
+    const files = taskAttachmentsInput.files ? Array.from(taskAttachmentsInput.files) : [];
+    taskAttachmentsInput.value = "";
+    if (!files.length) return;
+    await uploadAttachmentsForDetail(files);
+  });
+}
 
 if (taskBgInput) {
   taskBgInput.addEventListener("change", async () => {
@@ -2043,6 +2808,10 @@ if (taskBgInput) {
       if (!dataUrl) return;
       setStoredTaskBg(id, dataUrl);
       applyTaskBgToCards(id, dataUrl);
+      if (detailTaskId === id && taskDetailPhotoWrap && taskDetailPhotoImg) {
+        taskDetailPhotoImg.src = dataUrl;
+        taskDetailPhotoWrap.removeAttribute("hidden");
+      }
     } catch (error) {
       console.error("Photo load failed", error);
     }
@@ -2069,10 +2838,34 @@ if (flowCanvas) {
     try {
       payload = JSON.parse(raw);
     } catch (error) {
-      payload = { title: raw, tag: "Task", note: "" };
+      payload = { taskId: raw, title: raw, tag: "Task", note: "" };
     }
 
-    const taskKey = buildTaskKey(payload);
+    if (!payload || typeof payload !== "object") {
+      payload = { title: String(payload || ""), tag: "Task", note: "" };
+    }
+
+    const rawId = normalizeToken(payload.taskId);
+    const numericId = /^[0-9]+$/.test(rawId) ? Number.parseInt(rawId, 10) : null;
+    if (Number.isFinite(numericId)) {
+      payload.taskId = String(numericId);
+      const task = Array.isArray(lastNormalizedTasks)
+        ? lastNormalizedTasks.find((t) => Number(t?.id) === numericId)
+        : null;
+      if (task) {
+        payload.title = task.title || payload.title;
+        payload.tag = task.theme || payload.tag;
+        payload.note = buildFlowNote(task);
+      }
+    }
+
+    const taskKey = normalizeToken(payload.taskKey) || buildTaskKey(payload);
+    payload.taskKey = taskKey;
+    if (payload.taskId !== undefined && payload.taskId !== null && payload.taskId !== "") {
+      payload.taskId = String(payload.taskId);
+    } else {
+      delete payload.taskId;
+    }
     const existing = Array.from(flowCanvas.querySelectorAll(".flow-node")).find(
       (node) => node.dataset.taskKey === taskKey
     );
@@ -2111,15 +2904,7 @@ window.addEventListener("resize", () => {
 
 viewButtons.forEach((button) => {
   button.addEventListener("click", () => {
-    viewButtons.forEach((btn) => {
-      btn.classList.remove("is-active");
-      btn.setAttribute("aria-pressed", "false");
-    });
-    button.classList.add("is-active");
-    button.setAttribute("aria-pressed", "true");
-    if (board) {
-      board.dataset.view = button.dataset.view || "board";
-    }
+    setBoardView(button.dataset.view || "board");
   });
 });
 
@@ -2127,4 +2912,8 @@ refreshUserFilter();
 setLayoutStyle(board?.dataset.style || "columns");
 updateFlowEmptyState();
 startTaskTimingTicker();
-void loadTasksFromApi();
+void (async () => {
+  await loadTagsFromApi();
+  await loadUsersFromApi();
+  await loadTasksFromApi();
+})();

@@ -23,36 +23,7 @@
         </label>
         <div class="user-group">
           <span class="user-group-title">Администратор</span>
-          <div class="user-list" id="user-list">
-            <div class="user-item is-current" data-user-key="unnameduser unnameduser@goodtask.com" data-user-email="unnameduser@goodtask.com">
-              <div class="user-avatar">U</div>
-              <div class="user-info">
-                <span class="user-nick">UnnamedUser</span>
-                <span class="user-email">unnameduser@goodtask.com</span>
-              </div>
-            </div>
-            <div class="user-item" data-user-key="kaknokuynytb3lou kaknokuynytb3lou@goodtask.com" data-user-email="kaknokuynytb3lou@goodtask.com">
-              <div class="user-avatar">K</div>
-              <div class="user-info">
-                <span class="user-nick">kaknokuynytb3lou</span>
-                <span class="user-email">kaknokuynytb3lou@goodtask.com</span>
-              </div>
-            </div>
-            <div class="user-item" data-user-key="olga.morozova olga.morozova@goodtask.com" data-user-email="olga.morozova@goodtask.com">
-              <div class="user-avatar">O</div>
-              <div class="user-info">
-                <span class="user-nick">olga.morozova</span>
-                <span class="user-email">olga.morozova@goodtask.com</span>
-              </div>
-            </div>
-            <div class="user-item" data-user-key="ivan.komarov ivan.komarov@goodtask.com" data-user-email="ivan.komarov@goodtask.com">
-              <div class="user-avatar">I</div>
-              <div class="user-info">
-                <span class="user-nick">ivan.komarov</span>
-                <span class="user-email">ivan.komarov@goodtask.com</span>
-              </div>
-            </div>
-          </div>
+          <div class="user-list" id="user-list"></div>
           <div class="user-empty" id="user-empty" hidden>Ничего не найдено</div>
         </div>
         <div class="user-add">
@@ -77,7 +48,7 @@
       <div class="view-toggle" role="group" aria-label="Task view">
         <button class="view-btn is-active" data-view="board" aria-pressed="true">Board</button>
         <button class="view-btn" data-view="list" aria-pressed="false">List</button>
-        <button class="view-btn" data-view="compact" aria-pressed="false">Compact</button>
+        <button class="view-btn" data-view="calendar" aria-pressed="false">Calendar</button>
       </div>
       <div class="topbar-right">
         <div class="user-meta">
@@ -97,15 +68,23 @@
       </header>
 
     <main class="board" id="board" data-view="board" data-style="columns">
-      <div class="board-header">
-        <div class="board-header-left">
-          <button class="style-toggle" id="style-toggle" type="button" aria-pressed="false">
-            <span class="style-toggle-title">Columns Board</span>
-            <span class="style-toggle-sub">Switch to Flow Map</span>
-          </button>
-          <button class="primary-btn board-add-column" id="add-column" type="button">Create New Column</button>
+        <div class="board-header">
+          <div class="board-header-left">
+          <div class="style-switch" id="style-switch">
+            <span class="style-toggle-title" id="style-toggle-title">Columns Board</span>
+            <div class="style-switch-row">
+              <span class="style-toggle-sub" id="style-toggle-sub">Click to switch</span>
+              <button class="style-toggle-btn" id="style-toggle" type="button" aria-pressed="false" aria-label="Switch to Flow Map" title="Switch to Flow Map">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 7l-4 5 4 5" />
+                  <path d="M17 7l4 5-4 5" />
+                </svg>
+              </button>
+            </div>
+          </div>
+            <button class="primary-btn board-add-column" id="add-column" type="button">Create New Column</button>
+          </div>
         </div>
-      </div>
 
       <section class="board-columns" id="board-columns">
         <section class="column" data-column-id="todo">
@@ -258,12 +237,12 @@
           <button class="add-task" type="button">Create New Task</button>
         </section>
 
-        <section class="column" data-column-id="archive">
+        <section class="column" data-column-id="overdue">
           <header class="column-header">
             <button class="column-handle" type="button" draggable="true" aria-label="Drag column">
               <span></span><span></span><span></span>
             </button>
-            <div class="column-title" contenteditable="true" spellcheck="false">Archive</div>
+            <div class="column-title" contenteditable="true" spellcheck="false">Overdue</div>
             <span class="column-count">2</span>
             <button class="column-delete" type="button" aria-label="Delete column">
               <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -300,6 +279,8 @@
           <button class="add-task" type="button">Create New Task</button>
         </section>
       </section>
+
+      <section class="calendar-layout" id="calendar-layout" aria-hidden="true"></section>
 
       <section class="flow-layout" id="flow-layout" aria-hidden="true">
         <aside class="flow-list">
@@ -439,7 +420,98 @@
     </div>
   </div>
 
+  <div class="task-modal" id="task-detail-modal" hidden>
+    <div class="task-modal-backdrop" data-close-detail></div>
+    <div class="task-modal-card task-detail-card" role="dialog" aria-modal="true" aria-labelledby="task-detail-title">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker">Task details</span>
+          <h3 class="task-modal-title" id="task-detail-title">Task</h3>
+          <div class="task-detail-badges" id="task-detail-badges">
+            <span class="task-badge" id="task-detail-theme-badge"></span>
+            <span class="task-badge" id="task-detail-status-badge"></span>
+            <span class="task-badge" id="task-detail-priority-badge"></span>
+            <span class="task-badge" id="task-detail-due-badge"></span>
+          </div>
+        </div>
+        <div class="task-detail-header-actions">
+          <button class="ghost-btn task-detail-edit" id="task-detail-edit" type="button" hidden>Edit</button>
+          <button class="ghost-btn task-detail-photo-btn" id="task-detail-photo-btn" type="button" hidden>Photo</button>
+          <button class="ghost-btn task-detail-photo-clear" id="task-detail-photo-clear-btn" type="button" hidden>Clear</button>
+          <button class="icon-btn" type="button" data-close-detail aria-label="Close">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 7l10 10M17 7L7 17" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="task-detail-body" id="task-detail-body">
+        <div class="task-detail-photo" id="task-detail-photo" hidden>
+          <img id="task-detail-photo-img" alt="Task photo">
+        </div>
+        <div class="task-detail-meta">
+          <div class="task-detail-row">
+            <span class="task-detail-label">Task ID</span>
+            <span class="task-detail-value" id="task-detail-id">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Theme</span>
+            <span class="task-detail-value" id="task-detail-theme">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Status</span>
+            <span class="task-detail-value" id="task-detail-status">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Priority</span>
+            <span class="task-detail-value" id="task-detail-priority">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Assignee</span>
+            <span class="task-detail-value" id="task-detail-assignee">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Due</span>
+            <span class="task-detail-value" id="task-detail-due">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Created</span>
+            <span class="task-detail-value" id="task-detail-created">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Updated</span>
+            <span class="task-detail-value" id="task-detail-updated">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Completed</span>
+            <span class="task-detail-value" id="task-detail-completed">-</span>
+          </div>
+          <div class="task-detail-row task-detail-tags">
+            <span class="task-detail-label">Tags</span>
+            <div class="task-detail-taglist" id="task-detail-tags"></div>
+          </div>
+        </div>
+
+        <div class="task-detail-description">
+          <span class="task-detail-label">Description</span>
+          <p class="task-detail-text" id="task-detail-description">-</p>
+        </div>
+
+        <div class="task-detail-attachments">
+          <div class="task-detail-attachments-head">
+            <span class="task-detail-label">Attachments</span>
+            <button class="ghost-btn" id="task-attach-btn" type="button" hidden>Attach files</button>
+          </div>
+          <div class="task-detail-attachments-list" id="task-attachments-list"></div>
+          <div class="task-detail-attachments-empty" id="task-attachments-empty" hidden>No attachments</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <input id="task-bg-input" type="file" accept="image/*" hidden>
+  <input id="task-attachments-input" type="file" hidden multiple>
 
   <script src="js/app.js" defer></script>
 </body>
