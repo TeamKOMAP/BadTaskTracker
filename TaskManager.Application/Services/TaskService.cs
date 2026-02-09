@@ -47,10 +47,13 @@ namespace TaskManager.Application.Services
             ValidateCreateTaskDto(createTaskDto);
 
             // Проверяем существование пользователя
-            var userExists = await _context.Users.AnyAsync(u => u.Id == createTaskDto.AssigneeId);
-            if (!userExists)
+            if (createTaskDto.AssigneeId.HasValue)
             {
-                throw new ValidationException($"User with id {createTaskDto.AssigneeId} not found");
+                var userExists = await _context.Users.AnyAsync(u => u.Id == createTaskDto.AssigneeId.Value);
+                if (!userExists)
+                {
+                    throw new ValidationException($"User with id {createTaskDto.AssigneeId} not found");
+                }
             }
 
             // Проверяем существование тегов
@@ -101,10 +104,13 @@ namespace TaskManager.Application.Services
             }
 
             // Проверяем существование пользователя
-            var userExists = await _context.Users.AnyAsync(u => u.Id == updateTaskDto.AssigneeId);
-            if (!userExists)
+            if (updateTaskDto.AssigneeId.HasValue)
             {
-                throw new ValidationException($"User with id {updateTaskDto.AssigneeId} not found");
+                var userExists = await _context.Users.AnyAsync(u => u.Id == updateTaskDto.AssigneeId.Value);
+                if (!userExists)
+                {
+                    throw new ValidationException($"User with id {updateTaskDto.AssigneeId} not found");
+                }
             }
 
             // Проверяем существование тегов

@@ -373,7 +373,8 @@
           },
           "assigneeId": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
           },
           "dueDate": {
             "type": "string",
@@ -567,7 +568,8 @@
           },
           "assigneeId": {
             "type": "integer",
-            "format": "int32"
+            "format": "int32",
+            "nullable": true
           },
           "dueDate": {
             "type": "string",

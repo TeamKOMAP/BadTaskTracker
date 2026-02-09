@@ -14,7 +14,7 @@ builder.Logging.AddDebug();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// Диагностика
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 Console.WriteLine($"Current directory: {Directory.GetCurrentDirectory()}");
 Console.WriteLine($"Connection string: {builder.Configuration.GetConnectionString("DefaultConnection")}");
 
@@ -73,6 +73,9 @@ if (app.Environment.IsDevelopment())
     });
 }
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
@@ -87,7 +90,7 @@ using (var scope = app.Services.CreateScope())
     {
         var dbContext = services.GetRequiredService<ApplicationDbContext>();
 
-        // Проверяем, есть ли pending миграции
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅ пїЅпїЅ pending пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         var pendingMigrations = dbContext.Database.GetPendingMigrations().ToList();
         if (pendingMigrations.Any())
         {
@@ -96,7 +99,7 @@ using (var scope = app.Services.CreateScope())
             logger.LogInformation("Migrations applied successfully.");
         }
 
-        // Заполняем тестовыми данными
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
         SeedData.Initialize(dbContext);
     }
     catch (Exception ex)
