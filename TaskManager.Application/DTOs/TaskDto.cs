@@ -1,6 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-using TaskManager.Domain.Enums;
-using TStatus = TaskManager.Domain.Enums.TaskItemStatus;
+﻿using TaskManager.Domain.Enums;
 
 namespace TaskManager.Application.DTOs
 {
@@ -17,49 +15,29 @@ namespace TaskManager.Application.DTOs
         public DateTime? UpdatedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
         public TaskPriority Priority { get; set; }
-        public List<int> TagIds { get; set; } = new();
+        public List<int> TagIds { get; set; } = new List<int>();
+        public bool IsOverdue { get; set; } 
     }
 
     public class CreateTaskDto
     {
-        [Required]
-        [StringLength(200, MinimumLength = 3)]
         public string Title { get; set; } = string.Empty;
-
-        public string Description { get; set; } = string.Empty;
-
-        [Required]
-        public int? AssigneeId { get; set; }
-
-        [Required]
+        public string? Description { get; set; }
+        public int AssigneeId { get; set; }
         public DateTime DueDate { get; set; }
-
-        public TaskPriority Priority { get; set; } = TaskPriority.Medium;
-
-        public List<int> TagIds { get; set; } = new();
+        public TaskPriority Priority { get; set; }
+        public List<int>? TagIds { get; set; }
     }
 
     public class UpdateTaskDto
     {
         public int Id { get; set; }
-
-        [Required]
-        [StringLength(200, MinimumLength = 3)]
         public string Title { get; set; } = string.Empty;
-
-        public string Description { get; set; } = string.Empty;
-
-        [Required]
+        public string? Description { get; set; }
         public TaskItemStatus Status { get; set; }
-
-        [Required]
-        public int? AssigneeId { get; set; }
-
-        [Required]
+        public int AssigneeId { get; set; }
         public DateTime DueDate { get; set; }
-
         public TaskPriority Priority { get; set; }
-
-        public List<int> TagIds { get; set; } = new();
+        public List<int>? TagIds { get; set; }
     }
 }

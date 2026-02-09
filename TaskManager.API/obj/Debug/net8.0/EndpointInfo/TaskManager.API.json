@@ -361,17 +361,11 @@
         "additionalProperties": false
       },
       "CreateTaskDto": {
-        "required": [
-          "assigneeId",
-          "dueDate",
-          "title"
-        ],
         "type": "object",
         "properties": {
           "title": {
-            "maxLength": 200,
-            "minLength": 3,
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "description": {
             "type": "string",
@@ -527,6 +521,9 @@
               "format": "int32"
             },
             "nullable": true
+          },
+          "isOverdue": {
+            "type": "boolean"
           }
         },
         "additionalProperties": false
@@ -551,12 +548,6 @@
         "format": "int32"
       },
       "UpdateTaskDto": {
-        "required": [
-          "assigneeId",
-          "dueDate",
-          "status",
-          "title"
-        ],
         "type": "object",
         "properties": {
           "id": {
@@ -564,9 +555,8 @@
             "format": "int32"
           },
           "title": {
-            "maxLength": 200,
-            "minLength": 3,
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "description": {
             "type": "string",

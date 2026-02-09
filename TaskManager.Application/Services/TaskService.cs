@@ -1,7 +1,10 @@
-﻿using TaskManager.Application.DTOs;
+﻿using Microsoft.EntityFrameworkCore;
+using TaskManager.Application.DTOs;
+using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
+using TaskManager.Infrastructure.Data;
 using TaskManager.Infrastructure.Repositories;
 
 namespace TaskManager.Application.Services
@@ -9,31 +12,60 @@ namespace TaskManager.Application.Services
     public class TaskService : ITaskService
     {
         private readonly ITaskRepository _taskRepository;
+        private readonly ApplicationDbContext _context;
 
-        public TaskService(ITaskRepository taskRepository)
+        public TaskService(ITaskRepository taskRepository, ApplicationDbContext context)
         {
             _taskRepository = taskRepository;
+            _context = context;
         }
 
-        public async System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<TaskDto>> GetTasksAsync(
+        public async Task<IEnumerable<TaskDto>> GetTasksAsync(
             TaskItemStatus? status = null,
             int? assigneeId = null,
-            System.DateTime? dueBefore = null,
-            System.DateTime? dueAfter = null,
-            System.Collections.Generic.List<int>? tagIds = null)
+            DateTime? dueBefore = null,
+            DateTime? dueAfter = null,
+            List<int>? tagIds = null)
         {
             var tasks = await _taskRepository.GetAllAsync(status, assigneeId, dueBefore, dueAfter, tagIds);
             return tasks.Select(MapToDto);
         }
 
-        public async System.Threading.Tasks.Task<TaskDto?> GetTaskByIdAsync(int id)
+        public async Task<TaskDto> GetTaskByIdAsync(int id)
         {
             var task = await _taskRepository.GetByIdAsync(id);
-            return task != null ? MapToDto(task) : null;
+            if (task == null)
+            {
+                throw new NotFoundException($"Task with id {id} not found");
+            }
+            return MapToDto(task);
         }
 
-        public async System.Threading.Tasks.Task<TaskDto> CreateTaskAsync(CreateTaskDto createTaskDto)
+        public async Task<TaskDto> CreateTaskAsync(CreateTaskDto createTaskDto)
         {
+            // Валидация
+            ValidateCreateTaskDto(createTaskDto);
+
+            // Проверяем существование пользователя
+            var userExists = await _context.Users.AnyAsync(u => u.Id == createTaskDto.AssigneeId);
+            if (!userExists)
+            {
+                throw new ValidationException($"User with id {createTaskDto.AssigneeId} not found");
+            }
+
+            // Проверяем существование тегов
+            if (createTaskDto.TagIds != null && createTaskDto.TagIds.Any())
+            {
+                var existingTagsCount = await _context.Tags
+                    .Where(t => createTaskDto.TagIds.Contains(t.Id))
+                    .CountAsync();
+
+                if (existingTagsCount != createTaskDto.TagIds.Count)
+                {
+                    throw new ValidationException("One or more tag IDs are invalid");
+                }
+            }
+
             var task = new TaskItem
             {
                 Title = createTaskDto.Title,
@@ -42,7 +74,7 @@ namespace TaskManager.Application.Services
                 AssigneeId = createTaskDto.AssigneeId,
                 DueDate = createTaskDto.DueDate,
                 Priority = createTaskDto.Priority,
-                CreatedAt = System.DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow
             };
 
             if (createTaskDto.TagIds != null && createTaskDto.TagIds.Any())
@@ -57,10 +89,36 @@ namespace TaskManager.Application.Services
             return MapToDto(createdTask);
         }
 
-        public async System.Threading.Tasks.Task<bool> UpdateTaskAsync(UpdateTaskDto updateTaskDto)
+        public async Task<TaskDto> UpdateTaskAsync(UpdateTaskDto updateTaskDto)
         {
+            // Валидация
+            ValidateUpdateTaskDto(updateTaskDto);
+
             var task = await _taskRepository.GetByIdAsync(updateTaskDto.Id);
-            if (task == null) return false;
+            if (task == null)
+            {
+                throw new NotFoundException($"Task with id {updateTaskDto.Id} not found");
+            }
+
+            // Проверяем существование пользователя
+            var userExists = await _context.Users.AnyAsync(u => u.Id == updateTaskDto.AssigneeId);
+            if (!userExists)
+            {
+                throw new ValidationException($"User with id {updateTaskDto.AssigneeId} not found");
+            }
+
+            // Проверяем существование тегов
+            if (updateTaskDto.TagIds != null && updateTaskDto.TagIds.Any())
+            {
+                var existingTagsCount = await _context.Tags
+                    .Where(t => updateTaskDto.TagIds.Contains(t.Id))
+                    .CountAsync();
+
+                if (existingTagsCount != updateTaskDto.TagIds.Count)
+                {
+                    throw new ValidationException("One or more tag IDs are invalid");
+                }
+            }
 
             task.Title = updateTaskDto.Title;
             task.Description = updateTaskDto.Description;
@@ -68,7 +126,18 @@ namespace TaskManager.Application.Services
             task.AssigneeId = updateTaskDto.AssigneeId;
             task.DueDate = updateTaskDto.DueDate;
             task.Priority = updateTaskDto.Priority;
-            task.UpdatedAt = System.DateTime.UtcNow;
+            task.UpdatedAt = DateTime.UtcNow;
+
+            // Автоматически устанавливаем CompletedAt при переводе в Done
+            if (updateTaskDto.Status == TaskItemStatus.Done && !task.CompletedAt.HasValue)
+            {
+                task.CompletedAt = DateTime.UtcNow;
+            }
+            // Сбрасываем CompletedAt если задача вышла из статуса Done
+            else if (updateTaskDto.Status != TaskItemStatus.Done && task.CompletedAt.HasValue)
+            {
+                task.CompletedAt = null;
+            }
 
             if (updateTaskDto.TagIds != null)
             {
@@ -80,16 +149,64 @@ namespace TaskManager.Application.Services
             }
 
             await _taskRepository.UpdateAsync(task);
-            return true;
+            return MapToDto(task);
         }
 
-        public async System.Threading.Tasks.Task<bool> DeleteTaskAsync(int id)
+        public async Task DeleteTaskAsync(int id)
         {
             var task = await _taskRepository.GetByIdAsync(id);
-            if (task == null) return false;
+            if (task == null)
+            {
+                throw new NotFoundException($"Task with id {id} not found");
+            }
 
             await _taskRepository.DeleteAsync(task);
-            return true;
+        }
+
+        // Приватные методы валидации
+        private void ValidateCreateTaskDto(CreateTaskDto dto)
+        {
+            var errors = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(dto.Title))
+                errors.Add("Title is required");
+            else if (dto.Title.Length < 3 || dto.Title.Length > 200)
+                errors.Add("Title must be between 3 and 200 characters");
+
+            if (dto.DueDate <= DateTime.UtcNow)
+                errors.Add("Due date must be in the future");
+
+            if (!Enum.IsDefined(typeof(TaskPriority), dto.Priority))
+                errors.Add("Invalid priority value");
+
+            if (errors.Any())
+            {
+                throw new ValidationException(string.Join("; ", errors));
+            }
+        }
+
+        private void ValidateUpdateTaskDto(UpdateTaskDto dto)
+        {
+            var errors = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(dto.Title))
+                errors.Add("Title is required");
+            else if (dto.Title.Length < 3 || dto.Title.Length > 200)
+                errors.Add("Title must be between 3 and 200 characters");
+
+            if (dto.DueDate <= DateTime.UtcNow)
+                errors.Add("Due date must be in the future");
+
+            if (!Enum.IsDefined(typeof(TaskPriority), dto.Priority))
+                errors.Add("Invalid priority value");
+
+            if (!Enum.IsDefined(typeof(TaskItemStatus), dto.Status))
+                errors.Add("Invalid status value");
+
+            if (errors.Any())
+            {
+                throw new ValidationException(string.Join("; ", errors));
+            }
         }
 
         private TaskDto MapToDto(TaskItem task)
@@ -107,7 +224,8 @@ namespace TaskManager.Application.Services
                 UpdatedAt = task.UpdatedAt,
                 CompletedAt = task.CompletedAt,
                 Priority = task.Priority,
-                TagIds = task.TaskTags.Select(tt => tt.TagId).ToList()
+                TagIds = task.TaskTags.Select(tt => tt.TagId).ToList(),
+                IsOverdue = task.Status != TaskItemStatus.Done && task.DueDate < DateTime.UtcNow
             };
         }
     }

@@ -37,6 +37,7 @@ namespace TaskManager.Domain.Entities
         [NotMapped]
         public System.Collections.Generic.IEnumerable<Tag> Tags => TaskTags.Select(tt => tt.Tag);
 
-        public bool IsOverdue => Status != TaskItemStatus.Done && DueDate < System.DateTime.UtcNow;  // ИЗМЕНИ!
+        [NotMapped]
+        public bool IsOverdue => Status != TaskItemStatus.Done && DueDate < DateTime.UtcNow;
     }
 }

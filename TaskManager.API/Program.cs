@@ -14,6 +14,10 @@ builder.Logging.AddDebug();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
+// Диагностика
+Console.WriteLine($"Current directory: {Directory.GetCurrentDirectory()}");
+Console.WriteLine($"Connection string: {builder.Configuration.GetConnectionString("DefaultConnection")}");
+
 // Add DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -23,7 +27,7 @@ builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 
 // Add Services
 builder.Services.AddScoped<ITaskService, TaskService>();
-
+builder.Services.AddScoped<IReportService, ReportService>(); 
 
 // Configure Swagger/OpenAPI
 builder.Services.AddSwaggerGen(c =>
@@ -73,11 +77,32 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
-// Apply migrations automatically
-//using (var scope = app.Services.CreateScope())
-//{
-//    var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-//    dbContext.Database.Migrate(); // Это создаст БД если её нет
-//}
+// Apply migrations and seed data
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var logger = services.GetRequiredService<ILogger<Program>>();
+
+    try
+    {
+        var dbContext = services.GetRequiredService<ApplicationDbContext>();
+
+        // Проверяем, есть ли pending миграции
+        var pendingMigrations = dbContext.Database.GetPendingMigrations().ToList();
+        if (pendingMigrations.Any())
+        {
+            logger.LogInformation("Applying {Count} pending migrations...", pendingMigrations.Count);
+            dbContext.Database.Migrate();
+            logger.LogInformation("Migrations applied successfully.");
+        }
+
+        // Заполняем тестовыми данными
+        SeedData.Initialize(dbContext);
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred while migrating or seeding the database.");
+    }
+}
 
 app.Run();

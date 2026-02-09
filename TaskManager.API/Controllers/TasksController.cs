@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Interfaces;
+using TaskManager.Domain.Enums;
 
 namespace TaskManager.API.Controllers
 {
@@ -17,11 +18,11 @@ namespace TaskManager.API.Controllers
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskDto>>> GetTasks(
-            [FromQuery] Domain.Enums.TaskItemStatus? status,
+            [FromQuery] TaskItemStatus? status,
             [FromQuery] int? assigneeId,
             [FromQuery] DateTime? dueBefore,
             [FromQuery] DateTime? dueAfter,
-            [FromQuery] List<int> tagIds)
+            [FromQuery] List<int>? tagIds) // Добавь nullable здесь
         {
             var tasks = await _taskService.GetTasksAsync(status, assigneeId, dueBefore, dueAfter, tagIds);
             return Ok(tasks);
@@ -30,44 +31,64 @@ namespace TaskManager.API.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<TaskDto>> GetTask(int id)
         {
-            var task = await _taskService.GetTaskByIdAsync(id);
-
-            if (task == null)
+            try
+            {
+                var task = await _taskService.GetTaskByIdAsync(id);
+                return Ok(task);
+            }
+            catch (Application.Exceptions.NotFoundException)
+            {
                 return NotFound();
-
-            return Ok(task);
+            }
         }
 
         [HttpPost]
         public async Task<ActionResult<TaskDto>> CreateTask(CreateTaskDto createTaskDto)
         {
-            var createdTask = await _taskService.CreateTaskAsync(createTaskDto);
-            return CreatedAtAction(nameof(GetTask), new { id = createdTask.Id }, createdTask);
+            try
+            {
+                var createdTask = await _taskService.CreateTaskAsync(createTaskDto);
+                return CreatedAtAction(nameof(GetTask), new { id = createdTask.Id }, createdTask);
+            }
+            catch (Application.Exceptions.ValidationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
         }
 
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateTask(int id, UpdateTaskDto updateTaskDto)
         {
             if (id != updateTaskDto.Id)
-                return BadRequest();
+                return BadRequest("Task ID mismatch");
 
-            var result = await _taskService.UpdateTaskAsync(updateTaskDto);
-
-            if (!result)
+            try
+            {
+                var updatedTask = await _taskService.UpdateTaskAsync(updateTaskDto);
+                return Ok(updatedTask); // Возвращаем обновлённую задачу
+            }
+            catch (Application.Exceptions.ValidationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (Application.Exceptions.NotFoundException)
+            {
                 return NotFound();
-
-            return NoContent();
+            }
         }
 
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteTask(int id)
         {
-            var result = await _taskService.DeleteTaskAsync(id);
-
-            if (!result)
+            try
+            {
+                await _taskService.DeleteTaskAsync(id);
+                return NoContent();
+            }
+            catch (Application.Exceptions.NotFoundException)
+            {
                 return NotFound();
-
-            return NoContent();
+            }
         }
     }
 }
