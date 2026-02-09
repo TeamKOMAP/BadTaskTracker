@@ -2,17 +2,3 @@
 .vs/
 *.user
 *.suo
-
-# Build outputs
-**/bin/
-**/obj/
-
-# Databases
-*.db
-*.db-*
-
-# Local uploads
-TaskManager.API/App_Data/
-
-# Misc
-*.cache
