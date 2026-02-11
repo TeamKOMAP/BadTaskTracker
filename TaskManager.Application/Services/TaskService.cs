@@ -1,23 +1,28 @@
-﻿using Microsoft.EntityFrameworkCore;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
-using TaskManager.Infrastructure.Data;
-using TaskManager.Infrastructure.Repositories;
 
 namespace TaskManager.Application.Services
 {
     public class TaskService : ITaskService
     {
         private readonly ITaskRepository _taskRepository;
-        private readonly ApplicationDbContext _context;
+        private readonly IUserRepository _userRepository;
+        private readonly ITagRepository _tagRepository;
+        private readonly IOverdueStatusService _overdueStatusService;
 
-        public TaskService(ITaskRepository taskRepository, ApplicationDbContext context)
+        public TaskService(
+            ITaskRepository taskRepository,
+            IUserRepository userRepository,
+            ITagRepository tagRepository,
+            IOverdueStatusService overdueStatusService)
         {
             _taskRepository = taskRepository;
-            _context = context;
+            _userRepository = userRepository;
+            _tagRepository = tagRepository;
+            _overdueStatusService = overdueStatusService;
         }
 
         public async Task<IEnumerable<TaskDto>> GetTasksAsync(
@@ -27,12 +32,14 @@ namespace TaskManager.Application.Services
             DateTime? dueAfter = null,
             List<int>? tagIds = null)
         {
+            await _overdueStatusService.SyncOverdueStatusesAsync();
             var tasks = await _taskRepository.GetAllAsync(status, assigneeId, dueBefore, dueAfter, tagIds);
             return tasks.Select(MapToDto);
         }
 
         public async Task<TaskDto> GetTaskByIdAsync(int id)
         {
+            await _overdueStatusService.SyncOverdueStatusesAsync();
             var task = await _taskRepository.GetByIdAsync(id);
             if (task == null)
             {
@@ -49,7 +56,7 @@ namespace TaskManager.Application.Services
             // Проверяем существование пользователя
             if (createTaskDto.AssigneeId.HasValue)
             {
-                var userExists = await _context.Users.AnyAsync(u => u.Id == createTaskDto.AssigneeId.Value);
+                var userExists = await _userRepository.ExistsAsync(createTaskDto.AssigneeId.Value);
                 if (!userExists)
                 {
                     throw new ValidationException($"User with id {createTaskDto.AssigneeId} not found");
@@ -59,9 +66,7 @@ namespace TaskManager.Application.Services
             // Проверяем существование тегов
             if (createTaskDto.TagIds != null && createTaskDto.TagIds.Any())
             {
-                var existingTagsCount = await _context.Tags
-                    .Where(t => createTaskDto.TagIds.Contains(t.Id))
-                    .CountAsync();
+                var existingTagsCount = await _tagRepository.CountExistingAsync(createTaskDto.TagIds);
 
                 if (existingTagsCount != createTaskDto.TagIds.Count)
                 {
@@ -106,7 +111,7 @@ namespace TaskManager.Application.Services
             // Проверяем существование пользователя
             if (updateTaskDto.AssigneeId.HasValue)
             {
-                var userExists = await _context.Users.AnyAsync(u => u.Id == updateTaskDto.AssigneeId.Value);
+                var userExists = await _userRepository.ExistsAsync(updateTaskDto.AssigneeId.Value);
                 if (!userExists)
                 {
                     throw new ValidationException($"User with id {updateTaskDto.AssigneeId} not found");
@@ -116,9 +121,7 @@ namespace TaskManager.Application.Services
             // Проверяем существование тегов
             if (updateTaskDto.TagIds != null && updateTaskDto.TagIds.Any())
             {
-                var existingTagsCount = await _context.Tags
-                    .Where(t => updateTaskDto.TagIds.Contains(t.Id))
-                    .CountAsync();
+                var existingTagsCount = await _tagRepository.CountExistingAsync(updateTaskDto.TagIds);
 
                 if (existingTagsCount != updateTaskDto.TagIds.Count)
                 {

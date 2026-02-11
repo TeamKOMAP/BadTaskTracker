@@ -52,3 +52,5 @@ C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Infrastructure\obj\D
 C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Infrastructure\obj\Debug\net8.0\TaskManager.Infrastructure.pdb
 C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Infrastructure\obj\Debug\net8.0\TaskManager.Infrastructure.genruntimeconfig.cache
 C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Infrastructure\obj\Debug\net8.0\ref\TaskManager.Infrastructure.dll
+C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Infrastructure\bin\Debug\net8.0\TaskManager.Application.dll
+C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Infrastructure\bin\Debug\net8.0\TaskManager.Application.pdb

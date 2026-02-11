@@ -1,8 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using TaskManager.Application.DTOs;
-using TaskManager.Domain.Entities;
-using TaskManager.Infrastructure.Data;
+using TaskManager.Application.Exceptions;
+using TaskManager.Application.Interfaces;
 
 namespace TaskManager.API.Controllers
 {
@@ -10,59 +9,32 @@ namespace TaskManager.API.Controllers
     [ApiController]
     public class TagsController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly ITagService _tagService;
 
-        public TagsController(ApplicationDbContext context)
+        public TagsController(ITagService tagService)
         {
-            _context = context;
+            _tagService = tagService;
         }
 
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TagDto>>> GetTags([FromQuery] string? q = null)
         {
-            var query = _context.Tags.AsNoTracking();
-
-            if (!string.IsNullOrWhiteSpace(q))
-            {
-                var needle = q.Trim().ToLower();
-                query = query.Where(t => t.Name.ToLower().Contains(needle) || t.Id.ToString() == needle);
-            }
-
-            var tags = await query
-                .OrderBy(t => t.Name)
-                .Select(t => new TagDto
-                {
-                    Id = t.Id,
-                    Name = t.Name,
-                    CreatedAt = t.CreatedAt,
-                    Color = string.Empty
-                })
-                .ToListAsync();
-
+            var tags = await _tagService.GetTagsAsync(q);
             return Ok(tags);
         }
 
         [HttpGet("{id:int}")]
         public async Task<ActionResult<TagDto>> GetTagById(int id)
         {
-            var tag = await _context.Tags
-                .AsNoTracking()
-                .Where(t => t.Id == id)
-                .Select(t => new TagDto
-                {
-                    Id = t.Id,
-                    Name = t.Name,
-                    CreatedAt = t.CreatedAt,
-                    Color = string.Empty
-                })
-                .FirstOrDefaultAsync();
-
-            if (tag == null)
+            try
+            {
+                var tag = await _tagService.GetTagByIdAsync(id);
+                return Ok(tag);
+            }
+            catch (NotFoundException)
             {
                 return NotFound();
             }
-
-            return Ok(tag);
         }
 
         [HttpPost]
@@ -73,45 +45,20 @@ namespace TaskManager.API.Controllers
                 return ValidationProblem(ModelState);
             }
 
-            var name = dto.Name.Trim();
-            if (string.IsNullOrWhiteSpace(name))
+            try
             {
-                return BadRequest(new { error = "Tag name is required" });
-            }
-
-            var existing = await _context.Tags
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Name.ToLower() == name.ToLower());
-
-            if (existing != null)
-            {
-                return Ok(new TagDto
+                var result = await _tagService.CreateOrGetTagAsync(dto);
+                if (!result.Created)
                 {
-                    Id = existing.Id,
-                    Name = existing.Name,
-                    CreatedAt = existing.CreatedAt,
-                    Color = string.Empty
-                });
+                    return Ok(result.Tag);
+                }
+
+                return CreatedAtAction(nameof(GetTagById), new { id = result.Tag.Id }, result.Tag);
             }
-
-            var tag = new Tag
+            catch (ValidationException ex)
             {
-                Name = name,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.Tags.Add(tag);
-            await _context.SaveChangesAsync();
-
-            var created = new TagDto
-            {
-                Id = tag.Id,
-                Name = tag.Name,
-                CreatedAt = tag.CreatedAt,
-                Color = string.Empty
-            };
-
-            return CreatedAtAction(nameof(GetTagById), new { id = tag.Id }, created);
+                return BadRequest(new { error = ex.Message });
+            }
         }
     }
 }

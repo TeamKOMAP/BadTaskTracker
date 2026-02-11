@@ -24,10 +24,15 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 
 // Add Repositories
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
+builder.Services.AddScoped<ITagRepository, TagRepository>();
 
 // Add Services
 builder.Services.AddScoped<ITaskService, TaskService>();
-builder.Services.AddScoped<IReportService, ReportService>(); 
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ITagService, TagService>();
+builder.Services.AddScoped<IOverdueStatusService, OverdueStatusService>();
+builder.Services.AddScoped<IReportService, ReportService>();
 
 // Configure Swagger/OpenAPI
 builder.Services.AddSwaggerGen(c =>

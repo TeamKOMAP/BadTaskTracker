@@ -1028,6 +1028,19 @@
           "buildTransitive/netcoreapp3.1/_._": {}
         }
       },
+      "TaskManager.Application/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "dependencies": {
+          "TaskManager.Domain": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/TaskManager.Application.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/TaskManager.Application.dll": {}
+        }
+      },
       "TaskManager.Domain/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v8.0",
@@ -2565,6 +2578,11 @@
         "useSharedDesignerContext.txt"
       ]
     },
+    "TaskManager.Application/1.0.0": {
+      "type": "project",
+      "path": "../TaskManager.Application/TaskManager.Application.csproj",
+      "msbuildProject": "../TaskManager.Application/TaskManager.Application.csproj"
+    },
     "TaskManager.Domain/1.0.0": {
       "type": "project",
       "path": "../TaskManager.Domain/TaskManager.Domain.csproj",
@@ -2578,6 +2596,7 @@
       "Microsoft.EntityFrameworkCore.Relational >= 8.0.0",
       "Microsoft.EntityFrameworkCore.Sqlite >= 8.0.0",
       "Microsoft.EntityFrameworkCore.Tools >= 8.0.0",
+      "TaskManager.Application >= 1.0.0",
       "TaskManager.Domain >= 1.0.0"
     ]
   },
@@ -2613,6 +2632,9 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
+            "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj": {
+              "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj"
+            },
             "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {
               "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj"
             }

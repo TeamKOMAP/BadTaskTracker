@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TaskManager.Application.Interfaces;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
 using TaskManager.Infrastructure.Data;
@@ -14,12 +15,12 @@ namespace TaskManager.Infrastructure.Repositories
             _context = context;
         }
 
-        public async System.Threading.Tasks.Task<System.Collections.Generic.IEnumerable<TaskItem>> GetAllAsync(
+        public async Task<IEnumerable<TaskItem>> GetAllAsync(
             TaskItemStatus? status = null,
             int? assigneeId = null,
-            System.DateTime? dueBefore = null,
-            System.DateTime? dueAfter = null,
-            System.Collections.Generic.List<int>? tagIds = null)
+            DateTime? dueBefore = null,
+            DateTime? dueAfter = null,
+            List<int>? tagIds = null)
         {
             var query = _context.Tasks
                 .Include(t => t.Assignee)
@@ -47,7 +48,7 @@ namespace TaskManager.Infrastructure.Repositories
             return await query.ToListAsync();
         }
 
-        public async System.Threading.Tasks.Task<TaskItem?> GetByIdAsync(int id)
+        public async Task<TaskItem?> GetByIdAsync(int id)
         {
             return await _context.Tasks
                 .Include(t => t.Assignee)
@@ -56,28 +57,51 @@ namespace TaskManager.Infrastructure.Repositories
                 .FirstOrDefaultAsync(t => t.Id == id);
         }
 
-        public async System.Threading.Tasks.Task<TaskItem> AddAsync(TaskItem taskItem)
+        public async Task<TaskItem> AddAsync(TaskItem taskItem)
         {
             _context.Tasks.Add(taskItem);
             await _context.SaveChangesAsync();
             return taskItem;
         }
 
-        public async System.Threading.Tasks.Task UpdateAsync(TaskItem taskItem)
+        public async Task UpdateAsync(TaskItem taskItem)
         {
             _context.Entry(taskItem).State = EntityState.Modified;
             await _context.SaveChangesAsync();
         }
 
-        public async System.Threading.Tasks.Task DeleteAsync(TaskItem taskItem)
+        public async Task DeleteAsync(TaskItem taskItem)
         {
             _context.Tasks.Remove(taskItem);
             await _context.SaveChangesAsync();
         }
 
-        public async System.Threading.Tasks.Task<bool> ExistsAsync(int id)
+        public async Task<bool> ExistsAsync(int id)
         {
             return await _context.Tasks.AnyAsync(t => t.Id == id);
+        }
+
+        public async Task<int> UpdateOverdueStatusesAsync(DateTime utcNow)
+        {
+            var tasksToUpdate = await _context.Tasks
+                .Where(t => t.Status != TaskItemStatus.Done &&
+                            t.DueDate < utcNow &&
+                            t.Status != TaskItemStatus.Overdue)
+                .ToListAsync();
+
+            if (tasksToUpdate.Count == 0)
+            {
+                return 0;
+            }
+
+            foreach (var task in tasksToUpdate)
+            {
+                task.Status = TaskItemStatus.Overdue;
+                task.UpdatedAt = utcNow;
+            }
+
+            await _context.SaveChangesAsync();
+            return tasksToUpdate.Count;
         }
     }
 }

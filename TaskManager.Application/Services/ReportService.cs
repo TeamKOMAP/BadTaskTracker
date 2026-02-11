@@ -1,27 +1,24 @@
-﻿using Microsoft.EntityFrameworkCore;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Interfaces;
-using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
-using TaskManager.Infrastructure.Data;
 
 namespace TaskManager.Application.Services
 {
     public class ReportService : IReportService
     {
-        private readonly ApplicationDbContext _context;
+        private readonly ITaskRepository _taskRepository;
+        private readonly IOverdueStatusService _overdueStatusService;
 
-        public ReportService(ApplicationDbContext context)
+        public ReportService(ITaskRepository taskRepository, IOverdueStatusService overdueStatusService)
         {
-            _context = context;
+            _taskRepository = taskRepository;
+            _overdueStatusService = overdueStatusService;
         }
 
         public async Task<StatusSummaryDto> GetStatusSummaryAsync()
         {
-            // Автоматически обновляем статусы Overdue
-            await UpdateOverdueStatuses();
-
-            var tasks = await _context.Tasks.ToListAsync();
+            await _overdueStatusService.SyncOverdueStatusesAsync();
+            var tasks = (await _taskRepository.GetAllAsync()).ToList();
 
             return new StatusSummaryDto
             {
@@ -35,20 +32,19 @@ namespace TaskManager.Application.Services
 
         public async Task<IEnumerable<OverdueByAssigneeDto>> GetOverdueTasksByAssigneeAsync()
         {
-            // Автоматически обновляем статусы Overdue
-            await UpdateOverdueStatuses();
-
-            var overdueTasks = await _context.Tasks
-                .Include(t => t.Assignee)
-                .Where(t => t.Status == TaskItemStatus.Overdue)
-                .ToListAsync();
+            await _overdueStatusService.SyncOverdueStatusesAsync();
+            var overdueTasks = (await _taskRepository.GetAllAsync(status: TaskItemStatus.Overdue)).ToList();
 
             var result = overdueTasks
-                .GroupBy(t => t.Assignee)
+                .GroupBy(t => new
+                {
+                    AssigneeId = t.AssigneeId,
+                    AssigneeName = t.Assignee?.Name
+                })
                 .Select(g => new OverdueByAssigneeDto
                 {
-                    AssigneeId = g.Key?.Id ?? 0,
-                    AssigneeName = g.Key?.Name ?? "Не назначен",
+                    AssigneeId = g.Key.AssigneeId ?? 0,
+                    AssigneeName = g.Key.AssigneeName ?? "Не назначен",
                     OverdueCount = g.Count(),
                     Tasks = g.Select(t => new OverdueTaskDto
                     {
@@ -65,9 +61,10 @@ namespace TaskManager.Application.Services
 
         public async Task<AverageCompletionTimeDto> GetAverageCompletionTimeAsync()
         {
-            var completedTasks = await _context.Tasks
-                .Where(t => t.Status == TaskItemStatus.Done && t.CompletedAt.HasValue)
-                .ToListAsync();
+            await _overdueStatusService.SyncOverdueStatusesAsync();
+            var completedTasks = (await _taskRepository.GetAllAsync(status: TaskItemStatus.Done))
+                .Where(t => t.CompletedAt.HasValue)
+                .ToList();
 
             if (!completedTasks.Any())
             {
@@ -87,28 +84,8 @@ namespace TaskManager.Application.Services
             {
                 AverageDays = Math.Round(averageCompletionHours / 24, 2),
                 AverageHours = Math.Round(averageCompletionHours, 2),
-                SampleSize = completedTasks.Count
+                    SampleSize = completedTasks.Count
             };
-        }
-
-        private async Task UpdateOverdueStatuses()
-        {
-           
-            var tasksToUpdate = await _context.Tasks
-                .Where(t => t.Status != TaskItemStatus.Done &&
-                           t.DueDate < DateTime.UtcNow &&
-                           t.Status != TaskItemStatus.Overdue)
-                .ToListAsync();
-
-            foreach (var task in tasksToUpdate)
-            {
-                task.Status = TaskItemStatus.Overdue;
-            }
-
-            if (tasksToUpdate.Any())
-            {
-                await _context.SaveChangesAsync();
-            }
         }
     }
 }

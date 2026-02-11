@@ -38,9 +38,7 @@ C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Application\bin\Debu
 C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Application\bin\Debug\net8.0\TaskManager.Application.dll
 C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Application\bin\Debug\net8.0\TaskManager.Application.pdb
 C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Application\bin\Debug\net8.0\TaskManager.Domain.dll
-C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Application\bin\Debug\net8.0\TaskManager.Infrastructure.dll
 C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Application\bin\Debug\net8.0\TaskManager.Domain.pdb
-C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Application\bin\Debug\net8.0\TaskManager.Infrastructure.pdb
 C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Application\obj\Debug\net8.0\TaskManager.Application.csproj.AssemblyReference.cache
 C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Application\obj\Debug\net8.0\TaskManager.Application.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\0_offlayt\source\repos\GoodTaskTracker\TaskManager.Application\obj\Debug\net8.0\TaskManager.Application.AssemblyInfoInputs.cache
