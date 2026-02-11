@@ -7,18 +7,24 @@ namespace TaskManager.Application.Services
     public class ReportService : IReportService
     {
         private readonly ITaskRepository _taskRepository;
+        private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
         private readonly IOverdueStatusService _overdueStatusService;
 
-        public ReportService(ITaskRepository taskRepository, IOverdueStatusService overdueStatusService)
+        public ReportService(
+            ITaskRepository taskRepository,
+            IWorkspaceMemberRepository workspaceMemberRepository,
+            IOverdueStatusService overdueStatusService)
         {
             _taskRepository = taskRepository;
+            _workspaceMemberRepository = workspaceMemberRepository;
             _overdueStatusService = overdueStatusService;
         }
 
-        public async Task<StatusSummaryDto> GetStatusSummaryAsync()
+        public async Task<StatusSummaryDto> GetStatusSummaryAsync(int workspaceId, int actorUserId)
         {
-            await _overdueStatusService.SyncOverdueStatusesAsync();
-            var tasks = (await _taskRepository.GetAllAsync()).ToList();
+            await EnsureMemberAsync(workspaceId, actorUserId);
+            await _overdueStatusService.SyncOverdueStatusesAsync(workspaceId);
+            var tasks = (await _taskRepository.GetAllAsync(workspaceId)).ToList();
 
             return new StatusSummaryDto
             {
@@ -30,10 +36,11 @@ namespace TaskManager.Application.Services
             };
         }
 
-        public async Task<IEnumerable<OverdueByAssigneeDto>> GetOverdueTasksByAssigneeAsync()
+        public async Task<IEnumerable<OverdueByAssigneeDto>> GetOverdueTasksByAssigneeAsync(int workspaceId, int actorUserId)
         {
-            await _overdueStatusService.SyncOverdueStatusesAsync();
-            var overdueTasks = (await _taskRepository.GetAllAsync(status: TaskItemStatus.Overdue)).ToList();
+            await EnsureMemberAsync(workspaceId, actorUserId);
+            await _overdueStatusService.SyncOverdueStatusesAsync(workspaceId);
+            var overdueTasks = (await _taskRepository.GetAllAsync(workspaceId, status: TaskItemStatus.Overdue)).ToList();
 
             var result = overdueTasks
                 .GroupBy(t => new
@@ -59,10 +66,11 @@ namespace TaskManager.Application.Services
             return result;
         }
 
-        public async Task<AverageCompletionTimeDto> GetAverageCompletionTimeAsync()
+        public async Task<AverageCompletionTimeDto> GetAverageCompletionTimeAsync(int workspaceId, int actorUserId)
         {
-            await _overdueStatusService.SyncOverdueStatusesAsync();
-            var completedTasks = (await _taskRepository.GetAllAsync(status: TaskItemStatus.Done))
+            await EnsureMemberAsync(workspaceId, actorUserId);
+            await _overdueStatusService.SyncOverdueStatusesAsync(workspaceId);
+            var completedTasks = (await _taskRepository.GetAllAsync(workspaceId, status: TaskItemStatus.Done))
                 .Where(t => t.CompletedAt.HasValue)
                 .ToList();
 
@@ -84,8 +92,17 @@ namespace TaskManager.Application.Services
             {
                 AverageDays = Math.Round(averageCompletionHours / 24, 2),
                 AverageHours = Math.Round(averageCompletionHours, 2),
-                    SampleSize = completedTasks.Count
+                SampleSize = completedTasks.Count
             };
+        }
+
+        private async Task EnsureMemberAsync(int workspaceId, int actorUserId)
+        {
+            var isMember = await _workspaceMemberRepository.IsMemberAsync(workspaceId, actorUserId);
+            if (!isMember)
+            {
+                throw new TaskManager.Application.Exceptions.ForbiddenException("You are not a member of this workspace");
+            }
         }
     }
 }

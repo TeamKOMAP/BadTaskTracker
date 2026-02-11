@@ -21,8 +21,7 @@ namespace TaskManager.Domain.Entities
 
         // Navigation properties
         public virtual ICollection<TaskItem> Tasks { get; set; } = new List<TaskItem>();
-
-
-
+        public virtual ICollection<WorkspaceMember> WorkspaceMemberships { get; set; } = new List<WorkspaceMember>();
+        public virtual ICollection<Workspace> OwnedWorkspaces { get; set; } = new List<Workspace>();
     }
 }

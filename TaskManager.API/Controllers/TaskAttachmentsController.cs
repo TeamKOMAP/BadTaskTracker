@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TaskManager.API.Security;
+using TaskManager.Domain.Enums;
 using TaskManager.Infrastructure.Data;
 
 namespace TaskManager.API.Controllers
@@ -102,7 +104,18 @@ namespace TaskManager.API.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskAttachmentDto>>> ListAttachments(int taskId)
         {
-            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId);
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue) return Unauthorized(new { error = "Actor user id is required" });
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
+
+            var member = await _db.WorkspaceMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId.Value && m.UserId == actorUserId.Value);
+            if (member == null) return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access denied" });
+
+            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.WorkspaceId == workspaceId.Value);
             if (!exists) return NotFound(new { error = "Task not found" });
 
             var index = await LoadIndexAsync(taskId);
@@ -117,7 +130,18 @@ namespace TaskManager.API.Controllers
         [HttpGet("exists")]
         public async Task<ActionResult<object>> HasAttachments(int taskId)
         {
-            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId);
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue) return Unauthorized(new { error = "Actor user id is required" });
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
+
+            var member = await _db.WorkspaceMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId.Value && m.UserId == actorUserId.Value);
+            if (member == null) return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access denied" });
+
+            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.WorkspaceId == workspaceId.Value);
             if (!exists) return NotFound(new { error = "Task not found" });
 
             var index = await LoadIndexAsync(taskId);
@@ -129,7 +153,18 @@ namespace TaskManager.API.Controllers
         [RequestSizeLimit(50L * 1024 * 1024)]
         public async Task<ActionResult<IEnumerable<TaskAttachmentDto>>> UploadAttachments(int taskId)
         {
-            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId);
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue) return Unauthorized(new { error = "Actor user id is required" });
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
+
+            var member = await _db.WorkspaceMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId.Value && m.UserId == actorUserId.Value);
+            if (member == null) return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access denied" });
+
+            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.WorkspaceId == workspaceId.Value);
             if (!exists) return NotFound(new { error = "Task not found" });
 
             if (!Request.HasFormContentType)
@@ -186,7 +221,18 @@ namespace TaskManager.API.Controllers
         [HttpGet("{attachmentId}")]
         public async Task<IActionResult> DownloadAttachment(int taskId, string attachmentId)
         {
-            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId);
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue) return Unauthorized(new { error = "Actor user id is required" });
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
+
+            var member = await _db.WorkspaceMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId.Value && m.UserId == actorUserId.Value);
+            if (member == null) return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access denied" });
+
+            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.WorkspaceId == workspaceId.Value);
             if (!exists) return NotFound(new { error = "Task not found" });
 
             var index = await LoadIndexAsync(taskId);
@@ -207,7 +253,24 @@ namespace TaskManager.API.Controllers
         [HttpDelete("{attachmentId}")]
         public async Task<IActionResult> DeleteAttachment(int taskId, string attachmentId)
         {
-            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId);
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue) return Unauthorized(new { error = "Actor user id is required" });
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
+
+            var member = await _db.WorkspaceMembers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId.Value && m.UserId == actorUserId.Value);
+            if (member == null) return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access denied" });
+
+            var canManage = member.Role == WorkspaceRole.Admin || member.Role == WorkspaceRole.Owner;
+            if (!canManage)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = "Only workspace admin can delete attachments" });
+            }
+
+            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.WorkspaceId == workspaceId.Value);
             if (!exists) return NotFound(new { error = "Task not found" });
 
             var index = await LoadIndexAsync(taskId);

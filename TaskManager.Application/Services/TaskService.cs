@@ -9,38 +9,42 @@ namespace TaskManager.Application.Services
     public class TaskService : ITaskService
     {
         private readonly ITaskRepository _taskRepository;
-        private readonly IUserRepository _userRepository;
         private readonly ITagRepository _tagRepository;
+        private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
         private readonly IOverdueStatusService _overdueStatusService;
 
         public TaskService(
             ITaskRepository taskRepository,
-            IUserRepository userRepository,
             ITagRepository tagRepository,
+            IWorkspaceMemberRepository workspaceMemberRepository,
             IOverdueStatusService overdueStatusService)
         {
             _taskRepository = taskRepository;
-            _userRepository = userRepository;
             _tagRepository = tagRepository;
+            _workspaceMemberRepository = workspaceMemberRepository;
             _overdueStatusService = overdueStatusService;
         }
 
         public async Task<IEnumerable<TaskDto>> GetTasksAsync(
+            int workspaceId,
+            int actorUserId,
             TaskItemStatus? status = null,
             int? assigneeId = null,
             DateTime? dueBefore = null,
             DateTime? dueAfter = null,
             List<int>? tagIds = null)
         {
-            await _overdueStatusService.SyncOverdueStatusesAsync();
-            var tasks = await _taskRepository.GetAllAsync(status, assigneeId, dueBefore, dueAfter, tagIds);
+            await EnsureMemberAsync(workspaceId, actorUserId);
+            await _overdueStatusService.SyncOverdueStatusesAsync(workspaceId);
+            var tasks = await _taskRepository.GetAllAsync(workspaceId, status, assigneeId, dueBefore, dueAfter, tagIds);
             return tasks.Select(MapToDto);
         }
 
-        public async Task<TaskDto> GetTaskByIdAsync(int id)
+        public async Task<TaskDto> GetTaskByIdAsync(int workspaceId, int actorUserId, int id)
         {
-            await _overdueStatusService.SyncOverdueStatusesAsync();
-            var task = await _taskRepository.GetByIdAsync(id);
+            await EnsureMemberAsync(workspaceId, actorUserId);
+            await _overdueStatusService.SyncOverdueStatusesAsync(workspaceId);
+            var task = await _taskRepository.GetByIdAsync(id, workspaceId);
             if (task == null)
             {
                 throw new NotFoundException($"Task with id {id} not found");
@@ -48,25 +52,26 @@ namespace TaskManager.Application.Services
             return MapToDto(task);
         }
 
-        public async Task<TaskDto> CreateTaskAsync(CreateTaskDto createTaskDto)
+        public async Task<TaskDto> CreateTaskAsync(int workspaceId, int actorUserId, CreateTaskDto createTaskDto)
         {
+            await EnsureMemberAsync(workspaceId, actorUserId);
             // Валидация
             ValidateCreateTaskDto(createTaskDto);
 
             // Проверяем существование пользователя
             if (createTaskDto.AssigneeId.HasValue)
             {
-                var userExists = await _userRepository.ExistsAsync(createTaskDto.AssigneeId.Value);
-                if (!userExists)
+                var assigneeIsMember = await _workspaceMemberRepository.IsMemberAsync(workspaceId, createTaskDto.AssigneeId.Value);
+                if (!assigneeIsMember)
                 {
-                    throw new ValidationException($"User with id {createTaskDto.AssigneeId} not found");
+                    throw new ValidationException($"User with id {createTaskDto.AssigneeId} is not a member of this workspace");
                 }
             }
 
             // Проверяем существование тегов
             if (createTaskDto.TagIds != null && createTaskDto.TagIds.Any())
             {
-                var existingTagsCount = await _tagRepository.CountExistingAsync(createTaskDto.TagIds);
+                var existingTagsCount = await _tagRepository.CountExistingAsync(workspaceId, createTaskDto.TagIds);
 
                 if (existingTagsCount != createTaskDto.TagIds.Count)
                 {
@@ -79,6 +84,7 @@ namespace TaskManager.Application.Services
                 Title = createTaskDto.Title,
                 Description = createTaskDto.Description,
                 Status = TaskItemStatus.New,
+                WorkspaceId = workspaceId,
                 AssigneeId = createTaskDto.AssigneeId,
                 DueDate = createTaskDto.DueDate,
                 Priority = createTaskDto.Priority,
@@ -97,12 +103,13 @@ namespace TaskManager.Application.Services
             return MapToDto(createdTask);
         }
 
-        public async Task<TaskDto> UpdateTaskAsync(UpdateTaskDto updateTaskDto)
+        public async Task<TaskDto> UpdateTaskAsync(int workspaceId, int actorUserId, UpdateTaskDto updateTaskDto)
         {
+            await EnsureMemberAsync(workspaceId, actorUserId);
             // Валидация
             ValidateUpdateTaskDto(updateTaskDto);
 
-            var task = await _taskRepository.GetByIdAsync(updateTaskDto.Id);
+            var task = await _taskRepository.GetByIdAsync(updateTaskDto.Id, workspaceId);
             if (task == null)
             {
                 throw new NotFoundException($"Task with id {updateTaskDto.Id} not found");
@@ -111,17 +118,17 @@ namespace TaskManager.Application.Services
             // Проверяем существование пользователя
             if (updateTaskDto.AssigneeId.HasValue)
             {
-                var userExists = await _userRepository.ExistsAsync(updateTaskDto.AssigneeId.Value);
-                if (!userExists)
+                var assigneeIsMember = await _workspaceMemberRepository.IsMemberAsync(workspaceId, updateTaskDto.AssigneeId.Value);
+                if (!assigneeIsMember)
                 {
-                    throw new ValidationException($"User with id {updateTaskDto.AssigneeId} not found");
+                    throw new ValidationException($"User with id {updateTaskDto.AssigneeId} is not a member of this workspace");
                 }
             }
 
             // Проверяем существование тегов
             if (updateTaskDto.TagIds != null && updateTaskDto.TagIds.Any())
             {
-                var existingTagsCount = await _tagRepository.CountExistingAsync(updateTaskDto.TagIds);
+                var existingTagsCount = await _tagRepository.CountExistingAsync(workspaceId, updateTaskDto.TagIds);
 
                 if (existingTagsCount != updateTaskDto.TagIds.Count)
                 {
@@ -161,15 +168,26 @@ namespace TaskManager.Application.Services
             return MapToDto(task);
         }
 
-        public async Task DeleteTaskAsync(int id)
+        public async Task DeleteTaskAsync(int workspaceId, int actorUserId, int id)
         {
-            var task = await _taskRepository.GetByIdAsync(id);
+            await EnsureMemberAsync(workspaceId, actorUserId);
+
+            var task = await _taskRepository.GetByIdAsync(id, workspaceId);
             if (task == null)
             {
                 throw new NotFoundException($"Task with id {id} not found");
             }
 
             await _taskRepository.DeleteAsync(task);
+        }
+
+        private async Task EnsureMemberAsync(int workspaceId, int actorUserId)
+        {
+            var isMember = await _workspaceMemberRepository.IsMemberAsync(workspaceId, actorUserId);
+            if (!isMember)
+            {
+                throw new ForbiddenException("You are not a member of this workspace");
+            }
         }
 
         // Приватные методы валидации
@@ -223,6 +241,7 @@ namespace TaskManager.Application.Services
             return new TaskDto
             {
                 Id = task.Id,
+                WorkspaceId = task.WorkspaceId,
                 Title = task.Title,
                 Description = task.Description ?? string.Empty,
                 Status = task.Status,

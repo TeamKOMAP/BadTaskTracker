@@ -39,6 +39,14 @@ namespace TaskManager.Infrastructure.Repositories
                 .FirstOrDefaultAsync(u => u.Id == id);
         }
 
+        public Task<User?> GetByEmailAsync(string email)
+        {
+            var normalizedEmail = email.Trim().ToLower();
+            return _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == normalizedEmail);
+        }
+
         public Task<bool> ExistsAsync(int id)
         {
             return _context.Users

@@ -17,6 +17,8 @@ namespace TaskManager.Domain.Entities
 
         public int? AssigneeId { get; set; }
 
+        public int WorkspaceId { get; set; }
+
         public System.DateTime CreatedAt { get; set; } = System.DateTime.UtcNow;
         public System.DateTime? UpdatedAt { get; set; }
 
@@ -32,6 +34,7 @@ namespace TaskManager.Domain.Entities
         public TaskPriority Priority { get; set; } = TaskPriority.Medium;
 
         public virtual User? Assignee { get; set; }
+        public virtual Workspace Workspace { get; set; } = null!;
         public virtual System.Collections.Generic.ICollection<TaskTag> TaskTags { get; set; } = new System.Collections.Generic.List<TaskTag>();
 
         [NotMapped]

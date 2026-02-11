@@ -14,9 +14,12 @@ namespace TaskManager.Domain.Entities
         [MaxLength(50)]
         public string Name { get; set; } = string.Empty;
 
+        public int WorkspaceId { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation properties (many-to-many)
+        public virtual Workspace Workspace { get; set; } = null!;
         public virtual ICollection<TaskTag> TaskTags { get; set; } = new List<TaskTag>(); 
 
         // Helper property to get Tasks directly

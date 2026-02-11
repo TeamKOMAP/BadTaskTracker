@@ -14,9 +14,11 @@ namespace TaskManager.Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task<List<Tag>> GetAllAsync(string? query = null)
+        public async Task<List<Tag>> GetAllAsync(int workspaceId, string? query = null)
         {
-            var tags = _context.Tags.AsNoTracking();
+            var tags = _context.Tags
+                .AsNoTracking()
+                .Where(t => t.WorkspaceId == workspaceId);
 
             if (!string.IsNullOrWhiteSpace(query))
             {
@@ -29,19 +31,19 @@ namespace TaskManager.Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        public Task<Tag?> GetByIdAsync(int id)
+        public Task<Tag?> GetByIdAsync(int workspaceId, int id)
         {
             return _context.Tags
                 .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Id == id);
+                .FirstOrDefaultAsync(t => t.Id == id && t.WorkspaceId == workspaceId);
         }
 
-        public Task<Tag?> GetByNameAsync(string name)
+        public Task<Tag?> GetByNameAsync(int workspaceId, string name)
         {
             var normalizedName = name.Trim().ToLower();
             return _context.Tags
                 .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.Name.ToLower() == normalizedName);
+                .FirstOrDefaultAsync(t => t.WorkspaceId == workspaceId && t.Name.ToLower() == normalizedName);
         }
 
         public async Task<Tag> AddAsync(Tag tag)
@@ -51,7 +53,7 @@ namespace TaskManager.Infrastructure.Repositories
             return tag;
         }
 
-        public Task<int> CountExistingAsync(IEnumerable<int> tagIds)
+        public Task<int> CountExistingAsync(int workspaceId, IEnumerable<int> tagIds)
         {
             var ids = tagIds.Distinct().ToList();
             if (ids.Count == 0)
@@ -61,7 +63,7 @@ namespace TaskManager.Infrastructure.Repositories
 
             return _context.Tags
                 .AsNoTracking()
-                .CountAsync(t => ids.Contains(t.Id));
+                .CountAsync(t => t.WorkspaceId == workspaceId && ids.Contains(t.Id));
         }
     }
 }

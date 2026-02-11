@@ -33,9 +33,14 @@ namespace TaskManager.Infrastructure.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("WorkspaceId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "Name")
                         .IsUnique();
 
                     b.ToTable("Tags");
@@ -81,6 +86,9 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("WorkspaceId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AssigneeId");
@@ -89,11 +97,15 @@ namespace TaskManager.Infrastructure.Data.Migrations
 
                     b.HasIndex("CreatedAt");
 
-                    b.HasIndex("DueDate");
+                    b.HasIndex("WorkspaceId");
 
-                    b.HasIndex("Priority");
+                    b.HasIndex("WorkspaceId", "AssigneeId");
 
-                    b.HasIndex("Status");
+                    b.HasIndex("WorkspaceId", "DueDate");
+
+                    b.HasIndex("WorkspaceId", "Priority");
+
+                    b.HasIndex("WorkspaceId", "Status");
 
                     b.ToTable("Tasks", (string)null);
                 });
@@ -147,6 +159,74 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("TaskManager.Domain.Entities.Workspace", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AvatarPath")
+                        .HasMaxLength(400)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.ToTable("Workspaces");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.WorkspaceMember", b =>
+                {
+                    b.Property<int>("WorkspaceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("AddedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("datetime('now')");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("WorkspaceId", "UserId");
+
+                    b.HasIndex("Role");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("WorkspaceMembers");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.Tag", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.Workspace", "Workspace")
+                        .WithMany("Tags")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Workspace");
+                });
+
             modelBuilder.Entity("TaskManager.Domain.Entities.TaskItem", b =>
                 {
                     b.HasOne("TaskManager.Domain.Entities.User", "Assignee")
@@ -154,7 +234,15 @@ namespace TaskManager.Infrastructure.Data.Migrations
                         .HasForeignKey("AssigneeId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("TaskManager.Domain.Entities.Workspace", "Workspace")
+                        .WithMany("Tasks")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Assignee");
+
+                    b.Navigation("Workspace");
                 });
 
             modelBuilder.Entity("TaskManager.Domain.Entities.TaskTag", b =>
@@ -176,6 +264,36 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Navigation("Task");
                 });
 
+            modelBuilder.Entity("TaskManager.Domain.Entities.Workspace", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.User", "CreatedByUser")
+                        .WithMany("OwnedWorkspaces")
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.WorkspaceMember", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.User", "User")
+                        .WithMany("WorkspaceMemberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManager.Domain.Entities.Workspace", "Workspace")
+                        .WithMany("Members")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("Workspace");
+                });
+
             modelBuilder.Entity("TaskManager.Domain.Entities.Tag", b =>
                 {
                     b.Navigation("TaskTags");
@@ -188,6 +306,19 @@ namespace TaskManager.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("TaskManager.Domain.Entities.User", b =>
                 {
+                    b.Navigation("OwnedWorkspaces");
+
+                    b.Navigation("Tasks");
+
+                    b.Navigation("WorkspaceMemberships");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.Workspace", b =>
+                {
+                    b.Navigation("Members");
+
+                    b.Navigation("Tags");
+
                     b.Navigation("Tasks");
                 });
 #pragma warning restore 612, 618

@@ -2,6 +2,6 @@ namespace TaskManager.Application.Interfaces
 {
     public interface IOverdueStatusService
     {
-        Task<int> SyncOverdueStatusesAsync();
+        Task<int> SyncOverdueStatusesAsync(int workspaceId);
     }
 }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
+using TaskManager.API.Security;
 
 namespace TaskManager.API.Controllers
 {
@@ -19,21 +20,56 @@ namespace TaskManager.API.Controllers
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TagDto>>> GetTags([FromQuery] string? q = null)
         {
-            var tags = await _tagService.GetTagsAsync(q);
-            return Ok(tags);
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue)
+            {
+                return BadRequest(new { error = "Workspace id is required" });
+            }
+
+            try
+            {
+                var tags = await _tagService.GetTagsAsync(workspaceId.Value, actorUserId.Value, q);
+                return Ok(tags);
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
         }
 
         [HttpGet("{id:int}")]
         public async Task<ActionResult<TagDto>> GetTagById(int id)
         {
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue)
+            {
+                return BadRequest(new { error = "Workspace id is required" });
+            }
+
             try
             {
-                var tag = await _tagService.GetTagByIdAsync(id);
+                var tag = await _tagService.GetTagByIdAsync(workspaceId.Value, actorUserId.Value, id);
                 return Ok(tag);
             }
             catch (NotFoundException)
             {
                 return NotFound();
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
             }
         }
 
@@ -45,9 +81,21 @@ namespace TaskManager.API.Controllers
                 return ValidationProblem(ModelState);
             }
 
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue)
+            {
+                return BadRequest(new { error = "Workspace id is required" });
+            }
+
             try
             {
-                var result = await _tagService.CreateOrGetTagAsync(dto);
+                var result = await _tagService.CreateOrGetTagAsync(workspaceId.Value, actorUserId.Value, dto);
                 if (!result.Created)
                 {
                     return Ok(result.Tag);
@@ -58,6 +106,10 @@ namespace TaskManager.API.Controllers
             catch (ValidationException ex)
             {
                 return BadRequest(new { error = ex.Message });
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
             }
         }
     }

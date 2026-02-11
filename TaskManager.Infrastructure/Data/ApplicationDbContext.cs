@@ -1,6 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using TaskManager.Domain.Entities;
-using System.ComponentModel.DataAnnotations.Schema;
 
 namespace TaskManager.Infrastructure.Data
 {
@@ -12,6 +11,8 @@ namespace TaskManager.Infrastructure.Data
         }
 
         public DbSet<User> Users { get; set; }
+        public DbSet<Workspace> Workspaces { get; set; }
+        public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
         public DbSet<TaskItem> Tasks { get; set; }
         public DbSet<Tag> Tags { get; set; }
         public DbSet<TaskTag> TaskTags { get; set; }
@@ -20,7 +21,6 @@ namespace TaskManager.Infrastructure.Data
         {
             base.OnModelCreating(modelBuilder);
 
-            // User configuration
             modelBuilder.Entity<User>(entity =>
             {
                 entity.HasKey(u => u.Id);
@@ -30,17 +30,55 @@ namespace TaskManager.Infrastructure.Data
                 entity.Property(u => u.CreatedAt).HasDefaultValueSql("datetime('now')");
             });
 
-            // Task configuration
+            modelBuilder.Entity<Workspace>(entity =>
+            {
+                entity.HasKey(w => w.Id);
+                entity.Property(w => w.Name).IsRequired().HasMaxLength(120);
+                entity.Property(w => w.AvatarPath).HasMaxLength(400);
+                entity.Property(w => w.CreatedAt).HasDefaultValueSql("datetime('now')");
+
+                entity.HasOne(w => w.CreatedByUser)
+                    .WithMany(u => u.OwnedWorkspaces)
+                    .HasForeignKey(w => w.CreatedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(w => w.CreatedByUserId);
+                entity.HasIndex(w => w.CreatedAt);
+            });
+
+            modelBuilder.Entity<WorkspaceMember>(entity =>
+            {
+                entity.HasKey(m => new { m.WorkspaceId, m.UserId });
+
+                entity.Property(m => m.Role)
+                    .IsRequired()
+                    .HasConversion<int>();
+
+                entity.Property(m => m.AddedAt).HasDefaultValueSql("datetime('now')");
+
+                entity.HasOne(m => m.Workspace)
+                    .WithMany(w => w.Members)
+                    .HasForeignKey(m => m.WorkspaceId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(m => m.User)
+                    .WithMany(u => u.WorkspaceMemberships)
+                    .HasForeignKey(m => m.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(m => m.UserId);
+                entity.HasIndex(m => m.Role);
+            });
+
             modelBuilder.Entity<TaskItem>(entity =>
             {
                 entity.HasKey(t => t.Id);
-                entity.ToTable("Tasks"); // Explicit table name
+                entity.ToTable("Tasks");
                 entity.Property(t => t.Title).IsRequired().HasMaxLength(200);
                 entity.Property(t => t.Description).HasMaxLength(1000);
                 entity.Property(t => t.CreatedAt).HasDefaultValueSql("datetime('now')");
                 entity.Property(t => t.DueDate).IsRequired();
 
-                // Enum conversions
                 entity.Property(t => t.Status)
                     .IsRequired()
                     .HasConversion<string>()
@@ -50,35 +88,49 @@ namespace TaskManager.Infrastructure.Data
                     .IsRequired()
                     .HasConversion<int>();
 
-                // Foreign key to User
                 entity.HasOne(t => t.Assignee)
                     .WithMany(u => u.Tasks)
                     .HasForeignKey(t => t.AssigneeId)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(t => t.Workspace)
+                    .WithMany(w => w.Tasks)
+                    .HasForeignKey(t => t.WorkspaceId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(t => t.WorkspaceId);
+                entity.HasIndex(t => new { t.WorkspaceId, t.AssigneeId });
+                entity.HasIndex(t => new { t.WorkspaceId, t.Status });
+                entity.HasIndex(t => new { t.WorkspaceId, t.Priority });
+                entity.HasIndex(t => new { t.WorkspaceId, t.DueDate });
+                entity.HasIndex(t => t.CreatedAt);
+                entity.HasIndex(t => t.CompletedAt);
             });
 
-            // Tag configuration
             modelBuilder.Entity<Tag>(entity =>
             {
                 entity.HasKey(t => t.Id);
                 entity.Property(t => t.Name).IsRequired().HasMaxLength(50);
-                entity.HasIndex(t => t.Name).IsUnique();
                 entity.Property(t => t.CreatedAt).HasDefaultValueSql("datetime('now')");
+
+                entity.HasOne(t => t.Workspace)
+                    .WithMany(w => w.Tags)
+                    .HasForeignKey(t => t.WorkspaceId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(t => t.WorkspaceId);
+                entity.HasIndex(t => new { t.WorkspaceId, t.Name }).IsUnique();
             });
 
-            // TaskTag configuration (many-to-many)
             modelBuilder.Entity<TaskTag>(entity =>
             {
-                // Composite primary key
                 entity.HasKey(tt => new { tt.TaskId, tt.TagId });
 
-                // Foreign key to Task
                 entity.HasOne(tt => tt.Task)
                     .WithMany(t => t.TaskTags)
                     .HasForeignKey(tt => tt.TaskId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                // Foreign key to Tag
                 entity.HasOne(tt => tt.Tag)
                     .WithMany(t => t.TaskTags)
                     .HasForeignKey(tt => tt.TagId)
@@ -86,25 +138,6 @@ namespace TaskManager.Infrastructure.Data
 
                 entity.Property(tt => tt.CreatedAt).HasDefaultValueSql("datetime('now')");
             });
-
-            // Indexes for performance
-            modelBuilder.Entity<TaskItem>()
-                .HasIndex(t => t.Status);
-
-            modelBuilder.Entity<TaskItem>()
-                .HasIndex(t => t.Priority);
-
-            modelBuilder.Entity<TaskItem>()
-                .HasIndex(t => t.DueDate);
-
-            modelBuilder.Entity<TaskItem>()
-                .HasIndex(t => t.CreatedAt);
-
-            modelBuilder.Entity<TaskItem>()
-                .HasIndex(t => t.CompletedAt);
-
-            modelBuilder.Entity<TaskItem>()
-                .HasIndex(t => t.AssigneeId);
         }
     }
 }

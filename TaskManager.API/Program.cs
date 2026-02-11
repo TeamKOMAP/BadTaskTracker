@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using TaskManager.Application.Interfaces;
 using TaskManager.Application.Services;
 using TaskManager.Infrastructure.Data;
@@ -14,6 +17,46 @@ builder.Logging.AddDebug();
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtIssuer = jwtSection["Issuer"];
+var jwtAudience = jwtSection["Audience"];
+var jwtSigningKey = jwtSection["SigningKey"];
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.RequireHttpsMetadata = false;
+        options.SaveToken = true;
+
+        if (!string.IsNullOrWhiteSpace(jwtSigningKey))
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = !string.IsNullOrWhiteSpace(jwtIssuer),
+                ValidateAudience = !string.IsNullOrWhiteSpace(jwtAudience),
+                ValidateLifetime = true,
+                ValidateIssuerSigningKey = true,
+                ValidIssuer = jwtIssuer,
+                ValidAudience = jwtAudience,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey)),
+                ClockSkew = TimeSpan.FromMinutes(2)
+            };
+        }
+        else
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuer = false,
+                ValidateAudience = false,
+                ValidateLifetime = false,
+                ValidateIssuerSigningKey = false
+            };
+        }
+    });
+
+builder.Services.AddAuthorization();
+
 // �����������
 Console.WriteLine($"Current directory: {Directory.GetCurrentDirectory()}");
 Console.WriteLine($"Connection string: {builder.Configuration.GetConnectionString("DefaultConnection")}");
@@ -26,11 +69,14 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<ITagRepository, TagRepository>();
+builder.Services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
+builder.Services.AddScoped<IWorkspaceMemberRepository, WorkspaceMemberRepository>();
 
 // Add Services
 builder.Services.AddScoped<ITaskService, TaskService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITagService, TagService>();
+builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IOverdueStatusService, OverdueStatusService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 
@@ -51,6 +97,31 @@ builder.Services.AddSwaggerGen(c =>
         {
             Name = "MIT License",
             Url = new Uri("https://opensource.org/licenses/MIT")
+        }
+    });
+
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = ParameterLocation.Header,
+        Description = "JWT Authorization header using the Bearer scheme"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
         }
     });
 
@@ -82,6 +153,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

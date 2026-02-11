@@ -16,6 +16,7 @@ namespace TaskManager.Infrastructure.Repositories
         }
 
         public async Task<IEnumerable<TaskItem>> GetAllAsync(
+            int workspaceId,
             TaskItemStatus? status = null,
             int? assigneeId = null,
             DateTime? dueBefore = null,
@@ -26,6 +27,7 @@ namespace TaskManager.Infrastructure.Repositories
                 .Include(t => t.Assignee)
                 .Include(t => t.TaskTags)
                     .ThenInclude(tt => tt.Tag)
+                .Where(t => t.WorkspaceId == workspaceId)
                 .AsQueryable();
 
             if (status.HasValue)
@@ -48,13 +50,13 @@ namespace TaskManager.Infrastructure.Repositories
             return await query.ToListAsync();
         }
 
-        public async Task<TaskItem?> GetByIdAsync(int id)
+        public async Task<TaskItem?> GetByIdAsync(int id, int workspaceId)
         {
             return await _context.Tasks
                 .Include(t => t.Assignee)
                 .Include(t => t.TaskTags)
                     .ThenInclude(tt => tt.Tag)
-                .FirstOrDefaultAsync(t => t.Id == id);
+                .FirstOrDefaultAsync(t => t.Id == id && t.WorkspaceId == workspaceId);
         }
 
         public async Task<TaskItem> AddAsync(TaskItem taskItem)
@@ -76,15 +78,16 @@ namespace TaskManager.Infrastructure.Repositories
             await _context.SaveChangesAsync();
         }
 
-        public async Task<bool> ExistsAsync(int id)
+        public async Task<bool> ExistsAsync(int id, int workspaceId)
         {
-            return await _context.Tasks.AnyAsync(t => t.Id == id);
+            return await _context.Tasks.AnyAsync(t => t.Id == id && t.WorkspaceId == workspaceId);
         }
 
-        public async Task<int> UpdateOverdueStatusesAsync(DateTime utcNow)
+        public async Task<int> UpdateOverdueStatusesAsync(int workspaceId, DateTime utcNow)
         {
             var tasksToUpdate = await _context.Tasks
-                .Where(t => t.Status != TaskItemStatus.Done &&
+                .Where(t => t.WorkspaceId == workspaceId &&
+                            t.Status != TaskItemStatus.Done &&
                             t.DueDate < utcNow &&
                             t.Status != TaskItemStatus.Overdue)
                 .ToListAsync();

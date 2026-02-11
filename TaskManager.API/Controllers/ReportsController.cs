@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using TaskManager.Application.Interfaces;
-using TaskManager.Application.DTOs;
+using TaskManager.Application.Exceptions;
+using TaskManager.API.Security;
 
 namespace TaskManager.API.Controllers
 {
@@ -18,22 +19,79 @@ namespace TaskManager.API.Controllers
         [HttpGet("status-summary")]
         public async Task<ActionResult<Application.DTOs.StatusSummaryDto>> GetStatusSummary()
         {
-            var summary = await _reportService.GetStatusSummaryAsync();
-            return Ok(summary);
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue)
+            {
+                return BadRequest(new { error = "Workspace id is required" });
+            }
+
+            try
+            {
+                var summary = await _reportService.GetStatusSummaryAsync(workspaceId.Value, actorUserId.Value);
+                return Ok(summary);
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
         }
 
         [HttpGet("overdue-by-assignee")]
         public async Task<ActionResult<IEnumerable<Application.DTOs.OverdueByAssigneeDto>>> GetOverdueByAssignee()
         {
-            var overdueTasks = await _reportService.GetOverdueTasksByAssigneeAsync();
-            return Ok(overdueTasks);
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue)
+            {
+                return BadRequest(new { error = "Workspace id is required" });
+            }
+
+            try
+            {
+                var overdueTasks = await _reportService.GetOverdueTasksByAssigneeAsync(workspaceId.Value, actorUserId.Value);
+                return Ok(overdueTasks);
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
         }
 
         [HttpGet("avg-completion-time")]
         public async Task<ActionResult<Application.DTOs.AverageCompletionTimeDto>> GetAverageCompletionTime()
         {
-            var avgTime = await _reportService.GetAverageCompletionTimeAsync();
-            return Ok(avgTime);
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue)
+            {
+                return BadRequest(new { error = "Workspace id is required" });
+            }
+
+            try
+            {
+                var avgTime = await _reportService.GetAverageCompletionTimeAsync(workspaceId.Value, actorUserId.Value);
+                return Ok(avgTime);
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
         }
     }
 }

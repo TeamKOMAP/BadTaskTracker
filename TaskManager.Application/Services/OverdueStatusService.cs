@@ -11,9 +11,9 @@ namespace TaskManager.Application.Services
             _taskRepository = taskRepository;
         }
 
-        public Task<int> SyncOverdueStatusesAsync()
+        public Task<int> SyncOverdueStatusesAsync(int workspaceId)
         {
-            return _taskRepository.UpdateOverdueStatusesAsync(DateTime.UtcNow);
+            return _taskRepository.UpdateOverdueStatusesAsync(workspaceId, DateTime.UtcNow);
         }
     }
 }
