@@ -3,6 +3,10 @@
   "WorkspaceRootPath": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{FE275C98-04FD-4551-91DC-D75E1CAAA2C6}|TaskManager.API\\TaskManager.API.csproj|c:\\users\\0_offlayt\\source\\repos\\goodtasktracker\\taskmanager.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{FE275C98-04FD-4551-91DC-D75E1CAAA2C6}|TaskManager.API\\TaskManager.API.csproj|solutionrelative:taskmanager.api\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{F1FA2A97-53FE-4155-BA41-DB793BF1E570}|TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj|c:\\users\\0_offlayt\\source\\repos\\goodtasktracker\\taskmanager.infrastructure\\designtimedbcontextfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{F1FA2A97-53FE-4155-BA41-DB793BF1E570}|TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj|solutionrelative:taskmanager.infrastructure\\designtimedbcontextfactory.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -34,6 +38,19 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "Program.cs",
+              "DocumentMoniker": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.API\\Program.cs",
+              "RelativeDocumentMoniker": "TaskManager.API\\Program.cs",
+              "ToolTip": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.API\\Program.cs",
+              "RelativeToolTip": "TaskManager.API\\Program.cs",
+              "ViewState": "AgIAAJMAAAAAAAAAAAAAALgAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-12T10:04:43.387Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
               "Title": "DesignTimeDbContextFactory.cs",
               "DocumentMoniker": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Infrastructure\\DesignTimeDbContextFactory.cs",
               "RelativeDocumentMoniker": "TaskManager.Infrastructure\\DesignTimeDbContextFactory.cs",
@@ -41,12 +58,11 @@
               "RelativeToolTip": "TaskManager.Infrastructure\\DesignTimeDbContextFactory.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABIAAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-02-09T14:33:25.392Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-02-09T14:33:25.392Z"
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 2,
               "Title": "Microsoft.PackageDependencyResolution.targets",
               "DocumentMoniker": "C:\\Program Files\\dotnet\\sdk\\9.0.304\\Sdks\\Microsoft.NET.Sdk\\targets\\Microsoft.PackageDependencyResolution.targets",
               "RelativeDocumentMoniker": "..\\..\\..\\..\\..\\Program Files\\dotnet\\sdk\\9.0.304\\Sdks\\Microsoft.NET.Sdk\\targets\\Microsoft.PackageDependencyResolution.targets",
@@ -58,7 +74,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 2,
+              "DocumentIndex": 3,
               "Title": "appsettings.json",
               "DocumentMoniker": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.API\\appsettings.json",
               "RelativeDocumentMoniker": "TaskManager.API\\appsettings.json",

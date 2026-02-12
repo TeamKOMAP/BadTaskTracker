@@ -7,6 +7,7 @@ using TaskManager.Application.Interfaces;
 using TaskManager.Application.Services;
 using TaskManager.Infrastructure.Data;
 using TaskManager.Infrastructure.Repositories;
+using TaskManager.Infrastructure.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
@@ -79,6 +80,14 @@ builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IOverdueStatusService, OverdueStatusService>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<ITaskAttachmentService, TaskAttachmentService>();
+
+builder.Services.AddSingleton<IAttachmentStorage>(sp =>
+{
+    var env = sp.GetRequiredService<IWebHostEnvironment>();
+    var logger = sp.GetRequiredService<ILogger<FileAttachmentStorage>>();
+    return new FileAttachmentStorage(env.ContentRootPath, logger);
+});
 
 // Configure Swagger/OpenAPI
 builder.Services.AddSwaggerGen(c =>
@@ -167,17 +176,25 @@ using (var scope = app.Services.CreateScope())
     {
         var dbContext = services.GetRequiredService<ApplicationDbContext>();
 
-        // ���������, ���� �� pending ��������
-        var pendingMigrations = dbContext.Database.GetPendingMigrations().ToList();
-        if (pendingMigrations.Any())
+        var startupSection = builder.Configuration.GetSection("DatabaseStartup");
+        var applyMigrations = startupSection.GetValue<bool>("ApplyMigrations", true);
+        var seed = startupSection.GetValue<bool>("Seed", true);
+
+        if (applyMigrations)
         {
-            logger.LogInformation("Applying {Count} pending migrations...", pendingMigrations.Count);
-            dbContext.Database.Migrate();
-            logger.LogInformation("Migrations applied successfully.");
+            var pendingMigrations = dbContext.Database.GetPendingMigrations().ToList();
+            if (pendingMigrations.Any())
+            {
+                logger.LogInformation("Applying {Count} pending migrations...", pendingMigrations.Count);
+                dbContext.Database.Migrate();
+                logger.LogInformation("Migrations applied successfully.");
+            }
         }
 
-        // ��������� ��������� �������
-        SeedData.Initialize(dbContext);
+        if (seed)
+        {
+            SeedData.Initialize(dbContext);
+        }
     }
     catch (Exception ex)
     {

@@ -1,9 +1,10 @@
-using System.Text.Json;
+using System.IO;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using TaskManager.API.Security;
-using TaskManager.Domain.Enums;
-using TaskManager.Infrastructure.Data;
+using TaskManager.Application.Attachments;
+using TaskManager.Application.DTOs;
+using TaskManager.Application.Exceptions;
+using TaskManager.Application.Interfaces;
 
 namespace TaskManager.API.Controllers
 {
@@ -11,80 +12,11 @@ namespace TaskManager.API.Controllers
     [Route("api/tasks/{taskId:int}/attachments")]
     public class TaskAttachmentsController : ControllerBase
     {
-        private readonly ApplicationDbContext _db;
-        private readonly IWebHostEnvironment _env;
+        private readonly ITaskAttachmentService _attachmentService;
 
-        public TaskAttachmentsController(ApplicationDbContext db, IWebHostEnvironment env)
+        public TaskAttachmentsController(ITaskAttachmentService attachmentService)
         {
-            _db = db;
-            _env = env;
-        }
-
-        public sealed class TaskAttachmentDto
-        {
-            public string Id { get; set; } = string.Empty;
-            public int TaskId { get; set; }
-            public string FileName { get; set; } = string.Empty;
-            public string ContentType { get; set; } = "application/octet-stream";
-            public long Size { get; set; }
-            public DateTime UploadedAtUtc { get; set; }
-            public string DownloadUrl { get; set; } = string.Empty;
-        }
-
-        private sealed class AttachmentMeta
-        {
-            public string Id { get; set; } = string.Empty;
-            public int TaskId { get; set; }
-            public string FileName { get; set; } = string.Empty;
-            public string StoredName { get; set; } = string.Empty;
-            public string ContentType { get; set; } = "application/octet-stream";
-            public long Size { get; set; }
-            public DateTime UploadedAtUtc { get; set; }
-        }
-
-        private sealed class AttachmentIndex
-        {
-            public Dictionary<string, AttachmentMeta> Items { get; set; } = new();
-        }
-
-        private string GetTaskFolder(int taskId)
-            => Path.Combine(_env.ContentRootPath, "App_Data", "attachments", $"task-{taskId}");
-
-        private string GetIndexPath(int taskId)
-            => Path.Combine(GetTaskFolder(taskId), "index.json");
-
-        private async Task<AttachmentIndex> LoadIndexAsync(int taskId)
-        {
-            var folder = GetTaskFolder(taskId);
-            Directory.CreateDirectory(folder);
-            var path = GetIndexPath(taskId);
-            if (!System.IO.File.Exists(path))
-            {
-                return new AttachmentIndex();
-            }
-
-            try
-            {
-                var json = await System.IO.File.ReadAllTextAsync(path);
-                var index = JsonSerializer.Deserialize<AttachmentIndex>(json);
-                return index ?? new AttachmentIndex();
-            }
-            catch
-            {
-                return new AttachmentIndex();
-            }
-        }
-
-        private async Task SaveIndexAsync(int taskId, AttachmentIndex index)
-        {
-            var folder = GetTaskFolder(taskId);
-            Directory.CreateDirectory(folder);
-            var path = GetIndexPath(taskId);
-            var json = JsonSerializer.Serialize(index, new JsonSerializerOptions
-            {
-                WriteIndented = true
-            });
-            await System.IO.File.WriteAllTextAsync(path, json);
+            _attachmentService = attachmentService;
         }
 
         private TaskAttachmentDto ToDto(AttachmentMeta meta)
@@ -110,21 +42,20 @@ namespace TaskManager.API.Controllers
             var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
             if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
 
-            var member = await _db.WorkspaceMembers
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId.Value && m.UserId == actorUserId.Value);
-            if (member == null) return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access denied" });
-
-            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.WorkspaceId == workspaceId.Value);
-            if (!exists) return NotFound(new { error = "Task not found" });
-
-            var index = await LoadIndexAsync(taskId);
-            var result = index.Items.Values
-                .OrderByDescending(x => x.UploadedAtUtc)
-                .Select(ToDto)
-                .ToList();
-
-            return Ok(result);
+            try
+            {
+                var items = await _attachmentService.ListAsync(workspaceId.Value, actorUserId.Value, taskId);
+                var result = items.Select(ToDto).ToList();
+                return Ok(result);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
         }
 
         [HttpGet("exists")]
@@ -136,17 +67,19 @@ namespace TaskManager.API.Controllers
             var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
             if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
 
-            var member = await _db.WorkspaceMembers
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId.Value && m.UserId == actorUserId.Value);
-            if (member == null) return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access denied" });
-
-            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.WorkspaceId == workspaceId.Value);
-            if (!exists) return NotFound(new { error = "Task not found" });
-
-            var index = await LoadIndexAsync(taskId);
-            var count = index.Items.Count;
-            return Ok(new { hasAttachments = count > 0, count });
+            try
+            {
+                var count = await _attachmentService.CountAsync(workspaceId.Value, actorUserId.Value, taskId);
+                return Ok(new { hasAttachments = count > 0, count });
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
         }
 
         [HttpPost]
@@ -159,14 +92,6 @@ namespace TaskManager.API.Controllers
             var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
             if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
 
-            var member = await _db.WorkspaceMembers
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId.Value && m.UserId == actorUserId.Value);
-            if (member == null) return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access denied" });
-
-            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.WorkspaceId == workspaceId.Value);
-            if (!exists) return NotFound(new { error = "Task not found" });
-
             if (!Request.HasFormContentType)
             {
                 return BadRequest(new { error = "Expected multipart/form-data" });
@@ -178,44 +103,54 @@ namespace TaskManager.API.Controllers
                 return BadRequest(new { error = "No files uploaded" });
             }
 
-            var folder = GetTaskFolder(taskId);
-            Directory.CreateDirectory(folder);
-            var index = await LoadIndexAsync(taskId);
-            var created = new List<TaskAttachmentDto>();
+            var uploads = new List<AttachmentUpload>();
+            var streams = new List<Stream>();
 
             foreach (var file in files)
             {
                 if (file == null || file.Length <= 0) continue;
-                var originalName = Path.GetFileName(file.FileName ?? "file");
-                if (string.IsNullOrWhiteSpace(originalName)) originalName = "file";
-
-                var id = Guid.NewGuid().ToString("N");
-                var ext = Path.GetExtension(originalName);
-                var storedName = string.IsNullOrWhiteSpace(ext) ? id : (id + ext);
-
-                var path = Path.Combine(folder, storedName);
-                await using (var stream = System.IO.File.Create(path))
-                {
-                    await file.CopyToAsync(stream);
-                }
-
-                var meta = new AttachmentMeta
-                {
-                    Id = id,
-                    TaskId = taskId,
-                    FileName = originalName,
-                    StoredName = storedName,
-                    ContentType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType,
-                    Size = file.Length,
-                    UploadedAtUtc = DateTime.UtcNow
-                };
-
-                index.Items[id] = meta;
-                created.Add(ToDto(meta));
+                var stream = file.OpenReadStream();
+                streams.Add(stream);
+                uploads.Add(new AttachmentUpload(
+                    Path.GetFileName(file.FileName ?? "file"),
+                    file.ContentType ?? "application/octet-stream",
+                    file.Length,
+                    stream));
             }
 
-            await SaveIndexAsync(taskId, index);
-            return Ok(created);
+            if (uploads.Count == 0)
+            {
+                foreach (var stream in streams)
+                {
+                    stream.Dispose();
+                }
+                return BadRequest(new { error = "No files uploaded" });
+            }
+
+            try
+            {
+                var created = await _attachmentService.UploadAsync(workspaceId.Value, actorUserId.Value, taskId, uploads);
+                return Ok(created.Select(ToDto).ToList());
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            finally
+            {
+                foreach (var stream in streams)
+                {
+                    stream.Dispose();
+                }
+            }
         }
 
         [HttpGet("{attachmentId}")]
@@ -227,27 +162,19 @@ namespace TaskManager.API.Controllers
             var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
             if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
 
-            var member = await _db.WorkspaceMembers
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId.Value && m.UserId == actorUserId.Value);
-            if (member == null) return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access denied" });
-
-            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.WorkspaceId == workspaceId.Value);
-            if (!exists) return NotFound(new { error = "Task not found" });
-
-            var index = await LoadIndexAsync(taskId);
-            if (!index.Items.TryGetValue(attachmentId, out var meta))
+            try
             {
-                return NotFound(new { error = "Attachment not found" });
+                var content = await _attachmentService.DownloadAsync(workspaceId.Value, actorUserId.Value, taskId, attachmentId);
+                return File(content.Content, content.Meta.ContentType, content.Meta.FileName);
             }
-
-            var path = Path.Combine(GetTaskFolder(taskId), meta.StoredName);
-            if (!System.IO.File.Exists(path))
+            catch (NotFoundException ex)
             {
-                return NotFound(new { error = "Attachment file missing" });
+                return NotFound(new { error = ex.Message });
             }
-
-            return PhysicalFile(path, meta.ContentType, meta.FileName);
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
         }
 
         [HttpDelete("{attachmentId}")]
@@ -259,42 +186,19 @@ namespace TaskManager.API.Controllers
             var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
             if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
 
-            var member = await _db.WorkspaceMembers
-                .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.WorkspaceId == workspaceId.Value && m.UserId == actorUserId.Value);
-            if (member == null) return StatusCode(StatusCodes.Status403Forbidden, new { error = "Access denied" });
-
-            var canManage = member.Role == WorkspaceRole.Admin || member.Role == WorkspaceRole.Owner;
-            if (!canManage)
-            {
-                return StatusCode(StatusCodes.Status403Forbidden, new { error = "Only workspace admin can delete attachments" });
-            }
-
-            var exists = await _db.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.WorkspaceId == workspaceId.Value);
-            if (!exists) return NotFound(new { error = "Task not found" });
-
-            var index = await LoadIndexAsync(taskId);
-            if (!index.Items.TryGetValue(attachmentId, out var meta))
-            {
-                return NotFound(new { error = "Attachment not found" });
-            }
-
-            var path = Path.Combine(GetTaskFolder(taskId), meta.StoredName);
             try
             {
-                if (System.IO.File.Exists(path))
-                {
-                    System.IO.File.Delete(path);
-                }
+                await _attachmentService.DeleteAsync(workspaceId.Value, actorUserId.Value, taskId, attachmentId);
+                return NoContent();
             }
-            catch
+            catch (NotFoundException ex)
             {
-                return StatusCode(500, new { error = "Failed to delete attachment" });
+                return NotFound(new { error = ex.Message });
             }
-
-            index.Items.Remove(attachmentId);
-            await SaveIndexAsync(taskId, index);
-            return NoContent();
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
         }
     }
 }
