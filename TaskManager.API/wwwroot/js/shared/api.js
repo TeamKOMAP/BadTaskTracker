@@ -5,11 +5,28 @@ const resolveApiBase = () => {
     return fromQuery.endsWith("/api") ? fromQuery : `${fromQuery.replace(/\/$/, "")}/api`;
   }
 
-  const fromStorage = String(localStorage.getItem("gtt-api-base") || "").trim();
+  let fromStorage = "";
+  try {
+    fromStorage = String(localStorage.getItem("gtt-api-base") || "").trim();
+  } catch {
+    fromStorage = "";
+  }
   if (fromStorage) {
-    return fromStorage.endsWith("/api")
-      ? fromStorage.replace(/\/$/, "")
-      : `${fromStorage.replace(/\/$/, "")}/api`;
+    try {
+      const storageUrl = new URL(fromStorage, window.location.origin);
+      if (storageUrl.origin === window.location.origin) {
+        const rawPath = `${storageUrl.origin}${storageUrl.pathname}`.replace(/\/$/, "");
+        return rawPath.endsWith("/api") ? rawPath : `${rawPath}/api`;
+      }
+    } catch {
+      // ignore invalid stored api base
+    }
+
+    try {
+      localStorage.removeItem("gtt-api-base");
+    } catch {
+      // ignore
+    }
   }
 
   return "/api";

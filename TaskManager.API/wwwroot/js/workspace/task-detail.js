@@ -26,7 +26,7 @@ import {
   taskBgInput
 } from "./dom.js";
 
-import { buildApiUrl, apiFetch, handleApiError, withAccessQuery } from "../shared/api.js";
+import { buildApiUrl, apiFetch, handleApiError, withAccessQuery } from "../shared/api.js?v=apifix1";
 import { STATUS_LABELS, PRIORITY_LABELS } from "../shared/constants.js";
 import { normalizeToken } from "../shared/utils.js";
 import { toStatusValue, toPriorityValue, formatIso, formatBytes, getUrgency, formatDueLabel } from "./helpers.js";

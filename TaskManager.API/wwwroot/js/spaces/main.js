@@ -1,4 +1,4 @@
-import { buildApiUrl, apiFetch, fetchJsonOrNull, handleApiError, setApiContextProvider } from "../shared/api.js";
+import { buildApiUrl, apiFetch, fetchJsonOrNull, handleApiError, setApiContextProvider } from "../shared/api.js?v=apifix1";
 import { MANAGE_ROLES, STORAGE_ACTOR_ID, STORAGE_WORKSPACE_ID } from "../shared/constants.js";
 import { navigateToWorkspacePage } from "../shared/navigation.js";
 import { normalizeToken, normalizeEmail, toInitials, toWorkspaceRole } from "../shared/utils.js";

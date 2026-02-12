@@ -76,7 +76,7 @@ import {
   confirmModalAcceptBtn
 } from "./dom.js";
 
-import { buildApiUrl, apiFetch, fetchJsonOrNull, handleApiError, setApiContextProvider } from "../shared/api.js";
+import { buildApiUrl, apiFetch, fetchJsonOrNull, handleApiError, setApiContextProvider } from "../shared/api.js?v=apifix1";
 import {
   DEFAULT_PRIORITY_VALUE,
   STORAGE_ACTOR_ID,
