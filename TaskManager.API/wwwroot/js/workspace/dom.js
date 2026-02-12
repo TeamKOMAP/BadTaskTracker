@@ -29,9 +29,7 @@ export const calendarLayout = document.getElementById("calendar-layout");
 
 export const taskModal = document.getElementById("task-modal");
 export const taskForm = document.getElementById("task-form");
-export const taskTheme = document.getElementById("task-theme");
-export const themeOptions = document.getElementById("theme-options");
-export const themeToggle = document.querySelector(".theme-toggle");
+export const taskStatus = document.getElementById("task-status");
 export const taskTitle = document.getElementById("task-title");
 export const taskDescription = document.getElementById("task-description");
 export const taskDue = document.getElementById("task-due");
@@ -64,11 +62,9 @@ export const taskFormSubmitBtn = taskForm?.querySelector('button[type="submit"]'
 export const taskDetailModal = document.getElementById("task-detail-modal");
 export const taskDetailTitleEl = document.getElementById("task-detail-title");
 export const taskDetailEditBtn = document.getElementById("task-detail-edit");
-export const taskDetailThemeBadge = document.getElementById("task-detail-theme-badge");
 export const taskDetailStatusBadge = document.getElementById("task-detail-status-badge");
 export const taskDetailPriorityBadge = document.getElementById("task-detail-priority-badge");
 export const taskDetailDueBadge = document.getElementById("task-detail-due-badge");
-export const taskDetailThemeEl = document.getElementById("task-detail-theme");
 export const taskDetailStatusEl = document.getElementById("task-detail-status");
 export const taskDetailPriorityEl = document.getElementById("task-detail-priority");
 export const taskDetailIdEl = document.getElementById("task-detail-id");

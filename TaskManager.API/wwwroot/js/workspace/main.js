@@ -23,9 +23,7 @@ import {
   calendarLayout,
   taskModal,
   taskForm,
-  taskTheme,
-  themeOptions,
-  themeToggle,
+  taskStatus,
   taskTitle,
   taskDescription,
   taskDue,
@@ -103,7 +101,7 @@ import {
   setStoredTaskMeta,
   getStoredTaskBg
 } from "./storage.js";
-import { createTaskDetailController } from "./task-detail.js?v=confirm2";
+import { createTaskDetailController } from "./task-detail.js?v=perf3";
 
 let lastNormalizedTasks = [];
 
@@ -333,7 +331,7 @@ const ensureTagId = async (name) => {
   return again ? again.id : null;
 };
 
-const resolveTagIdsForTask = async (theme, tags) => {
+const resolveTagIdsForTask = async (tags) => {
   const names = [];
   const add = (value) => {
     const cleaned = normalizeToken(value).replace(/^#/, "");
@@ -341,7 +339,6 @@ const resolveTagIdsForTask = async (theme, tags) => {
     const key = cleaned.toLowerCase();
     if (!names.some((n) => n.toLowerCase() === key)) names.push(cleaned);
   };
-  add(theme);
   (Array.isArray(tags) ? tags : []).forEach(add);
 
   const ids = [];
@@ -661,15 +658,6 @@ const refreshUserFilter = () => {
   }
 };
 
-const collectThemeOptions = () => {
-  const map = new Map();
-  tagList.forEach((t) => addUniqueToken(map, t.name));
-  if (map.size === 0) {
-    map.set("general", "General");
-  }
-  return Array.from(map.values());
-};
-
 const setTaskCardAttachmentCount = (card, count) => {
   if (!card) return;
   const indicator = card.querySelector(".task-attachment-indicator");
@@ -787,45 +775,6 @@ const renderTagPreview = (tags) => {
   });
 };
 
-const renderThemeOptions = () => {
-  if (!themeOptions || !taskTheme) return;
-  const currentValue = normalizeToken(taskTheme.value);
-  const themes = collectThemeOptions();
-  const lowerThemes = themes.map((theme) => theme.toLowerCase());
-  if (currentValue && !lowerThemes.includes(currentValue.toLowerCase())) {
-    themes.unshift(currentValue);
-  }
-
-  themeOptions.innerHTML = "";
-  if (!themes.length) {
-    const empty = document.createElement("span");
-    empty.className = "tag-empty";
-    empty.textContent = "No themes yet";
-    themeOptions.appendChild(empty);
-  } else {
-    themes.forEach((theme) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "theme-option";
-      if (currentValue && theme.toLowerCase() === currentValue.toLowerCase()) {
-        button.classList.add("is-selected");
-      }
-      button.textContent = theme;
-      button.addEventListener("click", () => {
-        taskTheme.value = theme;
-        renderThemeOptions();
-        closeThemeOptions();
-        taskTheme.focus();
-      });
-      themeOptions.appendChild(button);
-    });
-  }
-
-  if (!currentValue) {
-    taskTheme.value = themes[0] || "";
-  }
-};
-
 const renderTagOptions = () => {
   if (!tagOptions) return;
   const tags = collectTagOptions();
@@ -856,17 +805,12 @@ const renderTagOptions = () => {
   });
 };
 
-const setThemeOptionsOpen = (isOpen) => {
-  if (!themeOptions) return;
-  if (isOpen) {
-    themeOptions.removeAttribute("hidden");
-  } else {
-    themeOptions.setAttribute("hidden", "");
-  }
+const setTaskStatusMode = (mode, statusValue) => {
+  if (!taskStatus) return;
+  const nextStatus = toStatusValue(statusValue);
+  taskStatus.value = String(nextStatus);
+  taskStatus.disabled = mode !== "edit";
 };
-
-const openThemeOptions = () => setThemeOptionsOpen(true);
-const closeThemeOptions = () => setThemeOptionsOpen(false);
 
 const setTaskModalMode = (mode, title) => {
   const isEdit = mode === "edit";
@@ -904,10 +848,9 @@ const openTaskModal = (column) => {
       ? String(currentUserId)
       : (actorId ? String(actorId) : "");
   }
-  renderThemeOptions();
+  setTaskStatusMode("create", 1);
   renderTagOptions();
   renderTagPreview([]);
-  closeThemeOptions();
   taskModal.removeAttribute("hidden");
   window.setTimeout(() => {
     taskTitle?.focus();
@@ -927,7 +870,6 @@ const openTaskModalForEdit = (card) => {
   taskForm.reset();
 
   const meta = getStoredTaskMeta(id);
-  const theme = normalizeToken(meta?.theme || card.querySelector(".task-tag")?.textContent);
   const title = normalizeToken(card.querySelector("h3")?.textContent);
   const description = normalizeToken(card.querySelector(".task-text")?.textContent);
   const tags = Array.isArray(meta?.tags) && meta.tags.length
@@ -936,7 +878,8 @@ const openTaskModalForEdit = (card) => {
       .map((chip) => normalizeToken(chip.textContent))
       .filter(Boolean);
 
-  if (taskTheme) taskTheme.value = theme;
+  const statusValue = toStatusValue(card.dataset.taskStatus);
+  setTaskStatusMode("edit", statusValue);
   if (taskTitle) taskTitle.value = title;
   if (taskDescription) taskDescription.value = description;
 
@@ -957,10 +900,8 @@ const openTaskModalForEdit = (card) => {
       .join(" ");
   }
 
-  renderThemeOptions();
   renderTagOptions();
   renderTagPreview(tags);
-  closeThemeOptions();
   setTaskModalMode("edit", title);
 
   taskModal.removeAttribute("hidden");
@@ -972,7 +913,7 @@ const openTaskModalForEdit = (card) => {
 const closeTaskModal = () => {
   if (!taskModal) return;
   taskModal.setAttribute("hidden", "");
-  closeThemeOptions();
+  setTaskStatusMode("create", 1);
   activeTaskColumn = null;
   editingTaskId = null;
   editingTaskCard = null;
@@ -1027,7 +968,7 @@ const createTaskCard = (taskData) => {
   head.className = "task-head";
   const tag = document.createElement("span");
   tag.className = "task-tag";
-  tag.textContent = taskData.theme || STATUS_LABELS[statusValue] || "Task";
+  tag.textContent = STATUS_LABELS[statusValue] || "New";
   const time = document.createElement("span");
   time.className = "task-time";
   time.textContent = formatDueLabel(card.dataset.dueDate || taskData.dueDate, statusValue);
@@ -1079,8 +1020,9 @@ const createFlowTaskItem = (taskData) => {
   item.setAttribute("draggable", "true");
   const statusValue = toStatusValue(taskData?.statusValue ?? taskData?.status);
   const note = buildFlowNote(taskData);
+  const statusLabel = STATUS_LABELS[statusValue] || "New";
   item.dataset.taskTitle = taskData.title || "New task";
-  item.dataset.taskTag = taskData.theme || "Task";
+  item.dataset.taskTag = statusLabel;
   item.dataset.taskNote = note;
   item.dataset.taskDescription = taskData.description || "";
   if (taskData.id !== undefined && taskData.id !== null) {
@@ -1096,7 +1038,7 @@ const createFlowTaskItem = (taskData) => {
 
   const tag = document.createElement("span");
   tag.className = "flow-task-tag";
-  tag.textContent = taskData.theme || "Task";
+  tag.textContent = statusLabel;
   const title = document.createElement("span");
   title.className = "flow-task-title";
   title.textContent = taskData.title || "New task";
@@ -1207,13 +1149,11 @@ const normalizeApiTask = (task) => {
   const priorityValue = toPriorityValue(task?.priority);
   const tagIds = Array.isArray(task?.tagIds) ? task.tagIds : [];
   const meta = task?.id !== undefined && task?.id !== null ? getStoredTaskMeta(task.id) : null;
-  const metaTheme = meta?.theme ? meta.theme : "";
   const metaTags = meta?.tags && meta.tags.length ? meta.tags : null;
   const apiTagNames = tagIds
     .map((id) => tagById.get(Number(id)) || "")
     .map((name) => normalizeToken(name))
     .filter(Boolean);
-  const fallbackTheme = apiTagNames[0] || STATUS_LABELS[statusValue] || "Task";
   return {
     id: task?.id,
     title: task?.title || "Untitled task",
@@ -1222,7 +1162,6 @@ const normalizeApiTask = (task) => {
     priorityValue,
     assigneeId: task?.assigneeId ?? null,
     dueDate: task?.dueDate,
-    theme: metaTheme || fallbackTheme,
     tags: metaTags || (apiTagNames.length ? apiTagNames : tagIds.map((id) => `Tag-${id}`)),
     tagIds
   };
@@ -1304,12 +1243,10 @@ const createTaskViaApi = async (uiTaskData) => {
   const createdTask = await response.json();
   const taskData = normalizeApiTask(createdTask);
   const createdId = taskData.id;
-  const theme = normalizeToken(uiTaskData.theme);
   const tags = Array.isArray(uiTaskData.tags) ? uiTaskData.tags.filter((t) => typeof t === "string" && t.trim()) : [];
   if (createdId !== undefined && createdId !== null) {
-    setStoredTaskMeta(createdId, { theme, tags });
+    setStoredTaskMeta(createdId, { tags });
   }
-  if (theme) taskData.theme = theme;
   if (tags.length) taskData.tags = tags;
   closeTaskModal();
   await loadTasksFromApi();
@@ -1342,6 +1279,7 @@ const updateFlowTaskItemForId = (id, taskData) => {
 
   const tags = Array.isArray(taskData.tags) ? taskData.tags : [];
   const statusValue = toStatusValue(taskData.statusValue ?? taskData.status);
+  const statusLabel = STATUS_LABELS[statusValue] || "New";
   const dueShort = formatShortDate(taskData.dueDate);
   const noteParts = [];
   if (dueShort) noteParts.push(`Due ${dueShort}`);
@@ -1349,7 +1287,7 @@ const updateFlowTaskItemForId = (id, taskData) => {
   const note = noteParts.length ? noteParts.join(" • ") : formatDueLabel(taskData.dueDate, statusValue);
 
   item.dataset.taskTitle = taskData.title || "New task";
-  item.dataset.taskTag = taskData.theme || "Task";
+  item.dataset.taskTag = statusLabel;
   item.dataset.taskNote = note;
   item.dataset.taskDescription = taskData.description || "";
   item.dataset.taskKey = buildTaskKey({
@@ -1365,7 +1303,7 @@ const updateFlowTaskItemForId = (id, taskData) => {
   item.dataset.taskUrgency = getUrgency(taskData.dueDate, statusValue);
 
   const tagEl = item.querySelector(".flow-task-tag");
-  if (tagEl) tagEl.textContent = taskData.theme || "Task";
+  if (tagEl) tagEl.textContent = statusLabel;
   const titleEl = item.querySelector(".flow-task-title");
   if (titleEl) titleEl.textContent = taskData.title || "New task";
   const noteEl = item.querySelector(".flow-task-note");
@@ -1378,7 +1316,7 @@ const updateTaskViaApi = async (id, uiTaskData) => {
     || document.querySelector(`.task-card[data-task-id="${id}"]`);
   if (!(card instanceof Element)) return;
 
-  const statusValue = toStatusValue(card.dataset.taskStatus);
+  const statusValue = toStatusValue(uiTaskData.statusValue);
   const tagIds = Array.isArray(uiTaskData.tagIds) ? uiTaskData.tagIds : [];
 
   const assigneeIdParsed = Number.parseInt(String(uiTaskData.assigneeId ?? ""), 10);
@@ -1413,14 +1351,13 @@ const updateTaskViaApi = async (id, uiTaskData) => {
     return;
   }
 
-  const theme = normalizeToken(uiTaskData.theme);
   const tags = Array.isArray(uiTaskData.tags)
     ? uiTaskData.tags.filter((t) => typeof t === "string" && t.trim())
     : [];
-  setStoredTaskMeta(id, { theme, tags });
+  setStoredTaskMeta(id, { tags });
 
   const tagEl = card.querySelector(".task-tag");
-  if (tagEl) tagEl.textContent = theme || tagEl.textContent;
+  if (tagEl) tagEl.textContent = STATUS_LABELS[statusValue] || "New";
   const titleEl = card.querySelector("h3");
   if (titleEl) titleEl.textContent = uiTaskData.title || titleEl.textContent;
   const textEl = card.querySelector(".task-text");
@@ -1434,6 +1371,7 @@ const updateTaskViaApi = async (id, uiTaskData) => {
   card.dataset.dueDate = dueDate;
   card.dataset.priorityValue = String(priority);
   card.dataset.priority = getPriorityLabel(priority);
+  card.dataset.taskStatus = String(statusValue);
   card.dataset.tagIds = tagIds.join(",");
 
   const footer = card.querySelector(".task-footer");
@@ -1446,7 +1384,6 @@ const updateTaskViaApi = async (id, uiTaskData) => {
     description: uiTaskData.description,
     dueDate,
     statusValue,
-    theme,
     tags
   });
 
@@ -2327,31 +2264,6 @@ if (userAddInput) {
   });
 }
 
-if (taskTheme) {
-  taskTheme.addEventListener("focus", () => {
-    renderThemeOptions();
-    openThemeOptions();
-  });
-
-  taskTheme.addEventListener("input", () => {
-    renderThemeOptions();
-    openThemeOptions();
-  });
-}
-
-if (themeToggle) {
-  themeToggle.addEventListener("click", (event) => {
-    event.preventDefault();
-    if (!themeOptions) return;
-    if (themeOptions.hasAttribute("hidden")) {
-      renderThemeOptions();
-      openThemeOptions();
-    } else {
-      closeThemeOptions();
-    }
-  });
-}
-
 if (board) {
   board.addEventListener("click", (event) => {
     const button = event.target instanceof Element
@@ -2375,11 +2287,6 @@ document.addEventListener("click", (event) => {
   if (target.closest("[data-close-modal]")) {
     closeTaskModal();
     return;
-  }
-  if (themeOptions && !themeOptions.hasAttribute("hidden")) {
-    if (!target.closest(".theme-picker") && !target.closest("#theme-options")) {
-      closeThemeOptions();
-    }
   }
 });
 
@@ -2446,10 +2353,9 @@ document.addEventListener("keydown", (event) => {
 if (taskForm) {
   taskForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const theme = normalizeToken(taskTheme?.value);
     const title = normalizeToken(taskTitle?.value);
     const description = normalizeToken(taskDescription?.value);
-    if (!theme || !title) return;
+    if (!title) return;
     const tags = parseTags(taskTagsInput?.value || "");
     const dueValue = normalizeToken(taskDue?.value);
     let dueDateIso = getDefaultDueDateIso();
@@ -2461,11 +2367,14 @@ if (taskForm) {
     }
     const assigneeId = normalizeToken(taskAssignee?.value);
     const priorityValue = normalizeToken(taskPriority?.value) || `${DEFAULT_PRIORITY_VALUE}`;
-    const tagIds = await resolveTagIdsForTask(theme, tags);
+    const statusValue = editingTaskId
+      ? toStatusValue(taskStatus?.value)
+      : 1;
+    const tagIds = await resolveTagIdsForTask(tags);
     const taskData = {
-      theme,
       title,
       description,
+      statusValue,
       tags,
       dueDateIso,
       assigneeId,
@@ -2552,7 +2461,7 @@ if (flowCanvas) {
         : null;
       if (task) {
         payload.title = task.title || payload.title;
-        payload.tag = task.theme || payload.tag;
+        payload.tag = STATUS_LABELS[toStatusValue(task.statusValue)] || payload.tag;
         payload.note = buildFlowNote(task);
       }
     }

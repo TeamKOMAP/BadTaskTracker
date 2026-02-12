@@ -2,11 +2,9 @@ import {
   taskDetailModal,
   taskDetailTitleEl,
   taskDetailEditBtn,
-  taskDetailThemeBadge,
   taskDetailStatusBadge,
   taskDetailPriorityBadge,
   taskDetailDueBadge,
-  taskDetailThemeEl,
   taskDetailStatusEl,
   taskDetailPriorityEl,
   taskDetailIdEl,
@@ -28,7 +26,7 @@ import {
   taskBgInput
 } from "./dom.js";
 
-import { buildApiUrl, apiFetch, fetchJsonOrNull, handleApiError, withAccessQuery } from "../shared/api.js";
+import { buildApiUrl, apiFetch, handleApiError, withAccessQuery } from "../shared/api.js";
 import { STATUS_LABELS, PRIORITY_LABELS } from "../shared/constants.js";
 import { normalizeToken } from "../shared/utils.js";
 import { toStatusValue, toPriorityValue, formatIso, formatBytes, getUrgency, formatDueLabel } from "./helpers.js";
@@ -39,12 +37,96 @@ const setDetailField = (el, value) => {
   el.textContent = normalizeToken(value) || "-";
 };
 
+const setDetailMultilineField = (el, value) => {
+  if (!el) return;
+  const raw = value === null || value === undefined ? "" : String(value);
+  el.textContent = raw.trim() || "-";
+};
+
 const readFileAsDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(String(reader.result || ""));
   reader.onerror = () => reject(reader.error || new Error("File read failed"));
   reader.readAsDataURL(file);
 });
+
+const optimizeImageForStorage = async (file) => {
+  if (!file) return "";
+  const type = normalizeToken(file.type).toLowerCase();
+  if (!type.startsWith("image/") || typeof document === "undefined") {
+    return readFileAsDataUrl(file);
+  }
+
+  const fallback = () => readFileAsDataUrl(file);
+  if (typeof window.createImageBitmap !== "function") {
+    return fallback();
+  }
+
+  try {
+    const bitmap = await window.createImageBitmap(file);
+    const width = Number(bitmap.width) || 0;
+    const height = Number(bitmap.height) || 0;
+    if (width <= 0 || height <= 0) {
+      bitmap.close?.();
+      return fallback();
+    }
+
+    const maxEdge = 1600;
+    const scale = Math.min(1, maxEdge / Math.max(width, height));
+    const targetWidth = Math.max(1, Math.round(width * scale));
+    const targetHeight = Math.max(1, Math.round(height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const context = canvas.getContext("2d", { alpha: false, desynchronized: true });
+    if (!context) {
+      bitmap.close?.();
+      return fallback();
+    }
+
+    context.drawImage(bitmap, 0, 0, targetWidth, targetHeight);
+    bitmap.close?.();
+
+    const outputType = scale < 1 ? "image/jpeg" : (type === "image/png" ? "image/png" : "image/jpeg");
+    return outputType === "image/jpeg"
+      ? canvas.toDataURL(outputType, 0.82)
+      : canvas.toDataURL(outputType);
+  } catch {
+    return fallback();
+  }
+};
+
+const fetchJsonAbortable = async (url, context, options) => {
+  let response = null;
+  try {
+    response = await apiFetch(url, options);
+  } catch (error) {
+    if (error && typeof error === "object" && error.name === "AbortError") {
+      return null;
+    }
+    console.error(`${context} failed: network error`, error);
+    return null;
+  }
+
+  if (!response.ok) {
+    await handleApiError(response, context);
+    return null;
+  }
+
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+};
+
+const runWhenIdle = (callback) => {
+  if (typeof window.requestIdleCallback === "function") {
+    return window.requestIdleCallback(callback, { timeout: 400 });
+  }
+  return window.setTimeout(callback, 80);
+};
 
 export const createTaskDetailController = (deps) => {
   const isAdmin = typeof deps?.isAdmin === "function" ? deps.isAdmin : () => false;
@@ -65,6 +147,64 @@ export const createTaskDetailController = (deps) => {
   let detailTaskId = null;
   let detailTaskCard = null;
   let pendingPhotoTaskId = null;
+  let detailRequestSeq = 0;
+  let detailAbortController = null;
+
+  const TASK_CACHE_TTL_MS = 30_000;
+  const ATTACHMENT_CACHE_TTL_MS = 20_000;
+
+  const taskCache = new Map();
+  const attachmentCache = new Map();
+  const photoCache = new Map();
+
+  const isFresh = (entry, ttlMs) => {
+    if (!entry || typeof entry !== "object") return false;
+    const age = Date.now() - Number(entry.at || 0);
+    return Number.isFinite(age) && age >= 0 && age < ttlMs;
+  };
+
+  const getCachedTask = (id) => {
+    const entry = taskCache.get(id);
+    return isFresh(entry, TASK_CACHE_TTL_MS) ? entry.data : null;
+  };
+
+  const setCachedTask = (id, data) => {
+    if (!Number.isFinite(Number(id)) || !data) return;
+    taskCache.set(id, { data, at: Date.now() });
+    if (taskCache.size > 200) {
+      const firstKey = taskCache.keys().next().value;
+      if (firstKey !== undefined) taskCache.delete(firstKey);
+    }
+  };
+
+  const getCachedAttachments = (id) => {
+    const entry = attachmentCache.get(id);
+    return isFresh(entry, ATTACHMENT_CACHE_TTL_MS) ? entry.data : null;
+  };
+
+  const setCachedAttachments = (id, data) => {
+    if (!Number.isFinite(Number(id))) return;
+    const list = Array.isArray(data) ? data : [];
+    attachmentCache.set(id, { data: list, at: Date.now() });
+    if (attachmentCache.size > 200) {
+      const firstKey = attachmentCache.keys().next().value;
+      if (firstKey !== undefined) attachmentCache.delete(firstKey);
+    }
+  };
+
+  const getCachedTaskBg = (id) => {
+    if (!Number.isFinite(Number(id))) return "";
+    if (photoCache.has(id)) {
+      return photoCache.get(id) || "";
+    }
+    const value = getStoredTaskBg(id) || "";
+    photoCache.set(id, value);
+    if (photoCache.size > 200) {
+      const firstKey = photoCache.keys().next().value;
+      if (firstKey !== undefined) photoCache.delete(firstKey);
+    }
+    return value;
+  };
 
   const renderDetailTags = (tagIds, fallbackNames) => {
     if (!taskDetailTagsEl) return;
@@ -93,7 +233,82 @@ export const createTaskDetailController = (deps) => {
     });
   };
 
-  const renderAttachments = (attachments) => {
+  const beginDetailRequest = () => {
+    if (detailAbortController) {
+      detailAbortController.abort();
+    }
+    detailAbortController = new AbortController();
+    return detailAbortController.signal;
+  };
+
+  const applyTaskToDetail = (task, id, requestSeq) => {
+    if (!task || !Number.isFinite(Number(id))) {
+      return { tagIds: [], metaTags: [] };
+    }
+
+    const statusValue = toStatusValue(task.status);
+    const priorityValue = toPriorityValue(task.priority);
+    const tagIds = Array.isArray(task.tagIds) ? task.tagIds : [];
+    const meta = getStoredTaskMeta(id);
+    const title = normalizeToken(task.title);
+    const description = normalizeToken(task.description);
+    const dueLabel = formatDueLabel(task.dueDate, statusValue);
+    const urgency = getUrgency(task.dueDate, statusValue);
+
+    if (taskDetailTitleEl) taskDetailTitleEl.textContent = title || `Task #${id}`;
+    setDetailField(taskDetailIdEl, `#${id}`);
+
+    if (taskDetailStatusBadge) {
+      taskDetailStatusBadge.dataset.kind = "status";
+      taskDetailStatusBadge.dataset.status = String(statusValue);
+      taskDetailStatusBadge.textContent = STATUS_LABELS[statusValue] || "Status";
+    }
+    if (taskDetailPriorityBadge) {
+      taskDetailPriorityBadge.dataset.kind = "priority";
+      taskDetailPriorityBadge.dataset.priority = String(priorityValue);
+      taskDetailPriorityBadge.textContent = `Priority: ${PRIORITY_LABELS[priorityValue] || "medium"}`;
+    }
+    if (taskDetailDueBadge) {
+      taskDetailDueBadge.dataset.kind = "due";
+      taskDetailDueBadge.dataset.urgency = urgency;
+      taskDetailDueBadge.textContent = dueLabel;
+    }
+
+    setDetailField(taskDetailStatusEl, STATUS_LABELS[statusValue]);
+    setDetailField(taskDetailPriorityEl, PRIORITY_LABELS[priorityValue] || "medium");
+    setDetailField(taskDetailAssigneeEl, task.assigneeName ? `${task.assigneeName} (#${task.assigneeId})` : (task.assigneeId ? `#${task.assigneeId}` : "Not assigned"));
+    setDetailField(taskDetailDueEl, `${dueLabel} (${formatIso(task.dueDate)})`);
+    setDetailField(taskDetailCreatedEl, formatIso(task.createdAt));
+    setDetailField(taskDetailUpdatedEl, formatIso(task.updatedAt));
+    setDetailField(taskDetailCompletedEl, formatIso(task.completedAt));
+    setDetailMultilineField(taskDetailDescriptionEl, description || "-");
+
+    const metaTags = Array.isArray(meta?.tags) ? meta.tags : [];
+    renderDetailTags(tagIds, metaTags);
+
+    if (taskDetailPhotoWrap && taskDetailPhotoImg) {
+      taskDetailPhotoImg.removeAttribute("src");
+      taskDetailPhotoWrap.setAttribute("hidden", "");
+
+      runWhenIdle(() => {
+        if (requestSeq !== detailRequestSeq || detailTaskId !== id) {
+          return;
+        }
+        const photo = getCachedTaskBg(id);
+        if (!photo) {
+          return;
+        }
+        taskDetailPhotoImg.decoding = "async";
+        taskDetailPhotoImg.loading = "lazy";
+        taskDetailPhotoImg.src = photo;
+        taskDetailPhotoWrap.removeAttribute("hidden");
+      });
+    }
+
+    return { tagIds, metaTags };
+  };
+
+  const renderAttachments = (attachments, taskId = detailTaskId) => {
     if (!taskAttachmentsList || !taskAttachmentsEmpty) return;
     taskAttachmentsList.innerHTML = "";
 
@@ -101,12 +316,16 @@ export const createTaskDetailController = (deps) => {
     taskAttachmentsEmpty.hidden = list.length > 0;
     if (list.length === 0) {
       taskAttachmentsEmpty.textContent = "No attachments";
+      applyAttachmentCountToCards(taskId, 0);
+      return;
     }
+
+    const fragment = document.createDocumentFragment();
 
     list.forEach((att) => {
       const id = normalizeToken(att?.id);
       const name = normalizeToken(att?.fileName) || "file";
-      const urlRaw = normalizeToken(att?.downloadUrl) || buildApiUrl(`/tasks/${detailTaskId}/attachments/${id}`);
+      const urlRaw = normalizeToken(att?.downloadUrl) || buildApiUrl(`/tasks/${taskId}/attachments/${id}`);
       const url = withAccessQuery(urlRaw);
       const size = formatBytes(att?.size);
       const uploaded = att?.uploadedAtUtc ? formatIso(att.uploadedAtUtc) : "-";
@@ -149,7 +368,7 @@ export const createTaskDetailController = (deps) => {
         del.className = "task-attachment-del";
         del.textContent = "Delete";
         del.addEventListener("click", async () => {
-          if (!detailTaskId || !id) return;
+          if (!taskId || !id) return;
           const confirmed = await confirmDestructiveAction({
             kicker: "Delete attachment",
             title: `Delete "${name}"?`,
@@ -158,27 +377,56 @@ export const createTaskDetailController = (deps) => {
           });
           if (confirmed !== true) return;
 
-          const response = await apiFetch(buildApiUrl(`/tasks/${detailTaskId}/attachments/${id}`), { method: "DELETE" });
+          const response = await apiFetch(buildApiUrl(`/tasks/${taskId}/attachments/${id}`), { method: "DELETE" });
           if (!response.ok) {
             await handleApiError(response, "Delete attachment");
             return;
           }
-          void loadAttachmentsForDetail();
+          attachmentCache.delete(taskId);
+          void loadAttachmentsForDetail(taskId, detailRequestSeq, detailAbortController?.signal, { forceRefresh: true });
         });
         actions.appendChild(del);
       }
 
       row.append(ico, main, actions);
-      taskAttachmentsList.appendChild(row);
+      fragment.appendChild(row);
     });
+
+    taskAttachmentsList.appendChild(fragment);
+    applyAttachmentCountToCards(taskId, list.length);
   };
 
-  const loadAttachmentsForDetail = async () => {
-    if (!detailTaskId) return;
-    const attachments = await fetchJsonOrNull(buildApiUrl(`/tasks/${detailTaskId}/attachments`), "Load attachments", {
-      headers: { Accept: "application/json" }
+  const loadAttachmentsForDetail = async (
+    taskId = detailTaskId,
+    requestSeq = detailRequestSeq,
+    signal = detailAbortController?.signal,
+    options = null
+  ) => {
+    if (!taskId) return;
+
+    const forceRefresh = Boolean(options?.forceRefresh);
+    const cached = getCachedAttachments(taskId);
+    if (cached && !forceRefresh) {
+      renderAttachments(cached, taskId);
+    }
+
+    const attachments = await fetchJsonAbortable(buildApiUrl(`/tasks/${taskId}/attachments`), "Load attachments", {
+      headers: { Accept: "application/json" },
+      signal
     });
+
+    if (signal?.aborted) {
+      return;
+    }
+
+    if (requestSeq !== detailRequestSeq || taskId !== detailTaskId) {
+      return;
+    }
+
     if (!attachments) {
+      if (cached && !forceRefresh) {
+        return;
+      }
       if (taskAttachmentsList) taskAttachmentsList.innerHTML = "";
       if (taskAttachmentsEmpty) {
         taskAttachmentsEmpty.hidden = false;
@@ -186,20 +434,22 @@ export const createTaskDetailController = (deps) => {
       }
       return;
     }
+
     const list = Array.isArray(attachments) ? attachments : [];
-    renderAttachments(list);
-    applyAttachmentCountToCards(detailTaskId, list.length);
+    setCachedAttachments(taskId, list);
+    renderAttachments(list, taskId);
   };
 
   const uploadAttachmentsForDetail = async (files) => {
     if (!detailTaskId) return;
+    const taskId = detailTaskId;
     const list = Array.isArray(files) ? files.filter(Boolean) : Array.from(files || []).filter(Boolean);
     if (!list.length) return;
 
     const form = new FormData();
     list.forEach((file) => form.append("files", file));
 
-    const response = await apiFetch(buildApiUrl(`/tasks/${detailTaskId}/attachments`), {
+    const response = await apiFetch(buildApiUrl(`/tasks/${taskId}/attachments`), {
       method: "POST",
       body: form
     });
@@ -211,14 +461,21 @@ export const createTaskDetailController = (deps) => {
       }
       return;
     }
-    await loadAttachmentsForDetail();
+    attachmentCache.delete(taskId);
+    await loadAttachmentsForDetail(taskId, detailRequestSeq, detailAbortController?.signal, { forceRefresh: true });
   };
 
   const closeTaskDetailModal = () => {
     if (!taskDetailModal) return;
+    detailRequestSeq += 1;
+    if (detailAbortController) {
+      detailAbortController.abort();
+      detailAbortController = null;
+    }
     taskDetailModal.setAttribute("hidden", "");
     detailTaskId = null;
     detailTaskCard = null;
+    pendingPhotoTaskId = null;
     if (taskAttachmentsList) taskAttachmentsList.innerHTML = "";
     if (taskAttachmentsEmpty) taskAttachmentsEmpty.hidden = true;
   };
@@ -228,77 +485,39 @@ export const createTaskDetailController = (deps) => {
     const id = Number(taskId);
     if (!Number.isFinite(id)) return;
 
+    const requestSeq = detailRequestSeq + 1;
+    detailRequestSeq = requestSeq;
+    const signal = beginDetailRequest();
+
     detailTaskId = id;
     detailTaskCard = card || null;
 
-    await ensureTagsLoaded();
-    const task = await fetchJsonOrNull(buildApiUrl(`/tasks/${id}`), "Load task", {
-      headers: { Accept: "application/json" }
-    });
-    if (!task) return;
+    taskDetailModal.removeAttribute("hidden");
 
-    const statusValue = toStatusValue(task.status);
-    const priorityValue = toPriorityValue(task.priority);
-    const tagIds = Array.isArray(task.tagIds) ? task.tagIds : [];
-    const meta = getStoredTaskMeta(id);
-    const theme = normalizeToken(meta?.theme) || (tagIds[0] ? (getTagNameById(Number(tagIds[0])) || "") : "");
-    const title = normalizeToken(task.title);
-    const description = normalizeToken(task.description);
-    const dueLabel = formatDueLabel(task.dueDate, statusValue);
-    const urgency = getUrgency(task.dueDate, statusValue);
-
-    if (taskDetailTitleEl) taskDetailTitleEl.textContent = title || `Task #${id}`;
+    const fallbackTitle = normalizeToken(card?.querySelector?.("h3")?.textContent) || `Task #${id}`;
+    if (taskDetailTitleEl) taskDetailTitleEl.textContent = fallbackTitle;
     setDetailField(taskDetailIdEl, `#${id}`);
+    setDetailField(taskDetailStatusEl, "Loading...");
+    setDetailField(taskDetailPriorityEl, "Loading...");
+    setDetailField(taskDetailAssigneeEl, "Loading...");
+    setDetailField(taskDetailDueEl, "Loading...");
+    setDetailField(taskDetailCreatedEl, "Loading...");
+    setDetailField(taskDetailUpdatedEl, "Loading...");
+    setDetailField(taskDetailCompletedEl, "Loading...");
+    setDetailMultilineField(taskDetailDescriptionEl, "Loading...");
 
-    if (taskDetailThemeBadge) {
-      taskDetailThemeBadge.dataset.kind = "theme";
-      taskDetailThemeBadge.textContent = theme || "Theme";
+    if (taskAttachmentsList) {
+      taskAttachmentsList.innerHTML = "";
     }
-    if (taskDetailStatusBadge) {
-      taskDetailStatusBadge.dataset.kind = "status";
-      taskDetailStatusBadge.dataset.status = String(statusValue);
-      taskDetailStatusBadge.textContent = STATUS_LABELS[statusValue] || "Status";
-    }
-    if (taskDetailPriorityBadge) {
-      taskDetailPriorityBadge.dataset.kind = "priority";
-      taskDetailPriorityBadge.dataset.priority = String(priorityValue);
-      taskDetailPriorityBadge.textContent = `Priority: ${PRIORITY_LABELS[priorityValue] || "medium"}`;
-    }
-    if (taskDetailDueBadge) {
-      taskDetailDueBadge.dataset.kind = "due";
-      taskDetailDueBadge.dataset.urgency = urgency;
-      taskDetailDueBadge.textContent = dueLabel;
+    if (taskAttachmentsEmpty) {
+      taskAttachmentsEmpty.hidden = false;
+      taskAttachmentsEmpty.textContent = "Loading attachments...";
     }
 
-    setDetailField(taskDetailThemeEl, theme || STATUS_LABELS[statusValue]);
-    setDetailField(taskDetailStatusEl, STATUS_LABELS[statusValue]);
-    setDetailField(taskDetailPriorityEl, PRIORITY_LABELS[priorityValue] || "medium");
-    setDetailField(taskDetailAssigneeEl, task.assigneeName ? `${task.assigneeName} (#${task.assigneeId})` : (task.assigneeId ? `#${task.assigneeId}` : "Not assigned"));
-    setDetailField(taskDetailDueEl, `${dueLabel} (${formatIso(task.dueDate)})`);
-    setDetailField(taskDetailCreatedEl, formatIso(task.createdAt));
-    setDetailField(taskDetailUpdatedEl, formatIso(task.updatedAt));
-    setDetailField(taskDetailCompletedEl, formatIso(task.completedAt));
-    setDetailField(taskDetailDescriptionEl, description || "-");
-
-    const metaTags = Array.isArray(meta?.tags) ? meta.tags : [];
-    renderDetailTags(tagIds, metaTags);
-
-    const photo = getStoredTaskBg(id);
     if (taskDetailPhotoWrap && taskDetailPhotoImg) {
-      if (photo) {
-        taskDetailPhotoImg.src = photo;
-        taskDetailPhotoWrap.removeAttribute("hidden");
-      } else {
-        taskDetailPhotoImg.removeAttribute("src");
-        taskDetailPhotoWrap.setAttribute("hidden", "");
-      }
+      taskDetailPhotoImg.removeAttribute("src");
+      taskDetailPhotoWrap.setAttribute("hidden", "");
     }
-
-    if (taskAttachBtn) {
-      taskAttachBtn.toggleAttribute("hidden", !isAdmin());
-    }
-
-    await loadAttachmentsForDetail();
 
     if (taskDetailEditBtn) {
       taskDetailEditBtn.toggleAttribute("hidden", !isAdmin());
@@ -312,7 +531,77 @@ export const createTaskDetailController = (deps) => {
       taskDetailPhotoClearBtn.toggleAttribute("hidden", !isAdmin());
     }
 
-    taskDetailModal.removeAttribute("hidden");
+    if (taskAttachBtn) {
+      taskAttachBtn.toggleAttribute("hidden", !isAdmin());
+    }
+
+    const cachedTask = getCachedTask(id);
+    let lastTagIds = [];
+    let lastMetaTags = [];
+    if (cachedTask) {
+      const applied = applyTaskToDetail(cachedTask, id, requestSeq);
+      lastTagIds = applied.tagIds;
+      lastMetaTags = applied.metaTags;
+    }
+
+    const cachedAttachments = getCachedAttachments(id);
+    if (cachedAttachments) {
+      renderAttachments(cachedAttachments, id);
+    }
+    void loadAttachmentsForDetail(id, requestSeq, signal, { forceRefresh: false });
+
+    const taskPromise = fetchJsonAbortable(buildApiUrl(`/tasks/${id}`), "Load task", {
+      headers: { Accept: "application/json" },
+      signal
+    });
+
+    const tagsPromise = ensureTagsLoaded();
+
+    const task = await taskPromise;
+
+    if (signal.aborted) {
+      return;
+    }
+
+    if (requestSeq !== detailRequestSeq || detailTaskId !== id) {
+      return;
+    }
+
+    if (!task) {
+      if (cachedTask) {
+        void loadAttachmentsForDetail(id, requestSeq, signal);
+        return;
+      }
+      setDetailField(taskDetailStatusEl, "Failed to load");
+      setDetailField(taskDetailPriorityEl, "-");
+      setDetailField(taskDetailAssigneeEl, "-");
+      setDetailField(taskDetailDueEl, "-");
+      setDetailField(taskDetailCreatedEl, "-");
+      setDetailField(taskDetailUpdatedEl, "-");
+      setDetailField(taskDetailCompletedEl, "-");
+      setDetailMultilineField(taskDetailDescriptionEl, "Failed to load task details");
+      if (taskAttachmentsList) taskAttachmentsList.innerHTML = "";
+      if (taskAttachmentsEmpty) {
+        taskAttachmentsEmpty.hidden = false;
+        taskAttachmentsEmpty.textContent = "Failed to load attachments";
+      }
+      return;
+    }
+
+    setCachedTask(id, task);
+    const applied = applyTaskToDetail(task, id, requestSeq);
+    lastTagIds = applied.tagIds;
+    lastMetaTags = applied.metaTags;
+
+    void tagsPromise.then(() => {
+      if (requestSeq !== detailRequestSeq || detailTaskId !== id) {
+        return;
+      }
+      renderDetailTags(lastTagIds, lastMetaTags);
+    }).catch(() => {
+      // ignore
+    });
+
   };
 
   const onDetailModalClick = (event) => {
@@ -327,6 +616,7 @@ export const createTaskDetailController = (deps) => {
     if (!isAdmin() || !detailTaskId) return;
     const card = detailTaskCard || document.querySelector(`.task-card[data-task-id="${detailTaskId}"]`);
     if (!card) return;
+    taskCache.delete(detailTaskId);
     closeTaskDetailModal();
     openTaskModalForEdit(card);
   };
@@ -340,6 +630,7 @@ export const createTaskDetailController = (deps) => {
   const onDetailPhotoClearClick = () => {
     if (!isAdmin() || !detailTaskId) return;
     clearStoredTaskBg(detailTaskId);
+    photoCache.set(detailTaskId, "");
     applyTaskBgToCards(detailTaskId, "");
     if (taskDetailPhotoWrap && taskDetailPhotoImg) {
       taskDetailPhotoImg.removeAttribute("src");
@@ -368,9 +659,10 @@ export const createTaskDetailController = (deps) => {
     taskBgInput.value = "";
     if (!file || !Number.isFinite(Number(id))) return;
     try {
-      const dataUrl = await readFileAsDataUrl(file);
+      const dataUrl = await optimizeImageForStorage(file);
       if (!dataUrl) return;
       setStoredTaskBg(id, dataUrl);
+      photoCache.set(id, dataUrl);
       applyTaskBgToCards(id, dataUrl);
       if (detailTaskId === id && taskDetailPhotoWrap && taskDetailPhotoImg) {
         taskDetailPhotoImg.src = dataUrl;

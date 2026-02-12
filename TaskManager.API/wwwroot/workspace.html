@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/workspace.css">
+  <link rel="stylesheet" href="css/workspace.css?v=perf10">
 </head>
 <body data-theme="dark">
   <div class="app-shell" id="app-shell">
@@ -373,19 +373,16 @@
           </svg>
         </button>
       </div>
-       <form class="task-form" id="task-form">
-        <label class="task-field task-field-theme">
-          <span class="task-label">Theme</span>
-          <div class="theme-picker">
-            <input id="task-theme" name="theme" type="text" required placeholder="Choose or type a theme" autocomplete="off">
-            <button class="theme-toggle" type="button" aria-label="Show themes">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 10l5 5 5-5" />
-              </svg>
-            </button>
-          </div>
-          <div class="theme-options" id="theme-options" hidden></div>
-        </label>
+        <form class="task-form" id="task-form">
+         <label class="task-field">
+           <span class="task-label">Status</span>
+           <select id="task-status" name="status">
+             <option value="1" selected>New</option>
+             <option value="2">In Progress</option>
+             <option value="3">Done</option>
+             <option value="4">Overdue</option>
+           </select>
+         </label>
         <label class="task-field">
           <span class="task-label">Title</span>
           <input id="task-title" name="title" type="text" required placeholder="Task title">
@@ -437,7 +434,6 @@
           <span class="task-modal-kicker">Task details</span>
           <h3 class="task-modal-title" id="task-detail-title">Task</h3>
           <div class="task-detail-badges" id="task-detail-badges">
-            <span class="task-badge" id="task-detail-theme-badge"></span>
             <span class="task-badge" id="task-detail-status-badge"></span>
             <span class="task-badge" id="task-detail-priority-badge"></span>
             <span class="task-badge" id="task-detail-due-badge"></span>
@@ -463,10 +459,6 @@
           <div class="task-detail-row">
             <span class="task-detail-label">Task ID</span>
             <span class="task-detail-value" id="task-detail-id">-</span>
-          </div>
-          <div class="task-detail-row">
-            <span class="task-detail-label">Theme</span>
-            <span class="task-detail-value" id="task-detail-theme">-</span>
           </div>
           <div class="task-detail-row">
             <span class="task-detail-label">Status</span>
@@ -543,6 +535,6 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js"></script>
+  <script type="module" src="js/workspace/main.js?v=hover5"></script>
 </body>
 </html>

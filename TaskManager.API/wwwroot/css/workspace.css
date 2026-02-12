@@ -1081,8 +1081,8 @@ body[data-theme="light"] .task-action-btn {
   cursor: grabbing;
 }
 
-.task-card:hover {
-  max-height: 420px;
+.task-card:not(.is-empty):hover,
+.task-card:not(.is-empty):focus-within {
   transform: translateY(-2px);
   border-color: rgba(255, 255, 255, 0.18);
   box-shadow: 0 16px 26px rgba(5, 8, 13, 0.4);
@@ -1177,11 +1177,6 @@ body[data-theme="light"] .task-attachment-indicator {
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   transition: max-height 0.25s ease;
-}
-
-.task-card:hover .task-text {
-  max-height: 12em;
-  -webkit-line-clamp: unset;
 }
 
 .task-footer {
@@ -1308,12 +1303,12 @@ body[data-theme="light"] .task-badge {
 }
 
 .task-detail-meta {
-  backdrop-filter: blur(14px);
+  backdrop-filter: none;
   background: linear-gradient(180deg, rgba(10, 15, 22, 0.52), rgba(10, 15, 22, 0.36));
 }
 
 body[data-theme="light"] .task-detail-meta {
-  backdrop-filter: blur(14px);
+  backdrop-filter: none;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.5));
 }
 
@@ -1340,7 +1335,7 @@ body[data-theme="light"] .task-detail-row {
 }
 
 .task-detail-description {
-  backdrop-filter: blur(14px);
+  backdrop-filter: none;
 }
 
 .task-detail-text {
@@ -1490,6 +1485,7 @@ body[data-theme="light"] .task-detail-taglist .task-chip {
   border-radius: 18px;
   padding: 12px 14px;
   background: rgba(10, 15, 22, 0.35);
+  overflow: visible;
 }
 
 body[data-theme="light"] .task-detail-description {
@@ -1498,9 +1494,15 @@ body[data-theme="light"] .task-detail-description {
 
 .task-detail-text {
   margin: 8px 0 0;
+  display: block;
+  max-height: none;
+  height: auto;
+  overflow: visible;
   color: var(--text-2);
   line-height: 1.55;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .task-detail-attachments {
@@ -1508,7 +1510,7 @@ body[data-theme="light"] .task-detail-description {
   border-radius: 18px;
   padding: 12px 14px;
   background: rgba(10, 15, 22, 0.30);
-  backdrop-filter: blur(14px);
+  backdrop-filter: none;
 }
 
 body[data-theme="light"] .task-detail-attachments {
@@ -2186,7 +2188,7 @@ body[data-theme="light"] .flow-node-remove {
   position: absolute;
   inset: 0;
   background: rgba(6, 10, 16, 0.72);
-  backdrop-filter: blur(6px);
+  backdrop-filter: none;
 }
 
 .task-modal-card {
@@ -2195,6 +2197,8 @@ body[data-theme="light"] .flow-node-remove {
   width: min(560px, 92vw);
   max-height: min(90vh, 760px);
   overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
   border-radius: 20px;
   border: 1px solid var(--stroke);
   background: var(--panel-solid);
@@ -2208,6 +2212,15 @@ body[data-theme="light"] .flow-node-remove {
 .task-confirm-card {
   width: min(460px, 92vw);
   gap: 12px;
+}
+
+#task-detail-modal .task-modal-card,
+#task-detail-modal .task-modal-backdrop {
+  animation: none !important;
+}
+
+#task-detail-modal .task-modal-card {
+  max-height: min(94vh, 920px);
 }
 
 .task-confirm-card .task-modal-header {
