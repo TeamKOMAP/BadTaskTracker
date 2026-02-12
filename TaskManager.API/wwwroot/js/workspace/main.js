@@ -37,7 +37,23 @@ import {
   userEmpty,
   userAddInput,
   userAddBtn,
-  themeToggleBtn,
+  panelWorkspace,
+  panelWorkspaceNameEl,
+  panelWorkspaceEditBtn,
+  panelWorkspaceAvatarEl,
+  panelWorkspaceAvatarInput,
+  accountAvatarEl,
+  accountAvatarTextEl,
+  settingsPanel,
+  settingsToggleBtn,
+  settingsNicknameInput,
+  settingsAvatarPreview,
+  settingsAvatarPreviewTextEl,
+  settingsAvatarInput,
+  settingsAvatarBtn,
+  settingsAvatarClearBtn,
+  settingsThemeDarkBtn,
+  settingsThemeLightBtn,
   prefersReducedMotion,
   brandTitleEl,
   brandMarkEl,
@@ -96,7 +112,6 @@ import {
 import {
   getPreferredTheme,
   setTheme,
-  toggleTheme,
   getStoredTaskMeta,
   setStoredTaskMeta,
   getStoredTaskBg
@@ -109,6 +124,37 @@ let currentAssigneeIdFilter = null;
 let currentUserId = null;
 let currentWorkspaceId = null;
 let currentWorkspaceRole = "Member";
+
+let panelWorkspaceEditing = false;
+
+const setWorkspaceEditing = (editing) => {
+  panelWorkspaceEditing = !!editing;
+  if (!panelWorkspaceNameEl || !panelWorkspaceEditBtn) return;
+
+  if (panelWorkspaceEditing) {
+    panelWorkspaceNameEl.setAttribute("contenteditable", "true");
+    panelWorkspaceNameEl.setAttribute("role", "textbox");
+    panelWorkspaceNameEl.setAttribute("aria-label", "Workspace name");
+    panelWorkspaceNameEl.dataset.original = panelWorkspaceNameEl.textContent || "";
+    window.setTimeout(() => {
+      panelWorkspaceNameEl.focus();
+      try {
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(panelWorkspaceNameEl);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      } catch {
+        // ignore
+      }
+    }, 0);
+  } else {
+    panelWorkspaceNameEl.removeAttribute("contenteditable");
+    panelWorkspaceNameEl.removeAttribute("role");
+    panelWorkspaceNameEl.removeAttribute("aria-label");
+    delete panelWorkspaceNameEl.dataset.original;
+  }
+};
 let actorUser = null;
 let knownUsers = [];
 
@@ -252,6 +298,9 @@ const isPanelOpen = () => appShell?.classList.contains("is-panel-open");
 const setPanelOpen = (open) => {
   if (!appShell) return;
   appShell.classList.toggle("is-panel-open", open);
+  if (!open && panelWorkspaceEditing && panelWorkspaceNameEl) {
+    panelWorkspaceNameEl.blur();
+  }
   if (brandToggle) {
     brandToggle.setAttribute("aria-expanded", open ? "true" : "false");
   }
@@ -421,7 +470,16 @@ const loadUsersFromApi = async () => {
   users
     .map((u) => ({
       id: Number(u.userId ?? u.id),
-      name: normalizeToken(u.name),
+      name: (() => {
+        const id = Number(u.userId ?? u.id);
+        const apiName = normalizeToken(u.name);
+        if (id === getActorUserId()) {
+          const storedNickname = normalizeToken(getStoredAccountNickname(id));
+          const fallbackName = apiName && apiName.toLowerCase() !== "system" ? apiName : "NoName";
+          return storedNickname || fallbackName;
+        }
+        return apiName;
+      })(),
       email: normalizeToken(u.email),
       role: toWorkspaceRole(u.role),
       taskCount: Number(u.taskCount || 0)
@@ -455,9 +513,57 @@ const loadUsersFromApi = async () => {
   setAllUsersMode();
 };
 
+const updateMyMemberItem = (displayName, email) => {
+  const actorId = getActorUserId();
+  if (!Number.isFinite(Number(actorId))) return;
+  if (!userList) return;
+  const item = userList.querySelector(`.user-item[data-user-id="${actorId}"]`);
+  if (!item) return;
+
+  const safeName = normalizeToken(displayName) || "NoName";
+  const safeEmail = normalizeToken(email) || item.dataset.userEmail || "";
+
+  const nick = item.querySelector(".user-nick");
+  if (nick) nick.textContent = safeName;
+
+  const avatar = item.querySelector(".user-avatar");
+  if (avatar) {
+    const letter = safeName.trim().charAt(0) || "U";
+    avatar.textContent = letter.toUpperCase();
+  }
+
+  const role = item.dataset.userRole || "";
+  item.dataset.userKey = `${actorId} ${safeName} ${safeEmail} ${role}`.toLowerCase();
+  refreshUserFilter();
+};
+
 const updateActorUi = () => {
   const email = actorUser?.email || "account@example.com";
-  if (userNameEl) userNameEl.textContent = email;
+  const id = getActorUserId();
+  const storedNickname = id ? normalizeToken(getStoredAccountNickname(id)) : "";
+  const apiName = normalizeToken(actorUser?.name);
+  const fallbackName = apiName && apiName.toLowerCase() !== "system" ? apiName : "NoName";
+  const displayName = storedNickname || fallbackName;
+  const initials = toInitials(displayName, email);
+  const avatarDataUrl = id ? getStoredAccountAvatar(id) : "";
+
+  if (userNameEl) {
+    userNameEl.textContent = displayName || email;
+    if (displayName && displayName !== email) {
+      userNameEl.setAttribute("title", email);
+    } else {
+      userNameEl.removeAttribute("title");
+    }
+  }
+
+  applyAccountAvatarToElement(accountAvatarEl, accountAvatarTextEl, initials, avatarDataUrl);
+  applyAccountAvatarToElement(settingsAvatarPreview, settingsAvatarPreviewTextEl, initials, avatarDataUrl);
+
+  updateMyMemberItem(displayName, email);
+
+  if (settingsNicknameInput && document.activeElement !== settingsNicknameInput) {
+    settingsNicknameInput.value = storedNickname;
+  }
 };
 
 const setActorUser = (user) => {
@@ -497,6 +603,22 @@ const setWorkspaceContext = (space) => {
     brandTitleEl.textContent = workspaceName;
   }
 
+  if (panelWorkspaceNameEl && !panelWorkspaceEditing) {
+    panelWorkspaceNameEl.textContent = workspaceName;
+  }
+
+  if (panelWorkspaceAvatarEl) {
+    if (avatarPath) {
+      panelWorkspaceAvatarEl.classList.add("has-image");
+      panelWorkspaceAvatarEl.style.backgroundImage = `url("${encodeURI(avatarPath).replace(/"/g, "%22")}")`;
+      panelWorkspaceAvatarEl.textContent = "";
+    } else {
+      panelWorkspaceAvatarEl.classList.remove("has-image");
+      panelWorkspaceAvatarEl.style.backgroundImage = "";
+      panelWorkspaceAvatarEl.textContent = toInitials(workspaceName, "GT");
+    }
+  }
+
   if (brandMarkEl) {
     if (avatarPath) {
       brandMarkEl.classList.add("has-image");
@@ -511,6 +633,12 @@ const setWorkspaceContext = (space) => {
 
   if (userAddBtn) userAddBtn.disabled = !isAdmin();
   if (userAddInput) userAddInput.disabled = !isAdmin();
+
+  if (panelWorkspaceEditBtn) {
+    panelWorkspaceEditBtn.disabled = !isAdmin();
+    panelWorkspaceEditBtn.title = isAdmin() ? "Edit" : "Only admins can edit";
+  }
+
 
   if (changed) {
     tagsLoaded = false;
@@ -2210,10 +2338,20 @@ if (taskTagsInput) {
 if (brandToggle) {
   brandToggle.addEventListener("click", () => {
     const nextState = !isPanelOpen();
+    setSettingsOpen(false);
     setPanelOpen(nextState);
     if (nextState) {
       userSearch?.focus();
     }
+  });
+}
+
+if (brandMarkEl) {
+  brandMarkEl.addEventListener("click", (event) => {
+    // Prevent global "click outside" handler from instantly closing the panel.
+    event.preventDefault();
+    event.stopPropagation();
+    brandToggle?.click();
   });
 }
 
@@ -2323,8 +2461,15 @@ if (confirmModalAcceptBtn) {
 document.addEventListener("click", (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target || !isPanelOpen()) return;
-  if (target.closest("#user-panel") || target.closest("#brand-toggle")) return;
+  if (target.closest("#user-panel") || target.closest("#brand-toggle") || target.closest("#workspace-avatar")) return;
   setPanelOpen(false);
+});
+
+document.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target || !isSettingsOpen()) return;
+  if (target.closest("#settings-panel") || target.closest("#settings-toggle")) return;
+  setSettingsOpen(false);
 });
 
 const taskDetailController = createTaskDetailController({
@@ -2389,13 +2534,166 @@ if (taskForm) {
   });
 }
 
-if (themeToggleBtn) {
-  themeToggleBtn.addEventListener("click", () => {
-    toggleTheme();
+if (settingsToggleBtn) {
+  settingsToggleBtn.addEventListener("click", () => {
+    const next = !isSettingsOpen();
+    setSettingsOpen(next);
+  });
+}
+
+const saveWorkspaceName = async () => {
+  if (!currentWorkspaceId) return;
+  if (!isAdmin()) return;
+  if (!panelWorkspaceNameEl) return;
+
+  const name = normalizeToken(panelWorkspaceNameEl.textContent);
+  if (!name) {
+    const original = normalizeToken(panelWorkspaceNameEl.dataset.original);
+    panelWorkspaceNameEl.textContent = original || "Workspace";
+    setWorkspaceEditing(false);
+    return;
+  }
+
+  const response = await apiFetch(buildApiUrl(`/spaces/${currentWorkspaceId}`), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({ name })
+  });
+
+  if (!response.ok) {
+    await handleApiError(response, "Update workspace");
+    const original = normalizeToken(panelWorkspaceNameEl.dataset.original);
+    panelWorkspaceNameEl.textContent = original || "Workspace";
+    setWorkspaceEditing(false);
+    return;
+  }
+
+  const updated = await response.json();
+  setWorkspaceEditing(false);
+  setWorkspaceContext(updated);
+};
+
+if (panelWorkspaceEditBtn) {
+  panelWorkspaceEditBtn.addEventListener("click", () => {
+    if (!isAdmin()) return;
+    if (!panelWorkspaceNameEl) return;
+    if (panelWorkspaceEditing) return;
+    setWorkspaceEditing(true);
+  });
+}
+
+if (panelWorkspaceNameEl) {
+  panelWorkspaceNameEl.addEventListener("keydown", (event) => {
+    if (!panelWorkspaceEditing) return;
+    if (event.key === "Enter") {
+      event.preventDefault();
+      panelWorkspaceNameEl.blur();
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      const original = panelWorkspaceNameEl.dataset.original || "";
+      panelWorkspaceNameEl.textContent = original;
+      setWorkspaceEditing(false);
+    }
+  });
+
+  panelWorkspaceNameEl.addEventListener("blur", () => {
+    if (!panelWorkspaceEditing) return;
+    void saveWorkspaceName();
+  });
+}
+
+if (panelWorkspaceAvatarInput) {
+  panelWorkspaceAvatarInput.addEventListener("change", () => {
+    const file = panelWorkspaceAvatarInput.files && panelWorkspaceAvatarInput.files[0];
+    // Allow re-selecting the same file.
+    panelWorkspaceAvatarInput.value = "";
+    if (!file) return;
+    if (!currentWorkspaceId) return;
+    if (!isAdmin()) return;
+
+    const form = new FormData();
+    form.append("file", file);
+
+    void (async () => {
+      const response = await apiFetch(buildApiUrl(`/spaces/${currentWorkspaceId}/avatar`), {
+        method: "POST",
+        body: form
+      });
+
+      if (!response.ok) {
+        await handleApiError(response, "Set workspace avatar");
+        return;
+      }
+
+      const updated = await response.json();
+      setWorkspaceContext(updated);
+    })();
+  });
+}
+
+if (settingsNicknameInput) {
+  settingsNicknameInput.addEventListener("input", () => {
+    const id = getActorUserId();
+    if (!id) return;
+    setStoredAccountNickname(id, settingsNicknameInput.value);
+    updateActorUi();
+  });
+}
+
+if (settingsAvatarBtn && settingsAvatarInput) {
+  settingsAvatarBtn.addEventListener("click", () => {
+    settingsAvatarInput.click();
+  });
+}
+
+if (settingsAvatarInput) {
+  settingsAvatarInput.addEventListener("change", () => {
+    const file = settingsAvatarInput.files && settingsAvatarInput.files[0];
+    // Allow re-selecting the same file.
+    settingsAvatarInput.value = "";
+    const id = getActorUserId();
+    if (!id || !file) return;
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : "";
+      if (!dataUrl) return;
+      setStoredAccountAvatar(id, dataUrl);
+      updateActorUi();
+    });
+    reader.readAsDataURL(file);
+  });
+}
+
+if (settingsAvatarClearBtn) {
+  settingsAvatarClearBtn.addEventListener("click", () => {
+    const id = getActorUserId();
+    if (!id) return;
+    setStoredAccountAvatar(id, "");
+    if (settingsAvatarInput) settingsAvatarInput.value = "";
+    updateActorUi();
+  });
+}
+
+if (settingsThemeDarkBtn) {
+  settingsThemeDarkBtn.addEventListener("click", () => {
+    setTheme("dark");
+    refreshSettingsThemeState();
+  });
+}
+
+if (settingsThemeLightBtn) {
+  settingsThemeLightBtn.addEventListener("click", () => {
+    setTheme("light");
+    refreshSettingsThemeState();
   });
 }
 
 setTheme(getPreferredTheme());
+refreshSettingsThemeState();
 
 if (taskDetailModal) {
   taskDetailModal.addEventListener("click", taskDetailController.onDetailModalClick);
@@ -2580,3 +2878,91 @@ void (async () => {
   }
   await bootstrapWorkspacePage();
 })();
+
+function getStoredAccountNickname(id) {
+  if (!Number.isFinite(Number(id))) return "";
+  try {
+    return localStorage.getItem(`gtt-account-nickname:${id}`) || "";
+  } catch {
+    return "";
+  }
+}
+
+function setStoredAccountNickname(id, value) {
+  if (!Number.isFinite(Number(id))) return;
+  const cleaned = normalizeToken(value);
+  try {
+    if (!cleaned) {
+      localStorage.removeItem(`gtt-account-nickname:${id}`);
+    } else {
+      localStorage.setItem(`gtt-account-nickname:${id}`, cleaned);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function getStoredAccountAvatar(id) {
+  if (!Number.isFinite(Number(id))) return "";
+  try {
+    return localStorage.getItem(`gtt-account-avatar:${id}`) || "";
+  } catch {
+    return "";
+  }
+}
+
+function setStoredAccountAvatar(id, dataUrl) {
+  if (!Number.isFinite(Number(id))) return;
+  const value = typeof dataUrl === "string" ? dataUrl : "";
+  try {
+    if (!value) {
+      localStorage.removeItem(`gtt-account-avatar:${id}`);
+    } else {
+      localStorage.setItem(`gtt-account-avatar:${id}`, value);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function applyAccountAvatarToElement(element, textElement, initials, dataUrl) {
+  if (!element) return;
+  const url = normalizeToken(dataUrl);
+  if (url) {
+    element.classList.add("has-image");
+    element.style.backgroundImage = `url("${url.replace(/"/g, "%22")}")`;
+    if (textElement) textElement.textContent = "";
+    return;
+  }
+  element.classList.remove("has-image");
+  element.style.backgroundImage = "";
+  if (textElement) textElement.textContent = initials;
+}
+
+function refreshSettingsThemeState() {
+  const theme = document.body.dataset.theme === "light" ? "light" : "dark";
+  settingsThemeDarkBtn?.classList.toggle("is-selected", theme === "dark");
+  settingsThemeLightBtn?.classList.toggle("is-selected", theme === "light");
+}
+
+function isSettingsOpen() {
+  return appShell?.classList.contains("is-settings-open");
+}
+
+function setSettingsOpen(open) {
+  if (!appShell) return;
+  appShell.classList.toggle("is-settings-open", open);
+  if (settingsToggleBtn) {
+    settingsToggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  if (settingsPanel) {
+    settingsPanel.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  if (open) {
+    // Avoid two panels fighting for width.
+    setPanelOpen(false);
+    refreshSettingsThemeState();
+    window.setTimeout(() => settingsNicknameInput?.focus(), 0);
+  }
+}

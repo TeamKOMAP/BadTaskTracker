@@ -1,9 +1,9 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\Users\\saren\\source\\repos\\GoodTaskTracker\\",
+  "WorkspaceRootPath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{FE275C98-04FD-4551-91DC-D75E1CAAA2C6}|TaskManager.API\\TaskManager.API.csproj|c:\\users\\saren\\source\\repos\\goodtasktracker\\taskmanager.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "AbsoluteMoniker": "D:0:0:{FE275C98-04FD-4551-91DC-D75E1CAAA2C6}|TaskManager.API\\TaskManager.API.csproj|c:\\users\\saren\\source\\repos\\badtasktracker\\taskmanager.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
       "RelativeMoniker": "D:0:0:{FE275C98-04FD-4551-91DC-D75E1CAAA2C6}|TaskManager.API\\TaskManager.API.csproj|solutionrelative:taskmanager.api\\appsettings.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
     }
   ],
@@ -28,11 +28,11 @@
               "$type": "Document",
               "DocumentIndex": 0,
               "Title": "appsettings.json",
-              "DocumentMoniker": "C:\\Users\\saren\\source\\repos\\GoodTaskTracker\\TaskManager.API\\appsettings.json",
+              "DocumentMoniker": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.API\\appsettings.json",
               "RelativeDocumentMoniker": "TaskManager.API\\appsettings.json",
-              "ToolTip": "C:\\Users\\saren\\source\\repos\\GoodTaskTracker\\TaskManager.API\\appsettings.json",
+              "ToolTip": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.API\\appsettings.json",
               "RelativeToolTip": "TaskManager.API\\appsettings.json",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABcAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
               "WhenOpened": "2026-02-09T08:47:25.77Z",
               "EditorCaption": ""

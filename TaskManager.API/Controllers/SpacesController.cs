@@ -85,6 +85,39 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        [HttpPut("{workspaceId:int}")]
+        public async Task<ActionResult<WorkspaceDto>> UpdateSpace(int workspaceId, [FromBody] UpdateWorkspaceDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            try
+            {
+                var updated = await _workspaceService.UpdateWorkspaceAsync(actorUserId.Value, workspaceId, dto);
+                return Ok(updated);
+            }
+            catch (NotFoundException)
+            {
+                return NotFound();
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
         [HttpPost("{workspaceId:int}/avatar")]
         [RequestSizeLimit(20L * 1024 * 1024)]
         public async Task<ActionResult<WorkspaceDto>> SetSpaceAvatar(int workspaceId, IFormFile? file)
@@ -130,6 +163,30 @@ namespace TaskManager.API.Controllers
             catch (ValidationException ex)
             {
                 return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        [HttpDelete("{workspaceId:int}/avatar")]
+        public async Task<ActionResult<WorkspaceDto>> ClearSpaceAvatar(int workspaceId)
+        {
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            try
+            {
+                var updated = await _workspaceService.ClearAvatarAsync(actorUserId.Value, workspaceId);
+                return Ok(updated);
+            }
+            catch (NotFoundException)
+            {
+                return NotFound();
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
             }
         }
 

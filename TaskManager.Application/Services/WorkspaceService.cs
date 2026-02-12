@@ -95,6 +95,56 @@ namespace TaskManager.Application.Services
             return MapWorkspace(updated, actorUserId);
         }
 
+        public async Task<WorkspaceDto> ClearAvatarAsync(int actorUserId, int workspaceId)
+        {
+            var workspace = await _workspaceRepository.GetByIdAsync(workspaceId)
+                ?? throw new NotFoundException($"Workspace with id {workspaceId} not found");
+
+            var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId)
+                ?? throw new ForbiddenException("You are not a member of this workspace");
+
+            if (!CanManage(member.Role))
+            {
+                throw new ForbiddenException("Only workspace admin can update avatar");
+            }
+
+            workspace.AvatarPath = null;
+            await _workspaceRepository.UpdateAsync(workspace);
+
+            var updated = await _workspaceRepository.GetByIdAsync(workspaceId)
+                ?? throw new NotFoundException($"Workspace with id {workspaceId} not found");
+
+            return MapWorkspace(updated, actorUserId);
+        }
+
+        public async Task<WorkspaceDto> UpdateWorkspaceAsync(int actorUserId, int workspaceId, UpdateWorkspaceDto dto)
+        {
+            var workspace = await _workspaceRepository.GetByIdAsync(workspaceId)
+                ?? throw new NotFoundException($"Workspace with id {workspaceId} not found");
+
+            var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId)
+                ?? throw new ForbiddenException("You are not a member of this workspace");
+
+            if (!CanManage(member.Role))
+            {
+                throw new ForbiddenException("Only workspace admin can update workspace");
+            }
+
+            var name = dto.Name.Trim();
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                throw new ValidationException("Workspace name is required");
+            }
+
+            workspace.Name = name;
+            await _workspaceRepository.UpdateAsync(workspace);
+
+            var updated = await _workspaceRepository.GetByIdAsync(workspaceId)
+                ?? throw new NotFoundException($"Workspace with id {workspaceId} not found");
+
+            return MapWorkspace(updated, actorUserId);
+        }
+
         public async Task<IEnumerable<WorkspaceMemberDto>> GetMembersAsync(int actorUserId, int workspaceId)
         {
             await EnsureMemberAsync(workspaceId, actorUserId);
