@@ -13,6 +13,7 @@ import {
   styleSwitch,
   styleToggleTitleEl,
   styleToggleSubEl,
+  taskTrashZone,
   flowLayout,
   flowCanvas,
   flowLinks,
@@ -52,7 +53,13 @@ import {
   taskDetailPhotoClearBtn,
   taskAttachBtn,
   taskAttachmentsInput,
-  taskBgInput
+  taskBgInput,
+  confirmModal,
+  confirmModalKickerEl,
+  confirmModalTitleEl,
+  confirmModalMessageEl,
+  confirmModalCancelBtn,
+  confirmModalAcceptBtn
 } from "./dom.js";
 
 import { buildApiUrl, apiFetch, fetchJsonOrNull, handleApiError, setApiContextProvider } from "../shared/api.js";
@@ -96,7 +103,7 @@ import {
   setStoredTaskMeta,
   getStoredTaskBg
 } from "./storage.js";
-import { createTaskDetailController } from "./task-detail.js";
+import { createTaskDetailController } from "./task-detail.js?v=confirm2";
 
 let lastNormalizedTasks = [];
 
@@ -686,6 +693,82 @@ const applyAttachmentCountToCards = (id, count) => {
 };
 
 const isAdmin = () => MANAGE_ROLES.has(String(currentWorkspaceRole || ""));
+
+const shouldShowTrashZone = () => {
+  if (!taskTrashZone || !board) return false;
+  if (!isAdmin()) return false;
+  if (board.dataset.style !== "columns") return false;
+  if (board.dataset.view === "calendar") return false;
+  return true;
+};
+
+const setTrashZoneVisible = (visible) => {
+  if (!taskTrashZone) return;
+  const show = Boolean(visible && shouldShowTrashZone());
+  taskTrashZone.classList.toggle("is-visible", show);
+  taskTrashZone.setAttribute("aria-hidden", show ? "false" : "true");
+  if (styleSwitch) {
+    styleSwitch.classList.toggle("has-trash-zone", show);
+  }
+  if (!show) {
+    taskTrashZone.classList.remove("is-over");
+  }
+};
+
+const setTrashZoneOver = (over) => {
+  if (!taskTrashZone) return;
+  taskTrashZone.classList.toggle("is-over", Boolean(over));
+};
+
+let confirmResolve = null;
+
+const isConfirmModalOpen = () => Boolean(confirmModal && !confirmModal.hasAttribute("hidden"));
+
+const closeConfirmModal = (result = false) => {
+  if (!isConfirmModalOpen()) return false;
+  confirmModal.setAttribute("hidden", "");
+  if (confirmResolve) {
+    const resolve = confirmResolve;
+    confirmResolve = null;
+    resolve(Boolean(result));
+  }
+  return true;
+};
+
+const openConfirmModal = (options) => {
+  const title = normalizeToken(options?.title) || "Are you sure?";
+  const message = normalizeToken(options?.message) || "This action cannot be undone.";
+  const kicker = normalizeToken(options?.kicker) || "Please confirm";
+  const confirmText = normalizeToken(options?.confirmText) || "Delete";
+
+  if (!confirmModal || !confirmModalTitleEl || !confirmModalMessageEl || !confirmModalAcceptBtn || !confirmModalCancelBtn) {
+    return Promise.resolve(window.confirm(`${title}\n\n${message}`));
+  }
+
+  if (confirmResolve) {
+    const resolve = confirmResolve;
+    confirmResolve = null;
+    resolve(false);
+  }
+
+  if (confirmModalKickerEl) {
+    confirmModalKickerEl.textContent = kicker;
+  }
+  confirmModalTitleEl.textContent = title;
+  confirmModalMessageEl.textContent = message;
+  confirmModalAcceptBtn.textContent = confirmText;
+  confirmModal.removeAttribute("hidden");
+
+  window.setTimeout(() => {
+    if (isConfirmModalOpen()) {
+      confirmModalCancelBtn.focus();
+    }
+  }, 0);
+
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+  });
+};
 
 const collectTagOptions = () => {
   const map = new Map();
@@ -1413,6 +1496,21 @@ const updateTaskStatus = async (card, statusValue) => {
   await loadTasksFromApi();
 };
 
+const deleteTaskViaApi = async (id) => {
+  if (!Number.isFinite(Number(id))) return false;
+  const response = await apiFetch(buildApiUrl(`/tasks/${id}`), {
+    method: "DELETE",
+    headers: {
+      Accept: "application/json"
+    }
+  });
+  if (!response.ok) {
+    await handleApiError(response, "Delete task");
+    return false;
+  }
+  return true;
+};
+
 const loadTasksFromApi = async () => {
   await ensureTagsLoaded();
   const tasks = await fetchTasks();
@@ -1957,6 +2055,7 @@ const onTaskDragStart = (event) => {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", card.dataset.taskId || "");
   }
+  setTrashZoneVisible(true);
 };
 
 const onTaskDragEnd = () => {
@@ -1976,6 +2075,8 @@ const onTaskDragEnd = () => {
   dragTaskColumn = null;
   lastTaskAfter = null;
   lastTaskContainer = null;
+  setTrashZoneOver(false);
+  setTrashZoneVisible(false);
 };
 
 const getTaskDragAfterElement = (container, y) => {
@@ -2053,6 +2154,46 @@ const onTaskDrop = (event) => {
     updateColumnCount(targetColumn);
   }
 };
+
+if (taskTrashZone) {
+  taskTrashZone.addEventListener("dragover", (event) => {
+    if (!dragTask || !shouldShowTrashZone()) return;
+    event.preventDefault();
+    setTrashZoneOver(true);
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+  });
+
+  taskTrashZone.addEventListener("dragleave", () => {
+    setTrashZoneOver(false);
+  });
+
+  taskTrashZone.addEventListener("drop", async (event) => {
+    if (!dragTask || !shouldShowTrashZone()) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setTrashZoneOver(false);
+    const id = Number.parseInt(dragTask.dataset.taskId || "", 10);
+    const title = dragTask.querySelector("h3")?.textContent?.trim();
+    const confirmed = await openConfirmModal({
+      kicker: "Delete task",
+      title: title ? `Delete "${title}"?` : "Delete this task?",
+      message: "This task and its metadata will be removed from the board.",
+      confirmText: "Delete task"
+    });
+    if (confirmed !== true) {
+      setTrashZoneVisible(false);
+      void loadTasksFromApi();
+      return;
+    }
+    void (async () => {
+      await deleteTaskViaApi(id);
+      setTrashZoneVisible(false);
+      await loadTasksFromApi();
+    })();
+  });
+}
 
 if (columnsWrap) {
   Array.from(columnsWrap.querySelectorAll(".column")).forEach(initColumn);
@@ -2242,6 +2383,36 @@ document.addEventListener("click", (event) => {
   }
 });
 
+if (confirmModal) {
+  confirmModal.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    if (target.closest("[data-close-confirm]")) {
+      closeConfirmModal(false);
+    }
+  });
+
+  confirmModal.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      closeConfirmModal(false);
+    }
+  });
+}
+
+if (confirmModalCancelBtn) {
+  confirmModalCancelBtn.addEventListener("click", () => {
+    closeConfirmModal(false);
+  });
+}
+
+if (confirmModalAcceptBtn) {
+  confirmModalAcceptBtn.addEventListener("click", () => {
+    closeConfirmModal(true);
+  });
+}
+
 document.addEventListener("click", (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target || !isPanelOpen()) return;
@@ -2255,11 +2426,15 @@ const taskDetailController = createTaskDetailController({
   getTagNameById: (id) => tagById.get(Number(id)) || "",
   openTaskModalForEdit,
   applyTaskBgToCards,
-  applyAttachmentCountToCards
+  applyAttachmentCountToCards,
+  confirmDestructiveAction: openConfirmModal
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (closeConfirmModal(false)) {
+      return;
+    }
     if (isPanelOpen()) {
       setPanelOpen(false);
     }

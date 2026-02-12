@@ -16,6 +16,8 @@ export const styleSwitch = document.getElementById("style-switch");
 export const styleToggleTitleEl = document.getElementById("style-toggle-title");
 export const styleToggleSubEl = document.getElementById("style-toggle-sub");
 
+export const taskTrashZone = document.getElementById("task-trash-zone");
+
 export const flowLayout = document.getElementById("flow-layout");
 export const flowCanvas = document.getElementById("flow-canvas");
 export const flowLinks = document.getElementById("flow-links");
@@ -85,3 +87,10 @@ export const taskDetailPhotoClearBtn = document.getElementById("task-detail-phot
 export const taskAttachBtn = document.getElementById("task-attach-btn");
 export const taskAttachmentsList = document.getElementById("task-attachments-list");
 export const taskAttachmentsEmpty = document.getElementById("task-attachments-empty");
+
+export const confirmModal = document.getElementById("confirm-modal");
+export const confirmModalKickerEl = document.getElementById("confirm-modal-kicker");
+export const confirmModalTitleEl = document.getElementById("confirm-modal-title");
+export const confirmModalMessageEl = document.getElementById("confirm-modal-message");
+export const confirmModalCancelBtn = document.getElementById("confirm-modal-cancel");
+export const confirmModalAcceptBtn = document.getElementById("confirm-modal-accept");

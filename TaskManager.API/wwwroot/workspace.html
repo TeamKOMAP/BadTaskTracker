@@ -84,6 +84,12 @@
                 </svg>
               </button>
             </div>
+            <div class="task-trash-zone" id="task-trash-zone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 7h2v8h-2v-8zm-4 0h2v8H7v-8zm8 0h2v8h-2v-8z" />
+              </svg>
+              <span>Drop to delete</span>
+            </div>
           </div>
             <button class="primary-btn board-add-column" id="add-column" type="button">Create New Column</button>
           </div>
@@ -509,6 +515,28 @@
           <div class="task-detail-attachments-list" id="task-attachments-list"></div>
           <div class="task-detail-attachments-empty" id="task-attachments-empty" hidden>No attachments</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="task-modal task-confirm-modal" id="confirm-modal" hidden>
+    <div class="task-modal-backdrop" data-close-confirm></div>
+    <div class="task-modal-card task-confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-message">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker" id="confirm-modal-kicker">Please confirm</span>
+          <h3 class="task-modal-title" id="confirm-modal-title">Are you sure?</h3>
+        </div>
+        <button class="icon-btn" type="button" data-close-confirm aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7l10 10M17 7L7 17" />
+          </svg>
+        </button>
+      </div>
+      <p class="task-confirm-message" id="confirm-modal-message">This action cannot be undone.</p>
+      <div class="task-form-actions task-confirm-actions">
+        <button class="ghost-btn" id="confirm-modal-cancel" type="button">Cancel</button>
+        <button class="danger-btn" id="confirm-modal-accept" type="button">Delete</button>
       </div>
     </div>
   </div>

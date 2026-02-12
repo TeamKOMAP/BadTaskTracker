@@ -55,6 +55,12 @@ export const createTaskDetailController = (deps) => {
   const applyAttachmentCountToCards = typeof deps?.applyAttachmentCountToCards === "function"
     ? deps.applyAttachmentCountToCards
     : () => {};
+  const confirmDestructiveAction = typeof deps?.confirmDestructiveAction === "function"
+    ? deps.confirmDestructiveAction
+    : async (options) => {
+      const title = normalizeToken(options?.title) || "Delete item?";
+      return window.confirm(title);
+    };
 
   let detailTaskId = null;
   let detailTaskCard = null;
@@ -144,7 +150,19 @@ export const createTaskDetailController = (deps) => {
         del.textContent = "Delete";
         del.addEventListener("click", async () => {
           if (!detailTaskId || !id) return;
-          await apiFetch(buildApiUrl(`/tasks/${detailTaskId}/attachments/${id}`), { method: "DELETE" });
+          const confirmed = await confirmDestructiveAction({
+            kicker: "Delete attachment",
+            title: `Delete "${name}"?`,
+            message: "This attachment will be removed from the task.",
+            confirmText: "Delete attachment"
+          });
+          if (confirmed !== true) return;
+
+          const response = await apiFetch(buildApiUrl(`/tasks/${detailTaskId}/attachments/${id}`), { method: "DELETE" });
+          if (!response.ok) {
+            await handleApiError(response, "Delete attachment");
+            return;
+          }
           void loadAttachmentsForDetail();
         });
         actions.appendChild(del);

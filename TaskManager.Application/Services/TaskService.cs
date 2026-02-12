@@ -170,7 +170,15 @@ namespace TaskManager.Application.Services
 
         public async Task DeleteTaskAsync(int workspaceId, int actorUserId, int id)
         {
-            await EnsureMemberAsync(workspaceId, actorUserId);
+            var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId);
+            if (member == null)
+            {
+                throw new ForbiddenException("You are not a member of this workspace");
+            }
+            if (member.Role != WorkspaceRole.Admin && member.Role != WorkspaceRole.Owner)
+            {
+                throw new ForbiddenException("Only workspace admins or owners can delete tasks");
+            }
 
             var task = await _taskRepository.GetByIdAsync(id, workspaceId);
             if (task == null)
@@ -221,8 +229,8 @@ namespace TaskManager.Application.Services
             else if (dto.Title.Length < 3 || dto.Title.Length > 200)
                 errors.Add("Title must be between 3 and 200 characters");
 
-            if (dto.DueDate <= DateTime.UtcNow)
-                errors.Add("Due date must be in the future");
+            if (dto.DueDate == default)
+                errors.Add("Due date is required");
 
             if (!Enum.IsDefined(typeof(TaskPriority), dto.Priority))
                 errors.Add("Invalid priority value");
