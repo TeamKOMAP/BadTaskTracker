@@ -47,7 +47,12 @@ export const userEmpty = document.getElementById("user-empty");
 export const userAddInput = document.getElementById("user-add-input");
 export const userAddBtn = document.getElementById("user-add-btn");
 
-export const themeToggleBtn = document.getElementById("theme-toggle");
+export const panelWorkspace = document.getElementById("panel-workspace");
+export const panelWorkspaceNameEl = document.getElementById("panel-workspace-name");
+export const panelWorkspaceEditBtn = document.getElementById("panel-workspace-edit");
+export const panelWorkspaceAvatarEl = document.getElementById("panel-workspace-avatar");
+export const panelWorkspaceAvatarInput = document.getElementById("panel-workspace-avatar-input");
+
 export const taskBgInput = document.getElementById("task-bg-input");
 export const taskAttachmentsInput = document.getElementById("task-attachments-input");
 
@@ -56,6 +61,20 @@ export const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: 
 export const brandTitleEl = document.querySelector(".brand-title");
 export const brandMarkEl = document.querySelector(".brand-mark");
 export const userNameEl = document.querySelector(".user-name");
+
+export const accountAvatarEl = document.querySelector(".avatar");
+export const accountAvatarTextEl = accountAvatarEl?.querySelector("span") || null;
+
+export const settingsPanel = document.getElementById("settings-panel");
+export const settingsToggleBtn = document.getElementById("settings-toggle");
+export const settingsNicknameInput = document.getElementById("settings-nickname");
+export const settingsAvatarPreview = document.getElementById("settings-avatar-preview");
+export const settingsAvatarPreviewTextEl = settingsAvatarPreview?.querySelector("span") || null;
+export const settingsAvatarInput = document.getElementById("settings-avatar-input");
+export const settingsAvatarBtn = document.getElementById("settings-avatar-btn");
+export const settingsAvatarClearBtn = document.getElementById("settings-avatar-clear");
+export const settingsThemeDarkBtn = document.getElementById("settings-theme-dark");
+export const settingsThemeLightBtn = document.getElementById("settings-theme-light");
 
 export const taskModalKicker = taskModal?.querySelector(".task-modal-kicker") || null;
 export const taskModalTitleEl = document.getElementById("task-modal-title");

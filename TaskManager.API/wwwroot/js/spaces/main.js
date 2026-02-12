@@ -152,6 +152,14 @@ const renderSpaces = (spaces) => {
     const card = document.createElement("article");
     card.className = "space-card";
 
+    card.addEventListener("dblclick", (event) => {
+      const target = event?.target;
+      if (target && typeof target.closest === "function") {
+        if (target.closest("button, a, input, select, textarea, label")) return;
+      }
+      openWorkspace(space);
+    });
+
     const preview = document.createElement("div");
     preview.className = "space-card-preview";
     const avatarPath = normalizeToken(space?.avatarPath);

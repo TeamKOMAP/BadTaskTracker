@@ -15,6 +15,25 @@
   <div class="app-shell" id="app-shell">
     <aside class="user-panel" id="user-panel" aria-hidden="true">
       <div class="user-panel-inner">
+        <div class="panel-workspace" id="panel-workspace">
+          <div class="panel-workspace-row">
+            <div class="panel-workspace-hero">
+              <div class="panel-workspace-avatar" id="panel-workspace-avatar" role="img" aria-label="Workspace avatar">GT</div>
+              <input id="panel-workspace-avatar-input" type="file" accept="image/*" hidden>
+              <div class="panel-workspace-meta">
+                <span class="panel-workspace-kicker">Пространство</span>
+                <div class="panel-workspace-name" id="panel-workspace-name">Workspace</div>
+              </div>
+            </div>
+            <button class="icon-btn panel-workspace-edit" id="panel-workspace-edit" type="button" aria-label="Edit workspace name" title="Edit">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 20h4l10.5-10.5a1.5 1.5 0 0 0 0-2.12l-1.88-1.88a1.5 1.5 0 0 0-2.12 0L4 16v4z" />
+                <path d="M13.5 6.5l4 4" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
         <div class="user-panel-header">
           <h3 class="user-panel-title">Участники пространства</h3>
           <span class="user-panel-sub">Кто работает в этом пространстве</span>
@@ -40,14 +59,16 @@
     </aside>
     <div class="page">
       <header class="topbar">
-        <button class="brand brand-toggle" id="brand-toggle" type="button" aria-expanded="false" aria-controls="user-panel">
-          <div class="brand-mark">GT</div>
-          <div class="brand-text">
-            <span class="brand-kicker">Пространство</span>
-            <span class="brand-title">UnnamedUser</span>
-          </div>
-        </button>
-        <button class="ghost-btn spaces-back-btn" id="open-spaces-home" type="button">Spaces</button>
+        <div class="brand-stack">
+          <button class="brand-mark" id="workspace-avatar" type="button" aria-label="Workspace avatar">GT</button>
+          <button class="brand brand-toggle" id="brand-toggle" type="button" aria-expanded="false" aria-controls="user-panel">
+            <div class="brand-text">
+              <span class="brand-kicker">Пространство</span>
+              <span class="brand-title">UnnamedUser</span>
+            </div>
+          </button>
+          <a class="spaces-back-link" id="open-spaces-home" href="index.html" aria-label="Back to spaces">&lt; Back</a>
+        </div>
       <div class="view-toggle" role="group" aria-label="Task view">
         <button class="view-btn is-active" data-view="board" aria-pressed="true">Board</button>
         <button class="view-btn" data-view="list" aria-pressed="false">List</button>
@@ -61,7 +82,7 @@
         <div class="avatar" role="img" aria-label="Account avatar">
           <span>EV</span>
         </div>
-        <button class="settings-btn" id="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+        <button class="settings-btn" id="settings-toggle" type="button" aria-label="Open settings" title="Settings" aria-expanded="false" aria-controls="settings-panel">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.094c.55 0 1.02.398 1.11.94l.149.894a1.486 1.486 0 0 0 2.196 1.053l.771-.436a1.125 1.125 0 0 1 1.547.42l.547.94a1.125 1.125 0 0 1-.301 1.504l-.764.591a1.485 1.485 0 0 0-.434 1.618l.343.835a1.5 1.5 0 0 0 1.429.95h.98c.616 0 1.118.49 1.118 1.095v1.094c0 .605-.502 1.095-1.118 1.095h-.98a1.5 1.5 0 0 0-1.429.95l-.343.835a1.485 1.485 0 0 0 .434 1.618l.764.591a1.125 1.125 0 0 1 .301 1.504l-.547.94a1.125 1.125 0 0 1-1.547.42l-.771-.436a1.486 1.486 0 0 0-2.196 1.053l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.02-.398-1.11-.94l-.149-.894a1.486 1.486 0 0 0-2.196-1.053l-.771.436a1.125 1.125 0 0 1-1.547-.42l-.547-.94a1.125 1.125 0 0 1 .301-1.504l.764-.591a1.485 1.485 0 0 0 .434-1.618l-.343-.835a1.5 1.5 0 0 0-1.429-.95h-.98A1.11 1.11 0 0 1 2 13.905v-1.094c0-.605.502-1.095 1.118-1.095h.98a1.5 1.5 0 0 0 1.429-.95l.343-.835a1.485 1.485 0 0 0-.434-1.618l-.764-.591a1.125 1.125 0 0 1-.301-1.504l.547-.94a1.125 1.125 0 0 1 1.547-.42l.771.436a1.486 1.486 0 0 0 2.196-1.053l.149-.894z"/>
             <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>
@@ -91,7 +112,7 @@
               <span>Drop to delete</span>
             </div>
           </div>
-            <button class="primary-btn board-add-column" id="add-column" type="button">Create New Column</button>
+          <button class="primary-btn board-add-column" id="add-column" type="button">Create Column</button>
           </div>
         </div>
 
@@ -357,6 +378,42 @@
       </section>
       </main>
     </div>
+
+    <aside class="settings-panel" id="settings-panel" aria-hidden="true">
+      <div class="settings-panel-inner">
+        <div class="settings-panel-header">
+          <h3 class="settings-panel-title">Settings</h3>
+          <span class="settings-panel-sub">Account and appearance</span>
+        </div>
+
+        <section class="settings-section" aria-label="Account settings">
+          <span class="settings-section-title">Account</span>
+          <label class="settings-field">
+            <span class="settings-label">Nickname</span>
+            <input id="settings-nickname" type="text" placeholder="NoName" maxlength="60" autocomplete="nickname">
+          </label>
+
+          <div class="settings-avatar-row">
+            <div class="avatar settings-avatar" id="settings-avatar-preview" role="img" aria-label="Account avatar">
+              <span>EV</span>
+            </div>
+            <div class="settings-avatar-actions">
+              <button class="ghost-btn" id="settings-avatar-btn" type="button">Change</button>
+              <button class="ghost-btn" id="settings-avatar-clear" type="button">Clear</button>
+            </div>
+            <input id="settings-avatar-input" type="file" accept="image/*" hidden>
+          </div>
+        </section>
+
+        <section class="settings-section" aria-label="Theme settings">
+          <span class="settings-section-title">Theme</span>
+          <div class="settings-theme-row" role="group" aria-label="Theme">
+            <button class="ghost-btn" id="settings-theme-dark" type="button">Dark</button>
+            <button class="ghost-btn" id="settings-theme-light" type="button">Light</button>
+          </div>
+        </section>
+      </div>
+    </aside>
   </div>
 
   <div class="task-modal" id="task-modal" hidden>

@@ -22,6 +22,13 @@ namespace TaskManager.Application.DTOs
         public string Name { get; set; } = string.Empty;
     }
 
+    public class UpdateWorkspaceDto
+    {
+        [Required]
+        [StringLength(120, MinimumLength = 2)]
+        public string Name { get; set; } = string.Empty;
+    }
+
     public class WorkspaceMemberDto
     {
         public int UserId { get; set; }
