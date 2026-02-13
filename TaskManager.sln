@@ -13,6 +13,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Элементы решен
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.Domain", "TaskManager.Domain\TaskManager.Domain.csproj", "{17A5C46F-F132-4982-B440-BBAA4994F1D9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.Tests", "TaskManager.Tests\TaskManager.Tests.csproj", "{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -71,6 +73,18 @@ Global
 		{17A5C46F-F132-4982-B440-BBAA4994F1D9}.Release|x64.Build.0 = Release|Any CPU
 		{17A5C46F-F132-4982-B440-BBAA4994F1D9}.Release|x86.ActiveCfg = Release|Any CPU
 		{17A5C46F-F132-4982-B440-BBAA4994F1D9}.Release|x86.Build.0 = Release|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Debug|x64.Build.0 = Debug|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Debug|x86.Build.0 = Debug|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Release|x64.ActiveCfg = Release|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Release|x64.Build.0 = Release|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Release|x86.ActiveCfg = Release|Any CPU
+		{F611BFF5-C1D9-4A6B-AE6F-C7D6AB7645B3}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

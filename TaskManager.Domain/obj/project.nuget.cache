@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "XHTONaGHBq8=",
+  "dgSpecHash": "ssUCrYCO7us=",
   "success": true,
-  "projectFilePath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj",
+  "projectFilePath": "C:\\GoodTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj",
   "expectedPackageFiles": [],
   "logs": []
 }
