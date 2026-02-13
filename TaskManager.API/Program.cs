@@ -203,3 +203,6 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Делаем Program доступным для интеграционных тестов
+public partial class Program { }

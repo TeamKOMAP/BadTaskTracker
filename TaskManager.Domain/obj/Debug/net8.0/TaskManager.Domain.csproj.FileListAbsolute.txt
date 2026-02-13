@@ -46,3 +46,15 @@ C:\Users\saren\source\repos\BadTaskTracker\TaskManager.Domain\obj\Debug\net8.0\T
 C:\Users\saren\source\repos\BadTaskTracker\TaskManager.Domain\obj\Debug\net8.0\refint\TaskManager.Domain.dll
 C:\Users\saren\source\repos\BadTaskTracker\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.pdb
 C:\Users\saren\source\repos\BadTaskTracker\TaskManager.Domain\obj\Debug\net8.0\ref\TaskManager.Domain.dll
+C:\GoodTaskTracker\TaskManager.Domain\bin\Debug\net8.0\TaskManager.Domain.deps.json
+C:\GoodTaskTracker\TaskManager.Domain\bin\Debug\net8.0\TaskManager.Domain.dll
+C:\GoodTaskTracker\TaskManager.Domain\bin\Debug\net8.0\TaskManager.Domain.pdb
+C:\GoodTaskTracker\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\GoodTaskTracker\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.AssemblyInfoInputs.cache
+C:\GoodTaskTracker\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.AssemblyInfo.cs
+C:\GoodTaskTracker\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.csproj.CoreCompileInputs.cache
+C:\GoodTaskTracker\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.sourcelink.json
+C:\GoodTaskTracker\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.dll
+C:\GoodTaskTracker\TaskManager.Domain\obj\Debug\net8.0\refint\TaskManager.Domain.dll
+C:\GoodTaskTracker\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.pdb
+C:\GoodTaskTracker\TaskManager.Domain\obj\Debug\net8.0\ref\TaskManager.Domain.dll
