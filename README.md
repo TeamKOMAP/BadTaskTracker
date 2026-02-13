@@ -1,10 +1,15 @@
-# BadTaskTracker
+# TaskManager
 
-Мозг особо не ебите так чисто поспрашивайте 
-![Мозг особо не ебите так чисто поспрашивайте ](https://github.com/TeamKOMAP/GoodTaskTracker/blob/main/%D0%A4%D0%90.jpg)
-
+[![.NET CI](https://github.com/TeamKOMAP/BadTaskTracker/actions/workflows/dotnet.yml/badge.svg)](https://github.com/TeamKOMAP/BadTaskTracker/actions)
 
 Веб-приложение для создания, учета и контроля задач с базовой отчетностью. Учебный проект для практикантов.
+
+**Ключевые возможности:**
+- Управление задачами в рамках рабочих пространств (Workspaces)
+- Система ролей и прав доступа (Owner, Admin, Member)
+- Фильтрация и отчетность
+- JWT аутентификация
+- REST API с документацией Swagger
 
 ## 📝 Требования к окружению
 
@@ -23,36 +28,38 @@
 ## ⚙️ Структура проекта (BACK-END)
 
 ```text
-TaskTracker/
+TaskManager/
 │
-├── TaskTracker.API/               # Presentation Layer (API)
+├── TaskManager.API/               # Presentation Layer (API)
 │ ├── Controllers/                 # Контроллеры Web API
+│ ├── Security/                    # Авторизация и контекст запросов
 │ ├── Program.cs                   # Точка входа
 │ └── appsettings.json             # Конфигурация
 │
-├── TaskTracker.Application/       # Application Layer
+├── TaskManager.Application/       # Application Layer
 │ ├── Services/                    # Сервисы приложения
 │ ├── DTOs/                        # Data Transfer Objects
-│ ├── Mappings/                    # AutoMapper профили
-│ └── Validators/                  # FluentValidation
+│ ├── Interfaces/                  # Интерфейсы сервисов
+│ └── Exceptions/                  # Кастомные исключения
 │
-├── TaskTracker.Domain/            # Domain Layer
+├── TaskManager.Domain/            # Domain Layer
 │ ├── Entities/                    # Доменные модели
 │ ├── Enums/                       # Перечисления
-│ └── Interfaces/                  # Интерфейсы репозиториев
+│ └── Enums/                       # WorkspaceRole и др.
 │
-├── TaskTracker.Infrastructure/    # Data Access Layer
+├── TaskManager.Infrastructure/    # Data Access Layer
 │ ├── Data/                        # DbContext
 │ ├── Migrations/                  # Миграции БД
-│ └── Repositories/                # Репозитории (если используются)
+│ ├── Repositories/                # Репозитории
+│ └── Storage/                     # Хранилище вложений
 │
-├── TaskTracker.Tests/             # Тесты
-│ ├── UnitTests/                   # Модульные тесты
-│ ├── IntegrationTests/            # Интеграционные тесты
-│ └── TestHelpers/                 # Вспомогательные классы
+├── TaskManager.Tests/             # Интеграционные тесты
+│ ├── IntegrationTests/            # Тесты API
+│ └── Helpers/                     # Вспомогательные классы
 │
-├── README.md # Это тут щас
-└── TaskTracker.sln
+├── README.md
+├── DEFINITION_OF_DONE.md          # Критерии готовности задач
+└── TaskManager.sln
 ```
 
 ## 🖼 Структура проекта (FRONT-END) 
@@ -89,18 +96,18 @@ TaskTracker.API/wwwroot/ # Статические файлы фронтенда
 
 1. **Клонируйте репозиторий:**
    ```bash
-   git clone <URL-репозитория>
-   cd TaskTracker
+   git clone https://github.com/TeamKOMAP/BadTaskTracker.git
+   cd BadTaskTracker
    ```
 
-2. **Зависимости (курить охота):**
+2. **Восстановление зависимостей:**
    ```bash
    dotnet restore
    ```
 
-3. **Миграции БД:**
+3. **Применение миграций БД:**
    ```bash
-   dotnet ef database update --project TaskTracker.Infrastructure --startup-project TaskTracker.API
+   dotnet ef database update --project TaskManager.Infrastructure --startup-project TaskManager.API
    ```
    ЛИБО через Package Manager Console в VS:
    ```powershell
@@ -109,9 +116,13 @@ TaskTracker.API/wwwroot/ # Статические файлы фронтенда
 
 4. **Запуск приложения:**
    ```bash
-   dotnet run --project TaskTracker.API
+   dotnet run --project TaskManager.API
    ```
-   либо через F5 в VS
+   Или через F5 в Visual Studio
+   
+   Приложение будет доступно по адресам:
+   - API: `https://localhost:5001` или `http://localhost:5000`
+   - Swagger UI: `/swagger`
 
 ## 💯 КАК СДЕЛАТЬ (Swagger)?
 
@@ -122,9 +133,66 @@ TaskTracker.API/wwwroot/ # Статические файлы фронтенда
    - Тестировать API напрямую через интерфейс
    - Видеть модели данных для запросов и ответов
 
-## ❓ Что произойдёт?:
-При первом запуске будет создана база данных SQLite с таблицами:
-- Users (пользователи)
-- Tasks (задачи)
-- Tags (теги)
-- TaskTags (связь задач и тегов)
+## 🧪 Запуск тестов
+
+Проект содержит интеграционные тесты для API:
+
+```bash
+# Запуск всех тестов
+dotnet test
+
+# Запуск с подробным выводом
+dotnet test --verbosity normal
+
+# Запуск конкретного теста
+dotnet test --filter "FullyQualifiedName~TasksApiTests"
+```
+
+Тесты используют:
+- **WebApplicationFactory** для интеграционного тестирования
+- **InMemory Database** для изоляции тестов
+- **xUnit + FluentAssertions** для проверок
+
+## 🔐 Аутентификация и авторизация
+
+API использует JWT токены и контекст запросов. Для тестирования через Swagger или curl необходимо передавать заголовки:
+
+```http
+X-Actor-UserId: 1          # ID пользователя
+X-Workspace-Id: 1          # ID рабочего пространства
+Authorization: Bearer {token}  # JWT токен (если требуется)
+```
+
+Пример запроса:
+```bash
+curl -X GET "http://localhost:5000/api/Tasks" \
+  -H "X-Actor-UserId: 1" \
+  -H "X-Workspace-Id: 1"
+```
+
+## ❓ Что произойдёт?
+
+При первом запуске будет создана база данных SQLite со следующей структурой:
+
+**Основные сущности:**
+- **Users** - Пользователи системы
+- **Workspaces** - Рабочие пространства (проекты)
+- **WorkspaceMembers** - Члены воркспейса с ролями (Owner, Admin, Member)
+- **Tasks** - Задачи (привязаны к воркспейсу)
+- **Tags** - Теги (в рамках воркспейса)
+- **TaskTags** - Связь задач и тегов (many-to-many)
+- **TaskAttachments** - Вложения к задачам
+
+## 📋 Definition of Done
+
+Перед сдачей задачи обязательно проверить [DEFINITION_OF_DONE.md](./DEFINITION_OF_DONE.md)
+
+## 👥 Команда
+
+- **Backend** - Разработка API и бизнес-логики
+- **Frontend** - Разработка пользовательского интерфейса  
+- **QA/DevOps** - Тестирование, CI/CD, контроль качества
+
+## 📄 Лицензия
+
+Учебный проект. Все права принадлежат команде разработчиков.
