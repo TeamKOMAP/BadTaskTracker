@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoodTaskTracker - Sign In</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/auth.css">
+</head>
+<body data-theme="dark">
+  <div class="app-shell">
+    <div class="page auth-page">
+      <header class="auth-topbar">
+        <div class="auth-brand">
+          <div class="auth-mark">GT</div>
+          <div class="auth-brand-text">
+            <span class="auth-kicker">GoodTaskTracker</span>
+            <h1 class="auth-title">Авторизация</h1>
+          </div>
+        </div>
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v2" />
+            <path d="M12 19v2" />
+            <path d="M4.22 4.22l1.42 1.42" />
+            <path d="M18.36 18.36l1.42 1.42" />
+            <path d="M3 12h2" />
+            <path d="M19 12h2" />
+            <path d="M4.22 19.78l1.42-1.42" />
+            <path d="M18.36 5.64l1.42-1.42" />
+            <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+          </svg>
+        </button>
+      </header>
+
+      <main class="auth-main">
+        <section class="auth-card" aria-label="Email sign in">
+          <span class="auth-card-kicker">Шаг 1 из 2</span>
+          <h2 class="auth-card-title">Введите почту</h2>
+          <p class="auth-card-sub">Мы отправим одноразовый код подтверждения на этот адрес.</p>
+
+          <form class="auth-form" id="email-form">
+            <label class="task-field">
+              <span class="task-label">Почта</span>
+              <input id="email" name="email" type="email" required placeholder="name@example.com" autocomplete="email" inputmode="email">
+            </label>
+
+            <div class="auth-actions">
+              <button class="primary-btn" id="confirm-email" type="submit">Подтвердить</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="js/auth/email.js?v=auth1"></script>
+</body>
+</html>
