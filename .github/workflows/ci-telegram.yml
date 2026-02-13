@@ -1,0 +1,76 @@
+name: 🚀 CI/CD with Telegram Notifications
+
+on:
+  push:
+    branches: [ main, develop, helpme, feature/* ]
+  pull_request:
+    branches: [ main, develop, helpme ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Run Tests
+      id: test
+      run: |
+        dotnet test --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" || echo "TESTS_FAILED=true" >> $GITHUB_ENV
+      continue-on-error: true
+    
+    - name: Parse Test Results
+      id: parse
+      if: always()
+      run: |
+        if [ -f "TaskManager.Tests/TestResults/test-results.trx" ]; then
+          TOTAL=$(grep -o 'total="[0-9]*"' TaskManager.Tests/TestResults/test-results.trx | head -1 | grep -o '[0-9]*')
+          PASSED=$(grep -o 'passed="[0-9]*"' TaskManager.Tests/TestResults/test-results.trx | head -1 | grep -o '[0-9]*')
+          FAILED=$(grep -o 'failed="[0-9]*"' TaskManager.Tests/TestResults/test-results.trx | head -1 | grep -o '[0-9]*')
+          echo "total=${TOTAL:-0}" >> $GITHUB_OUTPUT
+          echo "passed=${PASSED:-0}" >> $GITHUB_OUTPUT
+          echo "failed=${FAILED:-0}" >> $GITHUB_OUTPUT
+        else
+          echo "total=0" >> $GITHUB_OUTPUT
+          echo "passed=0" >> $GITHUB_OUTPUT
+          echo "failed=0" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Send Telegram Notification
+      if: always()
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.TELEGRAM_CHAT_ID }}
+        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        format: markdown
+        message: |
+          ${{ job.status == 'success' && '✅ *СБОРКА УСПЕШНА*' || '❌ *СБОРКА ПРОВАЛЕНА*' }}
+          
+          📁 *Репозиторий:* ${{ github.repository }}
+          👤 *Автор:* ${{ github.actor }}
+          🌿 *Ветка:* ${{ github.ref_name }}
+          📝 *Коммит:* ${{ github.event.head_commit.message || github.event.pull_request.title }}
+          
+          📊 *Результаты тестов:*
+          • Всего: ${{ steps.parse.outputs.total }}
+          • ✅ Пройдено: ${{ steps.parse.outputs.passed }}
+          • ❌ Провалено: ${{ steps.parse.outputs.failed }}
+          
+          🔗 [Посмотреть детали](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          
+          ${{ github.event_name == 'pull_request' && '🔀 Pull Request' || '🔨 Push' }}
+    
+    - name: Fail if tests failed
+      if: env.TESTS_FAILED == 'true'
+      run: exit 1
