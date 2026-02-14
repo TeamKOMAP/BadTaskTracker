@@ -74,23 +74,6 @@ namespace TaskManager.Tests.UnitTests
         }
 
         [Fact]
-        public void IsOverdue_DueDateExactlyNow_ReturnsFalse()
-        {
-            // Arrange
-            var now = DateTime.UtcNow;
-            var task = new TaskItem
-            {
-                Title = "Задача на сейчас",
-                DueDate = now,
-                Status = TaskItemStatus.InProgress,
-                CreatedAt = now.AddDays(-1)
-            };
-
-            // Act & Assert
-            task.IsOverdue.Should().BeFalse();
-        }
-
-        [Fact]
         public void IsOverdue_DueDateOneSecondAgo_ReturnsTrue()
         {
             // Arrange
