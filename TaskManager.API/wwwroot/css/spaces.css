@@ -1,0 +1,300 @@
+.spaces-home {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 12px;
+}
+
+.spaces-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(20, 28, 38, 0.78), rgba(9, 15, 22, 0.9));
+}
+
+.spaces-account-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.spaces-account-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--accent-2), var(--accent));
+  color: #081117;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.spaces-account-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.spaces-account-kicker,
+.spaces-kicker {
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.spaces-account-meta strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 18px;
+}
+
+.spaces-account-meta span {
+  color: var(--text-2);
+}
+
+.spaces-account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(440px, 100%);
+}
+
+.spaces-account-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.spaces-account-switch select,
+.spaces-account-create input {
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 9px 12px;
+  background: rgba(12, 18, 26, 0.8);
+  color: var(--text-1);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.spaces-account-create {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+}
+
+.spaces-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.spaces-head h2 {
+  margin: 4px 0 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(24px, 2.5vw, 32px);
+}
+
+.spaces-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.space-card {
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  background: rgba(14, 20, 30, 0.72);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 232px;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.space-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(68, 210, 199, 0.42);
+  box-shadow: 0 14px 26px rgba(8, 12, 20, 0.35);
+}
+
+.space-card-preview {
+  aspect-ratio: 1 / 1;
+  background: radial-gradient(circle at 24% 20%, rgba(68, 210, 199, 0.35), transparent 48%),
+    radial-gradient(circle at 78% 80%, rgba(44, 115, 255, 0.42), transparent 52%),
+    linear-gradient(150deg, rgba(22, 34, 48, 0.95), rgba(10, 15, 22, 0.98));
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.space-card-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.space-card-preview span {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: rgba(230, 242, 252, 0.95);
+}
+
+.space-card-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.space-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.space-card-sub {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.space-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.space-open-btn,
+.space-avatar-btn {
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: rgba(12, 18, 28, 0.86);
+  color: var(--text-1);
+  cursor: pointer;
+  padding: 7px 10px;
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.space-open-btn {
+  background: linear-gradient(135deg, rgba(68, 210, 199, 0.9), rgba(44, 115, 255, 0.9));
+  color: #061018;
+  font-weight: 600;
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+.space-add-card {
+  border: 1px dashed rgba(68, 210, 199, 0.5);
+  border-radius: 18px;
+  min-height: 232px;
+  background: rgba(11, 18, 28, 0.62);
+  color: var(--text-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.space-add-card:hover {
+  border-color: rgba(68, 210, 199, 0.8);
+  color: var(--text-1);
+  transform: translateY(-2px);
+}
+
+.space-add-plus {
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  border: 1px solid var(--stroke);
+  font-size: 34px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+}
+
+.spaces-empty {
+  border: 1px dashed var(--stroke);
+  border-radius: 14px;
+  padding: 16px;
+  text-align: center;
+  color: var(--text-3);
+}
+
+.spaces-back-btn[hidden] {
+  display: none;
+}
+
+.user-item-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.user-role {
+  font-size: 11px;
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--text-2);
+}
+
+.user-remove-btn {
+  border: 1px solid rgba(255, 99, 99, 0.4);
+  color: rgba(255, 148, 148, 0.95);
+  background: rgba(44, 8, 12, 0.52);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.user-remove-btn:hover {
+  background: rgba(75, 14, 20, 0.62);
+}
+
+body[data-theme="light"] .spaces-account {
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.82), rgba(244, 248, 255, 0.9));
+}
+
+body[data-theme="light"] .space-card {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+body[data-theme="light"] .space-add-card {
+  background: rgba(255, 255, 255, 0.65);
+}
+
+@media (max-width: 980px) {
+  .spaces-account {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .spaces-account-actions {
+    width: 100%;
+  }
+}
+
+@media (max-width: 680px) {
+  .spaces-account-create {
+    grid-template-columns: 1fr;
+  }
+}
