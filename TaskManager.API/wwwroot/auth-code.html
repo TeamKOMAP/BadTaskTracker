@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoodTaskTracker - Confirm Email</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/auth.css">
+</head>
+<body data-theme="dark">
+  <div class="app-shell">
+    <div class="page auth-page">
+      <header class="auth-topbar">
+        <div class="auth-brand">
+          <div class="auth-mark">GT</div>
+          <div class="auth-brand-text">
+            <span class="auth-kicker">GoodTaskTracker</span>
+            <h1 class="auth-title">Подтверждение почты</h1>
+          </div>
+        </div>
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle theme" title="Toggle theme">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v2" />
+            <path d="M12 19v2" />
+            <path d="M4.22 4.22l1.42 1.42" />
+            <path d="M18.36 18.36l1.42 1.42" />
+            <path d="M3 12h2" />
+            <path d="M19 12h2" />
+            <path d="M4.22 19.78l1.42-1.42" />
+            <path d="M18.36 5.64l1.42-1.42" />
+            <path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+          </svg>
+        </button>
+      </header>
+
+      <main class="auth-main">
+        <section class="auth-card" aria-label="Code confirmation">
+          <span class="auth-card-kicker">Шаг 2 из 2</span>
+          <h2 class="auth-card-title">Введите код</h2>
+          <p class="auth-card-sub">Мы отправили одноразовый код на почту:</p>
+
+          <div class="auth-meta">
+            <div class="auth-email-pill" title="Email">
+              <span>Почта:</span>
+              <strong id="email-value">name@example.com</strong>
+            </div>
+            <a class="auth-back" id="change-email" href="auth-email.html">&lt; Изменить почту</a>
+            <div class="auth-inline-alert" id="email-validation" hidden></div>
+          </div>
+
+          <div class="auth-divider"></div>
+
+          <form class="auth-form" id="code-form">
+            <label class="task-field">
+              <span class="task-label">Код подтверждения</span>
+              <input class="auth-code-input" id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" minlength="4" maxlength="8" placeholder="123456">
+            </label>
+
+            <div class="auth-inline-alert" id="code-alert" hidden></div>
+
+            <div class="auth-resend-row">
+              <span class="auth-timer" id="timer" aria-live="polite">01:00</span>
+              <button class="ghost-btn" id="resend" type="button" disabled>Отправить ещё раз</button>
+            </div>
+
+            <div class="auth-actions">
+              <button class="primary-btn" id="confirm-code" type="submit">Войти</button>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script type="module" src="js/auth/code.js?v=auth4"></script>
+</body>
+</html>

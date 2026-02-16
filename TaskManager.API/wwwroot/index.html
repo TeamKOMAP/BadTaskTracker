@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GoodTaskTracker - Spaces</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/spaces.css">
+</head>
+<body data-theme="dark">
+  <div class="app-shell" id="app-shell">
+    <div class="page">
+      <section class="spaces-home" id="spaces-home">
+        <div class="spaces-account" id="spaces-account">
+          <div class="spaces-account-main">
+            <div class="spaces-account-avatar" id="spaces-account-avatar">GT</div>
+            <div class="spaces-account-meta">
+              <span class="spaces-account-kicker">Current account</span>
+              <strong id="spaces-account-name">Account</strong>
+              <span id="spaces-account-email">account@example.com</span>
+            </div>
+          </div>
+          <div class="spaces-account-actions">
+            <label class="spaces-account-switch">
+              <span>Switch account</span>
+              <select id="account-select"></select>
+            </label>
+            <div class="spaces-account-create">
+              <input id="account-name-input" type="text" placeholder="Name">
+              <input id="account-email-input" type="email" placeholder="Email">
+              <button class="user-add-btn" id="account-create-btn" type="button">Create</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="spaces-head">
+          <div>
+            <span class="spaces-kicker">Workspaces</span>
+            <h2>Your spaces</h2>
+          </div>
+          <button class="primary-btn" id="space-create-open" type="button">Create workspace</button>
+        </div>
+
+        <div class="spaces-grid" id="spaces-grid"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="task-modal" id="space-modal" hidden>
+    <div class="task-modal-backdrop" data-close-space-modal></div>
+    <div class="task-modal-card" role="dialog" aria-modal="true" aria-labelledby="space-modal-title">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker">Workspace</span>
+          <h3 class="task-modal-title" id="space-modal-title">Create workspace</h3>
+        </div>
+        <button class="icon-btn" type="button" data-close-space-modal aria-label="Close">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7l10 10M17 7L7 17" />
+          </svg>
+        </button>
+      </div>
+      <form class="task-form" id="space-form">
+        <label class="task-field">
+          <span class="task-label">Workspace name</span>
+          <input id="space-name" name="name" type="text" required placeholder="Design Team" maxlength="120">
+        </label>
+        <div class="task-form-actions">
+          <button class="ghost-btn" type="button" data-close-space-modal>Cancel</button>
+          <button class="primary-btn" type="submit">Create</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <input id="space-avatar-input" type="file" accept="image/*" hidden>
+
+  <script type="module" src="js/spaces/main.js?v=authflow1"></script>
+</body>
+</html>
