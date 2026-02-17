@@ -1,7 +1,9 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using TaskManager.Application.DTOs;
 using TaskManager.Domain.Enums;
 using TaskManager.Tests.Helpers;
@@ -22,6 +24,38 @@ namespace TaskManager.Tests.IntegrationTests
             var tasks = await response.Content.ReadFromJsonAsync<List<TaskDto>>();
             tasks.Should().NotBeNull();
             tasks.Should().HaveCountGreaterThanOrEqualTo(1);
+        }
+
+        [Fact]
+        public async Task GetTasks_AfterAttachmentUpload_ReturnsAttachmentCount()
+        {
+            var listResponse = await _client.GetAsync("/api/Tasks");
+            listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var tasks = await listResponse.Content.ReadFromJsonAsync<List<TaskDto>>();
+            tasks.Should().NotBeNull();
+            var task = tasks!.First();
+
+            using var form = new MultipartFormDataContent();
+            var payload = new ByteArrayContent(Encoding.UTF8.GetBytes("attachment-content"));
+            payload.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+            form.Add(payload, "files", "note.txt");
+
+            var uploadResponse = await _client.PostAsync($"/api/tasks/{task.Id}/attachments", form);
+            uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var refreshedResponse = await _client.GetAsync("/api/Tasks");
+            refreshedResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var refreshed = await refreshedResponse.Content.ReadFromJsonAsync<List<TaskDto>>();
+
+            refreshed.Should().NotBeNull();
+            var updated = refreshed!.First(t => t.Id == task.Id);
+            updated.AttachmentCount.Should().BeGreaterThanOrEqualTo(1);
+
+            var byIdResponse = await _client.GetAsync($"/api/Tasks/{task.Id}");
+            byIdResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var byId = await byIdResponse.Content.ReadFromJsonAsync<TaskDto>();
+            byId.Should().NotBeNull();
+            byId!.AttachmentCount.Should().BeGreaterThanOrEqualTo(1);
         }
 
         [Fact]

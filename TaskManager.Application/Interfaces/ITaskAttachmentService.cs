@@ -15,6 +15,11 @@ namespace TaskManager.Application.Interfaces
             int actorUserId,
             int taskId,
             CancellationToken cancellationToken = default);
+        Task<IReadOnlyDictionary<int, int>> CountByTaskIdsAsync(
+            int workspaceId,
+            int actorUserId,
+            IReadOnlyList<int> taskIds,
+            CancellationToken cancellationToken = default);
         Task<IReadOnlyList<AttachmentMeta>> UploadAsync(
             int workspaceId,
             int actorUserId,

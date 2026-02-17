@@ -11,18 +11,18 @@ namespace TaskManager.Application.Services
         private readonly ITaskRepository _taskRepository;
         private readonly ITagRepository _tagRepository;
         private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
-        private readonly IOverdueStatusService _overdueStatusService;
+        private readonly IAttachmentStorage _attachmentStorage;
 
         public TaskService(
             ITaskRepository taskRepository,
             ITagRepository tagRepository,
             IWorkspaceMemberRepository workspaceMemberRepository,
-            IOverdueStatusService overdueStatusService)
+            IAttachmentStorage attachmentStorage)
         {
             _taskRepository = taskRepository;
             _tagRepository = tagRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
-            _overdueStatusService = overdueStatusService;
+            _attachmentStorage = attachmentStorage;
         }
 
         public async Task<IEnumerable<TaskDto>> GetTasksAsync(
@@ -35,21 +35,29 @@ namespace TaskManager.Application.Services
             List<int>? tagIds = null)
         {
             await EnsureMemberAsync(workspaceId, actorUserId);
-            await _overdueStatusService.SyncOverdueStatusesAsync(workspaceId);
-            var tasks = await _taskRepository.GetAllAsync(workspaceId, status, assigneeId, dueBefore, dueAfter, tagIds);
-            return tasks.Select(MapToDto);
+            var tasks = (await _taskRepository.GetAllAsync(workspaceId, status, assigneeId, dueBefore, dueAfter, tagIds)).ToList();
+            var countsByTaskId = await GetAttachmentCountsByTaskIdAsync(tasks.Select(t => t.Id), CancellationToken.None);
+
+            return tasks.Select(task =>
+            {
+                var attachmentCount = countsByTaskId.TryGetValue(task.Id, out var count)
+                    ? count
+                    : 0;
+                return MapToDto(task, attachmentCount);
+            });
         }
 
         public async Task<TaskDto> GetTaskByIdAsync(int workspaceId, int actorUserId, int id)
         {
             await EnsureMemberAsync(workspaceId, actorUserId);
-            await _overdueStatusService.SyncOverdueStatusesAsync(workspaceId);
             var task = await _taskRepository.GetByIdAsync(id, workspaceId);
             if (task == null)
             {
                 throw new NotFoundException($"Task with id {id} not found");
             }
-            return MapToDto(task);
+
+            var attachmentCount = await GetAttachmentCountForTaskAsync(task.Id, CancellationToken.None);
+            return MapToDto(task, attachmentCount);
         }
 
         public async Task<TaskDto> CreateTaskAsync(int workspaceId, int actorUserId, CreateTaskDto createTaskDto)
@@ -100,7 +108,7 @@ namespace TaskManager.Application.Services
             }
 
             var createdTask = await _taskRepository.AddAsync(task);
-            return MapToDto(createdTask);
+            return MapToDto(createdTask, 0);
         }
 
         public async Task<TaskDto> UpdateTaskAsync(int workspaceId, int actorUserId, UpdateTaskDto updateTaskDto)
@@ -165,7 +173,8 @@ namespace TaskManager.Application.Services
             }
 
             await _taskRepository.UpdateAsync(task);
-            return MapToDto(task);
+            var attachmentCount = await GetAttachmentCountForTaskAsync(task.Id, CancellationToken.None);
+            return MapToDto(task, attachmentCount);
         }
 
         public async Task DeleteTaskAsync(int workspaceId, int actorUserId, int id)
@@ -244,7 +253,30 @@ namespace TaskManager.Application.Services
             }
         }
 
-        private TaskDto MapToDto(TaskItem task)
+        private async Task<int> GetAttachmentCountForTaskAsync(int taskId, CancellationToken cancellationToken)
+        {
+            var counts = await _attachmentStorage.CountByTaskIdsAsync(new[] { taskId }, cancellationToken);
+            return counts.TryGetValue(taskId, out var count) ? count : 0;
+        }
+
+        private async Task<IReadOnlyDictionary<int, int>> GetAttachmentCountsByTaskIdAsync(
+            IEnumerable<int> taskIds,
+            CancellationToken cancellationToken)
+        {
+            var ids = taskIds
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            if (ids.Count == 0)
+            {
+                return new Dictionary<int, int>();
+            }
+
+            return await _attachmentStorage.CountByTaskIdsAsync(ids, cancellationToken);
+        }
+
+        private TaskDto MapToDto(TaskItem task, int attachmentCount)
         {
             return new TaskDto
             {
@@ -261,6 +293,7 @@ namespace TaskManager.Application.Services
                 CompletedAt = task.CompletedAt,
                 Priority = task.Priority,
                 TagIds = task.TaskTags.Select(tt => tt.TagId).ToList(),
+                AttachmentCount = Math.Max(0, attachmentCount),
                 IsOverdue = task.Status != TaskItemStatus.Done && task.DueDate < DateTime.UtcNow
             };
         }

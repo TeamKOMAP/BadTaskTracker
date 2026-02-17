@@ -20,11 +20,6 @@ export const setTheme = (theme) => {
   }
 };
 
-export const toggleTheme = () => {
-  const current = document.body.dataset.theme || "dark";
-  setTheme(current === "dark" ? "light" : "dark");
-};
-
 const taskBgKey = (id) => `gtt-taskbg:${id}`;
 const taskMetaKey = (id) => `gtt-taskmeta:${id}`;
 

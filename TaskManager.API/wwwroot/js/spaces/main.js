@@ -6,11 +6,19 @@ import {
   ensureAuthOrRedirect,
   redirectToAuthPage,
   clearAccessToken
-} from "../shared/api.js?v=auth2";
+} from "../shared/api.js?v=auth5";
 import { getPreferredTheme, setTheme } from "../workspace/storage.js?v=auth4";
 import { MANAGE_ROLES, STORAGE_WORKSPACE_ID } from "../shared/constants.js";
 import { navigateToWorkspacePage } from "../shared/navigation.js";
 import { normalizeToken, toInitials, toWorkspaceRole } from "../shared/utils.js";
+import { getRoleLabel } from "../shared/roles.js?v=auth1";
+import {
+  getStoredAccountNickname,
+  setStoredAccountNickname,
+  getStoredAccountAvatar,
+  setStoredAccountAvatar,
+  applyAccountAvatarToElement
+} from "../shared/account-prefs.js?v=auth1";
 
 setTheme(getPreferredTheme());
 
@@ -45,14 +53,6 @@ const logoutBtn = document.getElementById("logout-btn");
 let actorUser = null;
 let pendingSpaceAvatarId = null;
 
-const ROLE_LABELS = {
-  Owner: "Владелец",
-  Admin: "Администратор",
-  Member: "Участник"
-};
-
-const getRoleLabel = (role) => ROLE_LABELS[String(role || "")] || String(role || "");
-
 const formatMembersLabel = (count) => {
   const n = Number(count) || 0;
   const mod10 = n % 10;
@@ -60,75 +60,6 @@ const formatMembersLabel = (count) => {
   if (mod10 === 1 && mod100 !== 11) return `${n} участник`;
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} участника`;
   return `${n} участников`;
-};
-
-const getStoredAccountNickname = (id) => {
-  if (!Number.isFinite(Number(id))) return "";
-  try {
-    return localStorage.getItem(`gtt-account-nickname:${id}`) || "";
-  } catch {
-    return "";
-  }
-};
-
-const setStoredAccountNickname = (id, value) => {
-  if (!Number.isFinite(Number(id))) return;
-  const cleaned = normalizeToken(value);
-  try {
-    if (!cleaned) {
-      localStorage.removeItem(`gtt-account-nickname:${id}`);
-    } else {
-      localStorage.setItem(`gtt-account-nickname:${id}`, cleaned);
-    }
-  } catch {
-    // ignore
-  }
-};
-
-const getStoredAccountAvatar = (id) => {
-  if (!Number.isFinite(Number(id))) return "";
-  try {
-    return localStorage.getItem(`gtt-account-avatar:${id}`) || "";
-  } catch {
-    return "";
-  }
-};
-
-const setStoredAccountAvatar = (id, dataUrl) => {
-  if (!Number.isFinite(Number(id))) return;
-  const value = typeof dataUrl === "string" ? dataUrl : "";
-  try {
-    if (!value) {
-      localStorage.removeItem(`gtt-account-avatar:${id}`);
-    } else {
-      localStorage.setItem(`gtt-account-avatar:${id}`, value);
-    }
-  } catch {
-    // ignore
-  }
-};
-
-const applyAccountAvatarToElement = (element, textElement, initials, dataUrl) => {
-  if (!element) return;
-  const url = normalizeToken(dataUrl);
-  if (url) {
-    element.classList.add("has-image");
-    element.style.backgroundImage = `url("${url.replace(/"/g, "%22")}")`;
-    if (textElement) {
-      textElement.textContent = "";
-    } else {
-      element.textContent = "";
-    }
-    return;
-  }
-
-  element.classList.remove("has-image");
-  element.style.backgroundImage = "";
-  if (textElement) {
-    textElement.textContent = initials;
-  } else {
-    element.textContent = initials;
-  }
 };
 
 const refreshSettingsThemeState = () => {

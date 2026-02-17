@@ -1,61 +1,13 @@
-import { apiFetch, buildApiUrl, clearAccessToken } from "../shared/api.js?v=auth4";
-
-const THEME_KEY = "gtt-theme";
-const DEV_AUTH_CODE_KEY = "gtt-dev-auth-code";
-
-const saveDevelopmentCode = (email, code) => {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  const normalizedCode = String(code || "").replace(/\D+/g, "").trim();
-  try {
-    if (!normalizedEmail || !normalizedCode) {
-      sessionStorage.removeItem(DEV_AUTH_CODE_KEY);
-      return;
-    }
-
-    sessionStorage.setItem(DEV_AUTH_CODE_KEY, JSON.stringify({
-      email: normalizedEmail,
-      code: normalizedCode
-    }));
-  } catch {
-    // ignore
-  }
-};
-
-const clearDevelopmentCode = () => {
-  try {
-    sessionStorage.removeItem(DEV_AUTH_CODE_KEY);
-  } catch {
-    // ignore
-  }
-};
-
-const getPreferredTheme = () => {
-  try {
-    const saved = localStorage.getItem(THEME_KEY);
-    if (saved === "light" || saved === "dark") return saved;
-  } catch {
-    // ignore
-  }
-
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
-    ? "light"
-    : "dark";
-};
-
-const setTheme = (theme) => {
-  const next = theme === "light" ? "light" : "dark";
-  document.body.dataset.theme = next;
-  try {
-    localStorage.setItem(THEME_KEY, next);
-  } catch {
-    // ignore
-  }
-};
-
-const toggleTheme = () => {
-  const current = document.body.dataset.theme || "dark";
-  setTheme(current === "dark" ? "light" : "dark");
-};
+import { apiFetch, buildApiUrl, clearAccessToken } from "../shared/api.js?v=auth5";
+import {
+  getPreferredTheme,
+  setTheme,
+  toggleTheme,
+  hasDotInDomain,
+  parseApiErrorMessage,
+  saveDevelopmentCode,
+  clearDevelopmentCode
+} from "../shared/auth-utils.js?v=auth1";
 
 setTheme(getPreferredTheme());
 
@@ -82,28 +34,6 @@ const setAlert = (message) => {
 
   emailAlert.textContent = text;
   emailAlert.removeAttribute("hidden");
-};
-
-const hasDotInDomain = (email) => {
-  const value = String(email || "").trim();
-  const parts = value.split("@");
-  if (parts.length !== 2) return false;
-  const domain = parts[1].trim();
-  if (!domain) return false;
-  if (!domain.includes(".")) return false;
-  if (domain.startsWith(".") || domain.endsWith(".")) return false;
-  return true;
-};
-
-const parseErrorMessage = async (response, fallback) => {
-  try {
-    const data = await response.json();
-    const message = String(data?.error || data?.title || "").trim();
-    if (message) return message;
-  } catch {
-    // ignore
-  }
-  return fallback;
 };
 
 if (emailInput) {
@@ -164,7 +94,7 @@ if (emailForm) {
       }
 
       if (!response.ok) {
-        const message = await parseErrorMessage(response, "Не удалось отправить код. Попробуйте ещё раз.");
+        const message = await parseApiErrorMessage(response, "Не удалось отправить код. Попробуйте ещё раз.");
         setAlert(message);
         return;
       }

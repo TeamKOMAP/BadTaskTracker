@@ -17,6 +17,7 @@ namespace TaskManager.Application.DTOs
         public DateTime? CompletedAt { get; set; }
         public TaskPriority Priority { get; set; }
         public List<int> TagIds { get; set; } = new List<int>();
+        public int AttachmentCount { get; set; }
         public bool IsOverdue { get; set; } 
     }
 

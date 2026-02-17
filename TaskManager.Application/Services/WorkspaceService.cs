@@ -261,12 +261,6 @@ namespace TaskManager.Application.Services
             await _workspaceMemberRepository.RemoveAsync(member);
         }
 
-        public async Task<bool> CanManageWorkspaceAsync(int actorUserId, int workspaceId)
-        {
-            var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId);
-            return member != null && CanManage(member.Role);
-        }
-
         private async Task EnsureMemberAsync(int workspaceId, int actorUserId)
         {
             var isMember = await _workspaceMemberRepository.IsMemberAsync(workspaceId, actorUserId);

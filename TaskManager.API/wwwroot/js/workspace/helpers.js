@@ -154,9 +154,9 @@ export const formatBytes = (value) => {
 export const parseTags = (value) => {
   const map = new Map();
   String(value || "")
-    .split(",")
+    .split(/[\s,;]+/)
     .forEach((part) => {
-      addUniqueToken(map, part.replace(/^#/, ""));
+      addUniqueToken(map, part.replace(/^#+/, ""));
     });
   return Array.from(map.values());
 };

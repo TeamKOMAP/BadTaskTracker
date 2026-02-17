@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TaskManager.API.Security;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Exceptions;
@@ -19,6 +20,7 @@ namespace TaskManager.API.Controllers
         }
 
         [AllowAnonymous]
+        [EnableRateLimiting("AuthEmailRequest")]
         [HttpPost("email/request")]
         public async Task<ActionResult<EmailCodeRequestResultDto>> RequestEmailCode([FromBody] EmailCodeRequestDto dto)
         {
@@ -39,6 +41,7 @@ namespace TaskManager.API.Controllers
         }
 
         [AllowAnonymous]
+        [EnableRateLimiting("AuthEmailVerify")]
         [HttpPost("email/verify")]
         public async Task<ActionResult<AuthTokenResponseDto>> VerifyEmailCode([FromBody] EmailCodeVerifyDto dto)
         {
