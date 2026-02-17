@@ -1,4 +1,4 @@
-import { apiFetch, buildApiUrl, setAccessToken } from "../shared/api.js?v=auth2";
+import { apiFetch, buildApiUrl, setAccessToken } from "../shared/api.js?v=auth4";
 
 const THEME_KEY = "gtt-theme";
 const DEV_AUTH_CODE_KEY = "gtt-dev-auth-code";
@@ -203,15 +203,21 @@ const parseErrorMessage = async (response, fallback) => {
 };
 
 const requestCode = async () => {
-  const response = await apiFetch(buildApiUrl("/auth/email/request"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
-    body: JSON.stringify({ email: rawEmail }),
-    skipAuthRedirect: true
-  });
+  let response = null;
+  try {
+    response = await apiFetch(buildApiUrl("/auth/email/request"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({ email: rawEmail }),
+      skipAuthRedirect: true
+    });
+  } catch {
+    setCodeAlert("Не удалось подключиться к серверу. Убедись, что API запущен и страница открыта по https.");
+    return null;
+  }
 
   if (!response.ok) {
     const message = await parseErrorMessage(response, "Не удалось отправить код. Попробуйте позже.");
@@ -236,15 +242,21 @@ const requestCode = async () => {
 };
 
 const verifyCode = async (code) => {
-  const response = await apiFetch(buildApiUrl("/auth/email/verify"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
-    body: JSON.stringify({ email: rawEmail, code }),
-    skipAuthRedirect: true
-  });
+  let response = null;
+  try {
+    response = await apiFetch(buildApiUrl("/auth/email/verify"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({ email: rawEmail, code }),
+      skipAuthRedirect: true
+    });
+  } catch {
+    setCodeAlert("Не удалось подключиться к серверу. Убедись, что API запущен и страница открыта по https.");
+    return null;
+  }
 
   if (!response.ok) {
     const message = await parseErrorMessage(response, "Неверный код или код истёк.");
@@ -301,12 +313,21 @@ if (codeForm) {
         return;
       }
 
-      if (confirmCodeBtn) confirmCodeBtn.disabled = true;
+      if (confirmCodeBtn) {
+        confirmCodeBtn.disabled = true;
+        confirmCodeBtn.textContent = "Проверяем...";
+      }
       setCodeAlert("");
 
-      const auth = await verifyCode(code);
-
-      if (confirmCodeBtn) confirmCodeBtn.disabled = false;
+      let auth = null;
+      try {
+        auth = await verifyCode(code);
+      } finally {
+        if (confirmCodeBtn) {
+          confirmCodeBtn.disabled = false;
+          confirmCodeBtn.textContent = "Войти";
+        }
+      }
 
       const token = String(auth?.accessToken || "").trim();
       if (!token) {

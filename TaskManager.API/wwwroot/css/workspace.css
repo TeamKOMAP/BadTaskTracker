@@ -159,6 +159,52 @@ body[data-theme="light"] .settings-panel-inner {
   opacity: 1;
 }
 
+.notifications-panel {
+  width: 0;
+  overflow: hidden;
+  transition: width 0.35s ease;
+}
+
+.app-shell.is-notifications-open .notifications-panel {
+  width: var(--panel-width);
+}
+
+.notifications-panel-inner {
+  width: var(--panel-width);
+  height: 100%;
+  padding: 24px 20px;
+  background: rgba(14, 19, 26, 0.95);
+  border-left: 1px solid var(--stroke);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 100%;
+  box-shadow: -8px 0 24px rgba(6, 10, 16, 0.4);
+  transform: translateX(12px);
+  opacity: 0;
+  transition: transform 0.35s ease, opacity 0.35s ease;
+}
+
+body[data-theme="light"] .notifications-panel-inner {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: -10px 0 30px rgba(15, 20, 28, 0.12);
+  backdrop-filter: blur(18px);
+}
+
+.app-shell.is-notifications-open .notifications-panel-inner {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.notifications-empty {
+  border: 1px dashed var(--stroke);
+  border-radius: 14px;
+  padding: 14px 14px;
+  color: var(--text-3);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .topbar {
   display: flex;
   align-items: flex-start;
@@ -412,10 +458,19 @@ body[data-theme="light"] .user-list::-webkit-scrollbar-thumb {
   font-weight: 700;
 }
 
+.user-avatar.has-image {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: transparent;
+}
+
 .user-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .user-nick {
@@ -426,6 +481,19 @@ body[data-theme="light"] .user-list::-webkit-scrollbar-thumb {
 .user-email {
   font-size: 12px;
   color: var(--text-3);
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-item-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .user-empty {
@@ -569,6 +637,19 @@ body[data-theme="light"] .view-btn.is-active {
   gap: 4px;
 }
 
+.settings-panel-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-logout-btn {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
 .settings-panel-title {
   margin: 0;
   font-family: "Space Grotesk", sans-serif;
@@ -656,6 +737,63 @@ body[data-theme="light"] .settings-field input {
   color: var(--text-1);
 }
 
+.notifications-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  background: rgba(18, 24, 33, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-1);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  animation: pop-in 0.5s ease;
+}
+
+body[data-theme="light"] .notifications-btn {
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--text-1);
+}
+
+.notifications-btn svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  position: relative;
+  z-index: 1;
+  transition: transform 0.35s ease;
+}
+
+.notifications-btn::after {
+  content: "";
+  position: absolute;
+  inset: -60%;
+  background: conic-gradient(from 90deg, rgba(240, 195, 106, 0.35), rgba(68, 210, 199, 0.38), rgba(240, 195, 106, 0.3));
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.notifications-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(7, 10, 16, 0.45);
+}
+
+.notifications-btn:hover::after {
+  opacity: 0.45;
+}
+
+.notifications-btn:hover svg {
+  transform: rotate(-12deg);
+}
+
 .settings-btn {
   width: 38px;
   height: 38px;
@@ -681,6 +819,11 @@ body[data-theme="light"] .settings-btn {
 .settings-btn svg {
   width: 18px;
   height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
   position: relative;
   z-index: 1;
   transition: transform 0.35s ease;

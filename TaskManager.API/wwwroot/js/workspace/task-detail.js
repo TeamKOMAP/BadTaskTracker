@@ -24,12 +24,12 @@ import {
   taskAttachmentsEmpty,
   taskAttachmentsInput,
   taskBgInput
-} from "./dom.js";
+} from "./dom.js?v=authflow2";
 
 import { buildApiUrl, apiFetch, handleApiError } from "../shared/api.js?v=auth2";
 import { STATUS_LABELS, PRIORITY_LABELS } from "../shared/constants.js";
 import { normalizeToken } from "../shared/utils.js";
-import { toStatusValue, toPriorityValue, formatIso, formatBytes, getUrgency, formatDueLabel } from "./helpers.js";
+import { toStatusValue, toPriorityValue, formatIso, formatBytes, getUrgency, formatDueLabel } from "./helpers.js?v=authflow2";
 import { getStoredTaskMeta, getStoredTaskBg, setStoredTaskBg, clearStoredTaskBg } from "./storage.js";
 
 const setDetailField = (el, value) => {
@@ -128,6 +128,17 @@ const runWhenIdle = (callback) => {
   return window.setTimeout(callback, 80);
 };
 
+const PRIORITY_DISPLAY_LABELS = {
+  low: "Низкий",
+  medium: "Средний",
+  high: "Высокий"
+};
+
+const getPriorityDisplayLabel = (priorityValue) => {
+  const key = PRIORITY_LABELS[priorityValue] || "medium";
+  return PRIORITY_DISPLAY_LABELS[key] || key;
+};
+
 export const createTaskDetailController = (deps) => {
   const isAdmin = typeof deps?.isAdmin === "function" ? deps.isAdmin : () => false;
   const ensureTagsLoaded = typeof deps?.ensureTagsLoaded === "function" ? deps.ensureTagsLoaded : async () => {};
@@ -140,7 +151,7 @@ export const createTaskDetailController = (deps) => {
   const confirmDestructiveAction = typeof deps?.confirmDestructiveAction === "function"
     ? deps.confirmDestructiveAction
     : async (options) => {
-      const title = normalizeToken(options?.title) || "Delete item?";
+      const title = normalizeToken(options?.title) || "Удалить элемент?";
       return window.confirm(title);
     };
 
@@ -220,7 +231,7 @@ export const createTaskDetailController = (deps) => {
     if (!merged.length) {
       const empty = document.createElement("span");
       empty.className = "task-chip";
-      empty.textContent = "No tags";
+      empty.textContent = "Нет тегов";
       taskDetailTagsEl.appendChild(empty);
       return;
     }
@@ -255,18 +266,18 @@ export const createTaskDetailController = (deps) => {
     const dueLabel = formatDueLabel(task.dueDate, statusValue);
     const urgency = getUrgency(task.dueDate, statusValue);
 
-    if (taskDetailTitleEl) taskDetailTitleEl.textContent = title || `Task #${id}`;
+    if (taskDetailTitleEl) taskDetailTitleEl.textContent = title || `Задача #${id}`;
     setDetailField(taskDetailIdEl, `#${id}`);
 
     if (taskDetailStatusBadge) {
       taskDetailStatusBadge.dataset.kind = "status";
       taskDetailStatusBadge.dataset.status = String(statusValue);
-      taskDetailStatusBadge.textContent = STATUS_LABELS[statusValue] || "Status";
+      taskDetailStatusBadge.textContent = STATUS_LABELS[statusValue] || "Статус";
     }
     if (taskDetailPriorityBadge) {
       taskDetailPriorityBadge.dataset.kind = "priority";
       taskDetailPriorityBadge.dataset.priority = String(priorityValue);
-      taskDetailPriorityBadge.textContent = `Priority: ${PRIORITY_LABELS[priorityValue] || "medium"}`;
+      taskDetailPriorityBadge.textContent = `Приоритет: ${getPriorityDisplayLabel(priorityValue)}`;
     }
     if (taskDetailDueBadge) {
       taskDetailDueBadge.dataset.kind = "due";
@@ -275,8 +286,8 @@ export const createTaskDetailController = (deps) => {
     }
 
     setDetailField(taskDetailStatusEl, STATUS_LABELS[statusValue]);
-    setDetailField(taskDetailPriorityEl, PRIORITY_LABELS[priorityValue] || "medium");
-    setDetailField(taskDetailAssigneeEl, task.assigneeName ? `${task.assigneeName} (#${task.assigneeId})` : (task.assigneeId ? `#${task.assigneeId}` : "Not assigned"));
+    setDetailField(taskDetailPriorityEl, getPriorityDisplayLabel(priorityValue));
+    setDetailField(taskDetailAssigneeEl, task.assigneeName ? `${task.assigneeName} (#${task.assigneeId})` : (task.assigneeId ? `#${task.assigneeId}` : "Не назначено"));
     setDetailField(taskDetailDueEl, `${dueLabel} (${formatIso(task.dueDate)})`);
     setDetailField(taskDetailCreatedEl, formatIso(task.createdAt));
     setDetailField(taskDetailUpdatedEl, formatIso(task.updatedAt));
@@ -315,7 +326,7 @@ export const createTaskDetailController = (deps) => {
     const list = Array.isArray(attachments) ? attachments : [];
     taskAttachmentsEmpty.hidden = list.length > 0;
     if (list.length === 0) {
-      taskAttachmentsEmpty.textContent = "No attachments";
+      taskAttachmentsEmpty.textContent = "Нет вложений";
       applyAttachmentCountToCards(taskId, 0);
       return;
     }
@@ -324,7 +335,7 @@ export const createTaskDetailController = (deps) => {
 
     list.forEach((att) => {
       const id = normalizeToken(att?.id);
-      const name = normalizeToken(att?.fileName) || "file";
+      const name = normalizeToken(att?.fileName) || "файл";
       const size = formatBytes(att?.size);
       const uploaded = att?.uploadedAtUtc ? formatIso(att.uploadedAtUtc) : "-";
 
@@ -355,7 +366,7 @@ export const createTaskDetailController = (deps) => {
       const link = document.createElement("button");
       link.type = "button";
       link.className = "task-attachment-link";
-      link.textContent = "Download";
+      link.textContent = "Скачать";
       link.addEventListener("click", () => {
         void (async () => {
           if (!taskId || !id) return;
@@ -363,7 +374,7 @@ export const createTaskDetailController = (deps) => {
             method: "GET"
           });
           if (!response.ok) {
-            await handleApiError(response, "Download attachment");
+            await handleApiError(response, "Скачать вложение");
             return;
           }
 
@@ -384,20 +395,20 @@ export const createTaskDetailController = (deps) => {
         const del = document.createElement("button");
         del.type = "button";
         del.className = "task-attachment-del";
-        del.textContent = "Delete";
+        del.textContent = "Удалить";
         del.addEventListener("click", async () => {
           if (!taskId || !id) return;
           const confirmed = await confirmDestructiveAction({
-            kicker: "Delete attachment",
-            title: `Delete "${name}"?`,
-            message: "This attachment will be removed from the task.",
-            confirmText: "Delete attachment"
+            kicker: "Удаление вложения",
+            title: `Удалить "${name}"?`,
+            message: "Это вложение будет удалено из задачи.",
+            confirmText: "Удалить вложение"
           });
           if (confirmed !== true) return;
 
           const response = await apiFetch(buildApiUrl(`/tasks/${taskId}/attachments/${id}`), { method: "DELETE" });
           if (!response.ok) {
-            await handleApiError(response, "Delete attachment");
+            await handleApiError(response, "Удалить вложение");
             return;
           }
           attachmentCache.delete(taskId);
@@ -428,7 +439,7 @@ export const createTaskDetailController = (deps) => {
       renderAttachments(cached, taskId);
     }
 
-    const attachments = await fetchJsonAbortable(buildApiUrl(`/tasks/${taskId}/attachments`), "Load attachments", {
+    const attachments = await fetchJsonAbortable(buildApiUrl(`/tasks/${taskId}/attachments`), "Загрузка вложений", {
       headers: { Accept: "application/json" },
       signal
     });
@@ -448,7 +459,7 @@ export const createTaskDetailController = (deps) => {
       if (taskAttachmentsList) taskAttachmentsList.innerHTML = "";
       if (taskAttachmentsEmpty) {
         taskAttachmentsEmpty.hidden = false;
-        taskAttachmentsEmpty.textContent = "Failed to load attachments";
+        taskAttachmentsEmpty.textContent = "Не удалось загрузить вложения";
       }
       return;
     }
@@ -472,10 +483,10 @@ export const createTaskDetailController = (deps) => {
       body: form
     });
     if (!response.ok) {
-      await handleApiError(response, "Upload attachments");
+      await handleApiError(response, "Загрузка вложений");
       if (taskAttachmentsEmpty) {
         taskAttachmentsEmpty.hidden = false;
-        taskAttachmentsEmpty.textContent = "Upload failed. Open console for details.";
+        taskAttachmentsEmpty.textContent = "Не удалось загрузить. Откройте консоль для деталей.";
       }
       return;
     }
@@ -512,24 +523,24 @@ export const createTaskDetailController = (deps) => {
 
     taskDetailModal.removeAttribute("hidden");
 
-    const fallbackTitle = normalizeToken(card?.querySelector?.("h3")?.textContent) || `Task #${id}`;
+    const fallbackTitle = normalizeToken(card?.querySelector?.("h3")?.textContent) || `Задача #${id}`;
     if (taskDetailTitleEl) taskDetailTitleEl.textContent = fallbackTitle;
     setDetailField(taskDetailIdEl, `#${id}`);
-    setDetailField(taskDetailStatusEl, "Loading...");
-    setDetailField(taskDetailPriorityEl, "Loading...");
-    setDetailField(taskDetailAssigneeEl, "Loading...");
-    setDetailField(taskDetailDueEl, "Loading...");
-    setDetailField(taskDetailCreatedEl, "Loading...");
-    setDetailField(taskDetailUpdatedEl, "Loading...");
-    setDetailField(taskDetailCompletedEl, "Loading...");
-    setDetailMultilineField(taskDetailDescriptionEl, "Loading...");
+    setDetailField(taskDetailStatusEl, "Загрузка...");
+    setDetailField(taskDetailPriorityEl, "Загрузка...");
+    setDetailField(taskDetailAssigneeEl, "Загрузка...");
+    setDetailField(taskDetailDueEl, "Загрузка...");
+    setDetailField(taskDetailCreatedEl, "Загрузка...");
+    setDetailField(taskDetailUpdatedEl, "Загрузка...");
+    setDetailField(taskDetailCompletedEl, "Загрузка...");
+    setDetailMultilineField(taskDetailDescriptionEl, "Загрузка...");
 
     if (taskAttachmentsList) {
       taskAttachmentsList.innerHTML = "";
     }
     if (taskAttachmentsEmpty) {
       taskAttachmentsEmpty.hidden = false;
-      taskAttachmentsEmpty.textContent = "Loading attachments...";
+      taskAttachmentsEmpty.textContent = "Загрузка вложений...";
     }
 
     if (taskDetailPhotoWrap && taskDetailPhotoImg) {
@@ -568,7 +579,7 @@ export const createTaskDetailController = (deps) => {
     }
     void loadAttachmentsForDetail(id, requestSeq, signal, { forceRefresh: false });
 
-    const taskPromise = fetchJsonAbortable(buildApiUrl(`/tasks/${id}`), "Load task", {
+    const taskPromise = fetchJsonAbortable(buildApiUrl(`/tasks/${id}`), "Загрузка задачи", {
       headers: { Accept: "application/json" },
       signal
     });
@@ -590,18 +601,18 @@ export const createTaskDetailController = (deps) => {
         void loadAttachmentsForDetail(id, requestSeq, signal);
         return;
       }
-      setDetailField(taskDetailStatusEl, "Failed to load");
+      setDetailField(taskDetailStatusEl, "Не удалось загрузить");
       setDetailField(taskDetailPriorityEl, "-");
       setDetailField(taskDetailAssigneeEl, "-");
       setDetailField(taskDetailDueEl, "-");
       setDetailField(taskDetailCreatedEl, "-");
       setDetailField(taskDetailUpdatedEl, "-");
       setDetailField(taskDetailCompletedEl, "-");
-      setDetailMultilineField(taskDetailDescriptionEl, "Failed to load task details");
+      setDetailMultilineField(taskDetailDescriptionEl, "Не удалось загрузить детали задачи");
       if (taskAttachmentsList) taskAttachmentsList.innerHTML = "";
       if (taskAttachmentsEmpty) {
         taskAttachmentsEmpty.hidden = false;
-        taskAttachmentsEmpty.textContent = "Failed to load attachments";
+        taskAttachmentsEmpty.textContent = "Не удалось загрузить вложения";
       }
       return;
     }
@@ -687,7 +698,7 @@ export const createTaskDetailController = (deps) => {
         taskDetailPhotoWrap.removeAttribute("hidden");
       }
     } catch (error) {
-      console.error("Photo load failed", error);
+      console.error("Не удалось загрузить фото", error);
     }
   };
 

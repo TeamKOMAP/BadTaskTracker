@@ -77,36 +77,36 @@ export const getUrgency = (dueDateIso, statusValue) => {
 };
 
 export const formatDurationShort = (ms) => {
-  if (!Number.isFinite(ms) || ms <= 0) return "0m";
+  if (!Number.isFinite(ms) || ms <= 0) return "0м";
   const minutes = Math.floor(ms / 60000);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
   if (days > 0) {
     const remHours = hours % 24;
-    return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+    return remHours > 0 ? `${days}д ${remHours}ч` : `${days}д`;
   }
   if (hours > 0) {
     const remMin = minutes % 60;
-    return remMin > 0 ? `${hours}h ${remMin}m` : `${hours}h`;
+    return remMin > 0 ? `${hours}ч ${remMin}м` : `${hours}ч`;
   }
-  return `${minutes}m`;
+  return `${minutes}м`;
 };
 
 export const formatDueLabel = (dueDate, statusValue) => {
-  if (!dueDate) return "No due";
+  if (!dueDate) return "Без срока";
   const due = new Date(dueDate);
-  if (Number.isNaN(due.getTime())) return "No due";
+  if (Number.isNaN(due.getTime())) return "Без срока";
 
   if (toStatusValue(statusValue) === 3) {
-    return `Done ${formatShortDate(dueDate)}`;
+    return `Готово ${formatShortDate(dueDate)}`;
   }
 
   const now = Date.now();
   const delta = due.getTime() - now;
-  if (delta < 0) return `Overdue ${formatShortDate(dueDate)}`;
-  if (delta <= 1000 * 60 * 60 * 24) return `Due in ${formatDurationShort(delta)}`;
-  return `Due ${formatShortDate(dueDate)}`;
+  if (delta < 0) return `Просрочено ${formatShortDate(dueDate)}`;
+  if (delta <= 1000 * 60 * 60 * 24) return `Срок через ${formatDurationShort(delta)}`;
+  return `До ${formatShortDate(dueDate)}`;
 };
 
 export const parseTagIds = (raw) => {
@@ -167,12 +167,11 @@ export const buildTaskKey = (taskData) => [taskData?.title, taskData?.tag, taskD
 
 export const buildFlowNote = (taskData) => {
   const tags = Array.isArray(taskData?.tags) ? taskData.tags : [];
-  const statusValue = toStatusValue(taskData?.statusValue ?? taskData?.status);
   const dueShort = formatShortDate(taskData?.dueDate);
   const noteParts = [];
   if (dueShort) noteParts.push(`Due ${dueShort}`);
   if (tags.length) noteParts.push(tags.join(" • "));
-  return noteParts.length ? noteParts.join(" • ") : formatDueLabel(taskData?.dueDate, statusValue);
+  return noteParts.length ? noteParts.join(" • ") : "No due";
 };
 
 export const startOfLocalDay = (date) => {

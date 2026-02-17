@@ -46,6 +46,10 @@ import {
   accountAvatarTextEl,
   settingsPanel,
   settingsToggleBtn,
+  notificationsPanel,
+  notificationsToggleBtn,
+  notificationsCloseBtn,
+  logoutBtn,
   settingsNicknameInput,
   settingsAvatarPreview,
   settingsAvatarPreviewTextEl,
@@ -74,7 +78,7 @@ import {
   confirmModalMessageEl,
   confirmModalCancelBtn,
   confirmModalAcceptBtn
-} from "./dom.js";
+} from "./dom.js?v=authflow2";
 
 import {
   buildApiUrl,
@@ -84,7 +88,8 @@ import {
   ensureAuthOrRedirect,
   redirectToAuthPage,
   hasAccessToken,
-  setAccessToken
+  setAccessToken,
+  clearAccessToken
 } from "../shared/api.js?v=auth2";
 import {
   DEFAULT_PRIORITY_VALUE,
@@ -116,7 +121,7 @@ import {
   buildTaskKey,
   buildFlowNote,
   getCalendarBucketId
-} from "./helpers.js";
+} from "./helpers.js?v=authflow2";
 import {
   getPreferredTheme,
   setTheme,
@@ -124,7 +129,7 @@ import {
   setStoredTaskMeta,
   getStoredTaskBg
 } from "./storage.js";
-import { createTaskDetailController } from "./task-detail.js?v=perf3";
+import { createTaskDetailController } from "./task-detail.js?v=perf4";
 
 let lastNormalizedTasks = [];
 
@@ -142,7 +147,7 @@ const setWorkspaceEditing = (editing) => {
   if (panelWorkspaceEditing) {
     panelWorkspaceNameEl.setAttribute("contenteditable", "true");
     panelWorkspaceNameEl.setAttribute("role", "textbox");
-    panelWorkspaceNameEl.setAttribute("aria-label", "Workspace name");
+    panelWorkspaceNameEl.setAttribute("aria-label", "Название проекта");
     panelWorkspaceNameEl.dataset.original = panelWorkspaceNameEl.textContent || "";
     window.setTimeout(() => {
       panelWorkspaceNameEl.focus();
@@ -177,6 +182,24 @@ const getActorUserId = () => {
 };
 
 const extraColumnNames = ["Backlog", "Blocked", "QA", "Ideas", "Ready"];
+
+const ROLE_LABELS = {
+  Owner: "Владелец",
+  Admin: "Администратор",
+  Member: "Участник"
+};
+
+const getRoleLabel = (role) => ROLE_LABELS[String(role || "")] || String(role || "");
+
+const FLOW_STATUS_LABELS = {
+  1: "New",
+  2: "In Progress",
+  3: "Done",
+  4: "Overdue"
+};
+
+const getFlowStatusLabel = (statusValue) => FLOW_STATUS_LABELS[toStatusValue(statusValue)] || FLOW_STATUS_LABELS[1];
+
 let newColumnIndex = 0;
 let dragColumn = null;
 let lastAfter = null;
@@ -239,11 +262,11 @@ const setLayoutStyle = (style) => {
   if (styleToggle) {
     styleToggle.setAttribute("aria-pressed", nextStyle === "flow" ? "true" : "false");
     if (nextStyle === "flow") {
-      styleToggle.setAttribute("aria-label", "Switch to Columns Board");
-      styleToggle.setAttribute("title", "Switch to Columns Board");
+      styleToggle.setAttribute("aria-label", "Переключить на Columns Board");
+      styleToggle.setAttribute("title", "Переключить на Columns Board");
     } else {
-      styleToggle.setAttribute("aria-label", "Switch to Flow Map");
-      styleToggle.setAttribute("title", "Switch to Flow Map");
+      styleToggle.setAttribute("aria-label", "Переключить на Flow Map");
+      styleToggle.setAttribute("title", "Переключить на Flow Map");
     }
   }
 
@@ -256,7 +279,7 @@ const setLayoutStyle = (style) => {
   }
 
   if (styleToggleSubEl) {
-    styleToggleSubEl.textContent = "Click to switch";
+    styleToggleSubEl.textContent = "Нажмите, чтобы переключить";
   }
 
   if (viewToggle) {
@@ -331,7 +354,7 @@ const loadTagsFromApi = async () => {
     return;
   }
 
-  const tags = await fetchJsonOrNull(buildApiUrl("/tags"), "Load tags", {
+  const tags = await fetchJsonOrNull(buildApiUrl("/tags"), "Загрузка тегов", {
     headers: { Accept: "application/json" }
   });
   if (!Array.isArray(tags)) return;
@@ -360,7 +383,7 @@ const ensureTagId = async (name) => {
   const cached = tagByName.get(cleaned.toLowerCase());
   if (cached) return cached.id;
 
-  const created = await fetchJsonOrNull(buildApiUrl("/tags"), "Create tag", {
+  const created = await fetchJsonOrNull(buildApiUrl("/tags"), "Создание тега", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -403,7 +426,7 @@ const resolveTagIdsForTask = async (tags) => {
 
 const buildUserItemFromApi = (user, options) => {
   const id = Number(user?.userId ?? user?.id);
-  const name = normalizeToken(user?.name) || "UnnamedUser";
+  const name = normalizeToken(user?.name) || "Без имени";
   const email = normalizeToken(user?.email);
   const role = toWorkspaceRole(user?.role);
 
@@ -416,6 +439,14 @@ const buildUserItemFromApi = (user, options) => {
   item.dataset.userRole = role;
   item.dataset.userKey = `${id} ${name} ${email} ${role}`.toLowerCase();
   if (options?.isCurrent) item.classList.add("is-current");
+
+  const avatarEl = item.querySelector(".user-avatar");
+  if (avatarEl) {
+    const letter = (name || "U").trim().charAt(0) || "U";
+    const storedAvatar = getStoredAccountAvatar(id);
+    applyAccountAvatarToElement(avatarEl, null, letter.toUpperCase(), storedAvatar);
+  }
+
   return item;
 };
 
@@ -450,7 +481,7 @@ const loadUsersFromApi = async () => {
     return;
   }
 
-  const users = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Load workspace members", {
+  const users = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Загрузка участников проекта", {
     headers: { Accept: "application/json" }
   });
   if (!Array.isArray(users) || !userList) return;
@@ -460,7 +491,7 @@ const loadUsersFromApi = async () => {
 
   userList.innerHTML = "";
 
-  const allItem = buildUserItem("All members", "All tasks");
+  const allItem = buildUserItem("Все участники", "Все задачи");
   allItem.dataset.userId = "";
   allItem.classList.add("is-current");
   allItem.addEventListener("click", async () => {
@@ -477,7 +508,7 @@ const loadUsersFromApi = async () => {
         const apiName = normalizeToken(u.name);
         if (id === getActorUserId()) {
           const storedNickname = normalizeToken(getStoredAccountNickname(id));
-          const fallbackName = apiName && apiName.toLowerCase() !== "system" ? apiName : "NoName";
+          const fallbackName = apiName && apiName.toLowerCase() !== "system" ? apiName : "Без имени";
           return storedNickname || fallbackName;
         }
         return apiName;
@@ -497,7 +528,7 @@ const loadUsersFromApi = async () => {
             method: "DELETE"
           });
           if (!response.ok) {
-            await handleApiError(response, "Remove member");
+            await handleApiError(response, "Удаление участника");
             return;
           }
           await loadUsersFromApi();
@@ -522,7 +553,7 @@ const updateMyMemberItem = (displayName, email) => {
   const item = userList.querySelector(`.user-item[data-user-id="${actorId}"]`);
   if (!item) return;
 
-  const safeName = normalizeToken(displayName) || "NoName";
+  const safeName = normalizeToken(displayName) || "Без имени";
   const safeEmail = normalizeToken(email) || item.dataset.userEmail || "";
 
   const nick = item.querySelector(".user-nick");
@@ -531,7 +562,8 @@ const updateMyMemberItem = (displayName, email) => {
   const avatar = item.querySelector(".user-avatar");
   if (avatar) {
     const letter = safeName.trim().charAt(0) || "U";
-    avatar.textContent = letter.toUpperCase();
+    const storedAvatar = getStoredAccountAvatar(actorId);
+    applyAccountAvatarToElement(avatar, null, letter.toUpperCase(), storedAvatar);
   }
 
   const role = item.dataset.userRole || "";
@@ -544,7 +576,7 @@ const updateActorUi = () => {
   const id = getActorUserId();
   const storedNickname = id ? normalizeToken(getStoredAccountNickname(id)) : "";
   const apiName = normalizeToken(actorUser?.name);
-  const fallbackName = apiName && apiName.toLowerCase() !== "system" ? apiName : "NoName";
+  const fallbackName = apiName && apiName.toLowerCase() !== "system" ? apiName : "Без имени";
   const displayName = storedNickname || fallbackName;
   const initials = toInitials(displayName, email);
   const avatarDataUrl = id ? getStoredAccountAvatar(id) : "";
@@ -574,7 +606,7 @@ const setActorUser = (user) => {
   if (!Number.isFinite(id) || id <= 0) return;
   actorUser = {
     id,
-    name: normalizeToken(user.name) || `User ${id}`,
+    name: normalizeToken(user.name) || `Пользователь ${id}`,
     email: normalizeToken(user.email) || `user${id}@local`
   };
   updateActorUi();
@@ -585,7 +617,7 @@ const setWorkspaceContext = (space) => {
   const changed = currentWorkspaceId !== nextWorkspaceId;
   currentWorkspaceId = Number.isFinite(nextWorkspaceId) && nextWorkspaceId > 0 ? nextWorkspaceId : null;
   currentWorkspaceRole = toWorkspaceRole(space?.currentUserRole);
-  const workspaceName = normalizeToken(space?.name) || "Workspace";
+  const workspaceName = normalizeToken(space?.name) || "Проект";
   const avatarPath = normalizeToken(space?.avatarPath);
 
   if (currentWorkspaceId) {
@@ -633,7 +665,7 @@ const setWorkspaceContext = (space) => {
 
   if (panelWorkspaceEditBtn) {
     panelWorkspaceEditBtn.disabled = !isAdmin();
-    panelWorkspaceEditBtn.title = isAdmin() ? "Edit" : "Only admins can edit";
+    panelWorkspaceEditBtn.title = isAdmin() ? "Редактировать" : "Только администраторы могут редактировать";
   }
 
 
@@ -661,7 +693,7 @@ const setAppScreen = (screen) => {
 };
 
 const loadCurrentUserFromApi = async () => {
-  const me = await fetchJsonOrNull(buildApiUrl("/auth/me"), "Load current account", {
+  const me = await fetchJsonOrNull(buildApiUrl("/auth/me"), "Загрузка аккаунта", {
     headers: { Accept: "application/json" }
   });
 
@@ -701,7 +733,7 @@ const applyTaskBgToCards = (id, dataUrl) => {
 
 const buildUserItem = (nickname, email, options) => {
   const item = document.createElement("div");
-  const safeNickname = nickname || "UnnamedUser";
+  const safeNickname = nickname || "Без имени";
   const letter = safeNickname.trim().charAt(0) || "U";
   item.className = "user-item";
   const role = normalizeToken(options?.role);
@@ -720,6 +752,7 @@ const buildUserItem = (nickname, email, options) => {
   const mail = document.createElement("span");
   mail.className = "user-email";
   mail.textContent = email;
+  mail.title = email;
   info.append(nick, mail);
 
   item.append(avatar, info);
@@ -730,7 +763,7 @@ const buildUserItem = (nickname, email, options) => {
   if (role) {
     const roleEl = document.createElement("span");
     roleEl.className = "user-role";
-    roleEl.textContent = role;
+    roleEl.textContent = getRoleLabel(role);
     actions.appendChild(roleEl);
   }
 
@@ -738,7 +771,7 @@ const buildUserItem = (nickname, email, options) => {
     const removeBtn = document.createElement("button");
     removeBtn.type = "button";
     removeBtn.className = "user-remove-btn";
-    removeBtn.textContent = "Remove";
+    removeBtn.textContent = "Удалить";
     removeBtn.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -780,7 +813,7 @@ const setTaskCardAttachmentCount = (card, count) => {
   const has = Number.isFinite(n) && n > 0;
   if (indicator) {
     indicator.hidden = !has;
-    indicator.title = has ? `${n} attachment${n === 1 ? "" : "s"}` : "";
+    indicator.title = has ? `Вложений: ${n}` : "";
   }
   if (countEl) {
     countEl.textContent = has ? String(n) : "";
@@ -838,10 +871,10 @@ const closeConfirmModal = (result = false) => {
 };
 
 const openConfirmModal = (options) => {
-  const title = normalizeToken(options?.title) || "Are you sure?";
-  const message = normalizeToken(options?.message) || "This action cannot be undone.";
-  const kicker = normalizeToken(options?.kicker) || "Please confirm";
-  const confirmText = normalizeToken(options?.confirmText) || "Delete";
+  const title = normalizeToken(options?.title) || "Вы уверены?";
+  const message = normalizeToken(options?.message) || "Это действие нельзя отменить.";
+  const kicker = normalizeToken(options?.kicker) || "Подтвердите действие";
+  const confirmText = normalizeToken(options?.confirmText) || "Удалить";
 
   if (!confirmModal || !confirmModalTitleEl || !confirmModalMessageEl || !confirmModalAcceptBtn || !confirmModalCancelBtn) {
     return Promise.resolve(window.confirm(`${title}\n\n${message}`));
@@ -896,7 +929,7 @@ const renderTagOptions = () => {
   if (!tags.length) {
     const empty = document.createElement("span");
     empty.className = "tag-empty";
-    empty.textContent = "No tags yet";
+    empty.textContent = "Пока нет тегов";
     tagOptions.appendChild(empty);
     return;
   }
@@ -929,17 +962,17 @@ const setTaskStatusMode = (mode, statusValue) => {
 const setTaskModalMode = (mode, title) => {
   const isEdit = mode === "edit";
   if (taskModalKicker) {
-    taskModalKicker.textContent = isEdit ? "Edit Task" : "Create Task";
+    taskModalKicker.textContent = isEdit ? "Редактирование задачи" : "Создание задачи";
   }
   if (taskModalTitleEl) {
     if (isEdit) {
-      taskModalTitleEl.textContent = normalizeToken(title) || "Edit Task";
+      taskModalTitleEl.textContent = normalizeToken(title) || "Редактирование задачи";
     } else {
-      taskModalTitleEl.textContent = "New Task";
+      taskModalTitleEl.textContent = "Новая задача";
     }
   }
   if (taskFormSubmitBtn) {
-    taskFormSubmitBtn.textContent = isEdit ? "Save Changes" : "Save Task";
+    taskFormSubmitBtn.textContent = isEdit ? "Сохранить изменения" : "Сохранить задачу";
   }
 };
 
@@ -1082,7 +1115,7 @@ const createTaskCard = (taskData) => {
   head.className = "task-head";
   const tag = document.createElement("span");
   tag.className = "task-tag";
-  tag.textContent = STATUS_LABELS[statusValue] || "New";
+  tag.textContent = STATUS_LABELS[statusValue] || "Новая";
   const time = document.createElement("span");
   time.className = "task-time";
   time.textContent = formatDueLabel(card.dataset.dueDate || taskData.dueDate, statusValue);
@@ -1104,7 +1137,7 @@ const createTaskCard = (taskData) => {
   head.append(tag, meta);
 
   const title = document.createElement("h3");
-  title.textContent = taskData.title || "Untitled task";
+  title.textContent = taskData.title || "Задача без названия";
   const text = document.createElement("p");
   text.className = "task-text";
   text.textContent = taskData.description || "";
@@ -1134,7 +1167,7 @@ const createFlowTaskItem = (taskData) => {
   item.setAttribute("draggable", "true");
   const statusValue = toStatusValue(taskData?.statusValue ?? taskData?.status);
   const note = buildFlowNote(taskData);
-  const statusLabel = STATUS_LABELS[statusValue] || "New";
+  const statusLabel = getFlowStatusLabel(statusValue);
   item.dataset.taskTitle = taskData.title || "New task";
   item.dataset.taskTag = statusLabel;
   item.dataset.taskNote = note;
@@ -1182,11 +1215,11 @@ const createEmptyTaskCard = () => {
   card.dataset.priority = "low";
   card.innerHTML = `
     <div class="task-head">
-      <span class="task-tag">New</span>
-      <span class="task-time">Empty</span>
+      <span class="task-tag">Новая</span>
+      <span class="task-time">Пусто</span>
     </div>
-    <h3>Start with a new task</h3>
-    <p class="task-text">Drop ideas here or create a task to keep the column moving.</p>
+    <h3>Начните с новой задачи</h3>
+    <p class="task-text">Перетащите идеи сюда или создайте задачу, чтобы работа двигалась.</p>
   `;
   return card;
 };
@@ -1270,7 +1303,7 @@ const normalizeApiTask = (task) => {
     .filter(Boolean);
   return {
     id: task?.id,
-    title: task?.title || "Untitled task",
+    title: task?.title || "Задача без названия",
     description: task?.description || "",
     statusValue,
     priorityValue,
@@ -1317,7 +1350,7 @@ const fetchTasks = async () => {
     }
   });
   if (!response.ok) {
-    await handleApiError(response, "Load tasks");
+    await handleApiError(response, "Загрузка задач");
     return null;
   }
   return response.json();
@@ -1350,7 +1383,7 @@ const createTaskViaApi = async (uiTaskData) => {
   });
 
   if (!response.ok) {
-    await handleApiError(response, "Create task");
+    await handleApiError(response, "Создание задачи");
     return;
   }
 
@@ -1391,14 +1424,9 @@ const updateFlowTaskItemForId = (id, taskData) => {
   const item = flowListItems.querySelector(`.flow-task[data-task-id="${id}"]`);
   if (!item) return;
 
-  const tags = Array.isArray(taskData.tags) ? taskData.tags : [];
   const statusValue = toStatusValue(taskData.statusValue ?? taskData.status);
-  const statusLabel = STATUS_LABELS[statusValue] || "New";
-  const dueShort = formatShortDate(taskData.dueDate);
-  const noteParts = [];
-  if (dueShort) noteParts.push(`Due ${dueShort}`);
-  if (tags.length) noteParts.push(tags.join(" • "));
-  const note = noteParts.length ? noteParts.join(" • ") : formatDueLabel(taskData.dueDate, statusValue);
+  const statusLabel = getFlowStatusLabel(statusValue);
+  const note = buildFlowNote({ ...taskData, statusValue });
 
   item.dataset.taskTitle = taskData.title || "New task";
   item.dataset.taskTag = statusLabel;
@@ -1461,7 +1489,7 @@ const updateTaskViaApi = async (id, uiTaskData) => {
   });
 
   if (!response.ok) {
-    await handleApiError(response, "Update task");
+    await handleApiError(response, "Обновление задачи");
     return;
   }
 
@@ -1471,7 +1499,7 @@ const updateTaskViaApi = async (id, uiTaskData) => {
   setStoredTaskMeta(id, { tags });
 
   const tagEl = card.querySelector(".task-tag");
-  if (tagEl) tagEl.textContent = STATUS_LABELS[statusValue] || "New";
+  if (tagEl) tagEl.textContent = STATUS_LABELS[statusValue] || "Новая";
   const titleEl = card.querySelector("h3");
   if (titleEl) titleEl.textContent = uiTaskData.title || titleEl.textContent;
   const textEl = card.querySelector(".task-text");
@@ -1507,7 +1535,7 @@ const updateTaskViaApi = async (id, uiTaskData) => {
 
 const buildUpdatePayloadFromCard = (card, statusValue) => {
   const id = Number.parseInt(card.dataset.taskId || "", 10);
-  const title = card.querySelector("h3")?.textContent?.trim() || "Untitled task";
+  const title = card.querySelector("h3")?.textContent?.trim() || "Задача без названия";
   const description = card.querySelector(".task-text")?.textContent?.trim() || "";
   const assigneeIdParsed = Number.parseInt(normalizeToken(card.dataset.assigneeId), 10);
   const assigneeId = Number.isFinite(assigneeIdParsed) && assigneeIdParsed > 0 ? assigneeIdParsed : null;
@@ -1540,7 +1568,7 @@ const updateTaskStatus = async (card, statusValue) => {
     body: JSON.stringify(payload)
   });
   if (!response.ok) {
-    await handleApiError(response, "Update task");
+    await handleApiError(response, "Обновление задачи");
     return;
   }
 
@@ -1556,7 +1584,7 @@ const deleteTaskViaApi = async (id) => {
     }
   });
   if (!response.ok) {
-    await handleApiError(response, "Delete task");
+    await handleApiError(response, "Удаление задачи");
     return false;
   }
   return true;
@@ -1585,7 +1613,7 @@ const syncAttachmentIndicators = async () => {
     while (index < ids.length) {
       const id = ids[index];
       index += 1;
-      const meta = await fetchJsonOrNull(buildApiUrl(`/tasks/${id}/attachments/exists`), "Attachments meta", {
+      const meta = await fetchJsonOrNull(buildApiUrl(`/tasks/${id}/attachments/exists`), "Метаданные вложений", {
         headers: { Accept: "application/json" }
       });
       const count = meta && Number.isFinite(Number(meta.count)) ? Number(meta.count) : 0;
@@ -1603,13 +1631,13 @@ const renderCalendarView = (tasks) => {
   calendarLayout.setAttribute("aria-hidden", "false");
 
   const buckets = [
-    { id: "high", title: "High priority" },
-    { id: "today", title: "Today" },
-    { id: "week", title: "Within a week" },
-    { id: "gtweek", title: "More than a week" },
-    { id: "gtmonth", title: "More than a month" },
-    { id: "done", title: "Completed" },
-    { id: "overdue", title: "Overdue" }
+    { id: "high", title: "Высокий приоритет" },
+    { id: "today", title: "Сегодня" },
+    { id: "week", title: "В течение недели" },
+    { id: "gtweek", title: "Больше недели" },
+    { id: "gtmonth", title: "Больше месяца" },
+    { id: "done", title: "Завершено" },
+    { id: "overdue", title: "Просрочено" }
   ];
 
   const lists = new Map(buckets.map((b) => [b.id, []]));
@@ -1651,7 +1679,7 @@ const renderCalendarView = (tasks) => {
     if (list.length === 0) {
       const empty = document.createElement("div");
       empty.className = "task-detail-attachments-empty";
-      empty.textContent = "No tasks";
+      empty.textContent = "Нет задач";
       body.appendChild(empty);
     } else {
       list.forEach((t) => {
@@ -1992,12 +2020,12 @@ const createColumn = (name) => {
   column.dataset.columnId = `column-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   column.innerHTML = `
     <header class="column-header">
-      <button class="column-handle" type="button" draggable="true" aria-label="Drag column">
+      <button class="column-handle" type="button" draggable="true" aria-label="Перетащить колонку">
         <span></span><span></span><span></span>
       </button>
       <div class="column-title" contenteditable="true" spellcheck="false">${name}</div>
       <span class="column-count">0</span>
-      <button class="column-delete" type="button" aria-label="Delete column">
+      <button class="column-delete" type="button" aria-label="Удалить колонку">
         <svg viewBox="0 0 24 24" aria-hidden="true">
           <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 7h2v8h-2v-8zm-4 0h2v8H7v-8zm8 0h2v8h-2v-8z" />
         </svg>
@@ -2005,7 +2033,7 @@ const createColumn = (name) => {
     </header>
     <div class="column-body">
     </div>
-    <button class="add-task" type="button">Create New Task</button>
+    <button class="add-task" type="button">Создать задачу</button>
   `;
   const body = column.querySelector(".column-body");
   if (body) {
@@ -2228,10 +2256,10 @@ if (taskTrashZone) {
     const id = Number.parseInt(dragTask.dataset.taskId || "", 10);
     const title = dragTask.querySelector("h3")?.textContent?.trim();
     const confirmed = await openConfirmModal({
-      kicker: "Delete task",
-      title: title ? `Delete "${title}"?` : "Delete this task?",
-      message: "This task and its metadata will be removed from the board.",
-      confirmText: "Delete task"
+      kicker: "Удаление задачи",
+      title: title ? `Удалить "${title}"?` : "Удалить эту задачу?",
+      message: "Эта задача и ее метаданные будут удалены с доски.",
+      confirmText: "Удалить задачу"
     });
     if (confirmed !== true) {
       setTrashZoneVisible(false);
@@ -2294,13 +2322,13 @@ if (styleToggle) {
 const initFlowTask = (task) => {
   if (!task) return;
   task.addEventListener("dragstart", (event) => {
-    const payload = {
-      title: task.dataset.taskTitle || task.textContent.trim(),
-      tag: task.dataset.taskTag || "Task",
-      note: task.dataset.taskDescription || task.dataset.taskNote || "",
-      taskKey: task.dataset.taskKey || "",
-      taskId: task.dataset.taskId || ""
-    };
+      const payload = {
+        title: task.dataset.taskTitle || task.textContent.trim(),
+        tag: task.dataset.taskTag || "Task",
+        note: task.dataset.taskDescription || task.dataset.taskNote || "",
+        taskKey: task.dataset.taskKey || "",
+        taskId: task.dataset.taskId || ""
+      };
     if (!payload.taskKey) {
       payload.taskKey = buildTaskKey(payload);
       task.dataset.taskKey = payload.taskKey;
@@ -2353,8 +2381,8 @@ if (userAddBtn) {
       if (!isAdmin()) return;
       const email = normalizeEmail(userAddInput.value);
       if (!email) return;
-      const name = email.split("@")[0] || "UnnamedUser";
-      const created = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Add member", {
+      const name = email.split("@")[0] || "Без имени";
+      const created = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Добавление участника", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2458,6 +2486,13 @@ document.addEventListener("click", (event) => {
   setSettingsOpen(false);
 });
 
+document.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target || !isNotificationsOpen()) return;
+  if (target.closest("#notifications-panel") || target.closest("#notifications-toggle")) return;
+  setNotificationsOpen(false);
+});
+
 const taskDetailController = createTaskDetailController({
   isAdmin,
   ensureTagsLoaded,
@@ -2472,6 +2507,12 @@ document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     if (closeConfirmModal(false)) {
       return;
+    }
+    if (isNotificationsOpen()) {
+      setNotificationsOpen(false);
+    }
+    if (isSettingsOpen()) {
+      setSettingsOpen(false);
     }
     if (isPanelOpen()) {
       setPanelOpen(false);
@@ -2527,6 +2568,26 @@ if (settingsToggleBtn) {
   });
 }
 
+if (notificationsToggleBtn) {
+  notificationsToggleBtn.addEventListener("click", () => {
+    const next = !isNotificationsOpen();
+    setNotificationsOpen(next);
+  });
+}
+
+if (notificationsCloseBtn) {
+  notificationsCloseBtn.addEventListener("click", () => {
+    setNotificationsOpen(false);
+  });
+}
+
+if (logoutBtn) {
+  logoutBtn.addEventListener("click", () => {
+    clearAccessToken();
+    redirectToAuthPage();
+  });
+}
+
 const saveWorkspaceName = async () => {
   if (!currentWorkspaceId) return;
   if (!isAdmin()) return;
@@ -2535,7 +2596,7 @@ const saveWorkspaceName = async () => {
   const name = normalizeToken(panelWorkspaceNameEl.textContent);
   if (!name) {
     const original = normalizeToken(panelWorkspaceNameEl.dataset.original);
-    panelWorkspaceNameEl.textContent = original || "Workspace";
+    panelWorkspaceNameEl.textContent = original || "Проект";
     setWorkspaceEditing(false);
     return;
   }
@@ -2550,9 +2611,9 @@ const saveWorkspaceName = async () => {
   });
 
   if (!response.ok) {
-    await handleApiError(response, "Update workspace");
+    await handleApiError(response, "Обновление проекта");
     const original = normalizeToken(panelWorkspaceNameEl.dataset.original);
-    panelWorkspaceNameEl.textContent = original || "Workspace";
+    panelWorkspaceNameEl.textContent = original || "Проект";
     setWorkspaceEditing(false);
     return;
   }
@@ -2611,7 +2672,7 @@ if (panelWorkspaceAvatarInput) {
       });
 
       if (!response.ok) {
-        await handleApiError(response, "Set workspace avatar");
+        await handleApiError(response, "Установка аватара проекта");
         return;
       }
 
@@ -2745,7 +2806,7 @@ if (flowCanvas) {
         : null;
       if (task) {
         payload.title = task.title || payload.title;
-        payload.tag = STATUS_LABELS[toStatusValue(task.statusValue)] || payload.tag;
+        payload.tag = getFlowStatusLabel(task.statusValue) || payload.tag;
         payload.note = buildFlowNote(task);
       }
     }
@@ -2829,7 +2890,7 @@ const switchWorkspaceToken = async (workspaceId) => {
   });
 
   if (!response.ok) {
-    await handleApiError(response, "Switch workspace");
+    await handleApiError(response, "Переключение проекта");
     return false;
   }
 
@@ -2882,7 +2943,7 @@ const bootstrapWorkspacePage = async () => {
     return;
   }
 
-  const workspace = await fetchJsonOrNull(buildApiUrl(`/spaces/${workspaceId}`), "Load workspace", {
+  const workspace = await fetchJsonOrNull(buildApiUrl(`/spaces/${workspaceId}`), "Загрузка проекта", {
     headers: { Accept: "application/json" }
   });
 
@@ -2954,18 +3015,49 @@ function applyAccountAvatarToElement(element, textElement, initials, dataUrl) {
   if (url) {
     element.classList.add("has-image");
     element.style.backgroundImage = `url("${url.replace(/"/g, "%22")}")`;
-    if (textElement) textElement.textContent = "";
+    if (textElement) {
+      textElement.textContent = "";
+    } else {
+      element.textContent = "";
+    }
     return;
   }
   element.classList.remove("has-image");
   element.style.backgroundImage = "";
-  if (textElement) textElement.textContent = initials;
+  if (textElement) {
+    textElement.textContent = initials;
+  } else {
+    element.textContent = initials;
+  }
 }
 
 function refreshSettingsThemeState() {
   const theme = document.body.dataset.theme === "light" ? "light" : "dark";
   settingsThemeDarkBtn?.classList.toggle("is-selected", theme === "dark");
   settingsThemeLightBtn?.classList.toggle("is-selected", theme === "light");
+}
+
+function isNotificationsOpen() {
+  return appShell?.classList.contains("is-notifications-open");
+}
+
+function setNotificationsOpen(open) {
+  if (!appShell) return;
+  appShell.classList.toggle("is-notifications-open", open);
+
+  if (notificationsToggleBtn) {
+    notificationsToggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  if (notificationsPanel) {
+    notificationsPanel.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  if (open) {
+    // Avoid two panels fighting for width.
+    setPanelOpen(false);
+    setSettingsOpen(false);
+    window.setTimeout(() => notificationsCloseBtn?.focus(), 0);
+  }
 }
 
 function isSettingsOpen() {
@@ -2985,6 +3077,7 @@ function setSettingsOpen(open) {
   if (open) {
     // Avoid two panels fighting for width.
     setPanelOpen(false);
+    setNotificationsOpen(false);
     refreshSettingsThemeState();
     window.setTimeout(() => settingsNicknameInput?.focus(), 0);
   }

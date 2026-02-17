@@ -172,6 +172,10 @@ body[data-theme="light"] .auth-email-pill {
   gap: 12px;
 }
 
+.auth-form .auth-actions {
+  margin-top: 2px;
+}
+
 .auth-timer {
   font-variant-numeric: tabular-nums;
   color: var(--text-3);

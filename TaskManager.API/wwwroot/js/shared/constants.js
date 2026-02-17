@@ -1,4 +1,3 @@
-export const STORAGE_ACTOR_ID = "gtt-actor-user-id";
 export const STORAGE_WORKSPACE_ID = "gtt-workspace-id";
 export const STORAGE_ACCESS_TOKEN = "gtt-access-token";
 
@@ -29,10 +28,10 @@ export const STATUS_VALUE_MAP = {
 };
 
 export const STATUS_LABELS = {
-  1: "New",
-  2: "In Progress",
-  3: "Done",
-  4: "Overdue"
+  1: "Новая",
+  2: "В работе",
+  3: "Готово",
+  4: "Просрочено"
 };
 
 export const STATUS_LABEL_SET = new Set(Object.values(STATUS_LABELS));
