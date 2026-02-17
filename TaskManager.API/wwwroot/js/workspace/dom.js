@@ -7,7 +7,9 @@ export const brandToggle = document.getElementById("brand-toggle");
 export const userPanel = document.getElementById("user-panel");
 
 export const columnsWrap = document.getElementById("board-columns");
+export const addColumnControl = document.getElementById("add-column-control");
 export const addColumnBtn = document.getElementById("add-column");
+export const addColumnMenu = document.getElementById("add-column-menu");
 
 export const viewButtons = document.querySelectorAll(".view-btn");
 export const viewToggle = document.querySelector(".view-toggle");
