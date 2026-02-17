@@ -65,6 +65,12 @@ export const accountAvatarTextEl = accountAvatarEl?.querySelector("span") || nul
 
 export const settingsPanel = document.getElementById("settings-panel");
 export const settingsToggleBtn = document.getElementById("settings-toggle");
+
+export const notificationsPanel = document.getElementById("notifications-panel");
+export const notificationsToggleBtn = document.getElementById("notifications-toggle");
+export const notificationsCloseBtn = document.getElementById("notifications-close");
+
+export const logoutBtn = document.getElementById("logout-btn");
 export const settingsNicknameInput = document.getElementById("settings-nickname");
 export const settingsAvatarPreview = document.getElementById("settings-avatar-preview");
 export const settingsAvatarPreviewTextEl = settingsAvatarPreview?.querySelector("span") || null;

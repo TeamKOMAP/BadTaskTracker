@@ -4,30 +4,172 @@ import {
   fetchJsonOrNull,
   handleApiError,
   ensureAuthOrRedirect,
-  redirectToAuthPage
+  redirectToAuthPage,
+  clearAccessToken
 } from "../shared/api.js?v=auth2";
+import { getPreferredTheme, setTheme } from "../workspace/storage.js?v=auth4";
 import { MANAGE_ROLES, STORAGE_WORKSPACE_ID } from "../shared/constants.js";
 import { navigateToWorkspacePage } from "../shared/navigation.js";
 import { normalizeToken, toInitials, toWorkspaceRole } from "../shared/utils.js";
 
+setTheme(getPreferredTheme());
+
 const spacesGrid = document.getElementById("spaces-grid");
-const spaceCreateOpenBtn = document.getElementById("space-create-open");
+const appShell = document.getElementById("app-shell");
 const spaceModal = document.getElementById("space-modal");
 const spaceForm = document.getElementById("space-form");
 const spaceNameInput = document.getElementById("space-name");
 const spaceAvatarInput = document.getElementById("space-avatar-input");
 
-const accountSelect = document.getElementById("account-select");
-const accountNameInput = document.getElementById("account-name-input");
-const accountEmailInput = document.getElementById("account-email-input");
-const accountCreateBtn = document.getElementById("account-create-btn");
-
 const spacesAccountNameEl = document.getElementById("spaces-account-name");
 const spacesAccountEmailEl = document.getElementById("spaces-account-email");
 const spacesAccountAvatarEl = document.getElementById("spaces-account-avatar");
 
+const settingsPanel = document.getElementById("settings-panel");
+const settingsToggleBtn = document.getElementById("settings-toggle");
+const settingsNicknameInput = document.getElementById("settings-nickname");
+const settingsAvatarPreview = document.getElementById("settings-avatar-preview");
+const settingsAvatarPreviewTextEl = settingsAvatarPreview?.querySelector("span") || null;
+const settingsAvatarInput = document.getElementById("settings-avatar-input");
+const settingsAvatarBtn = document.getElementById("settings-avatar-btn");
+const settingsAvatarClearBtn = document.getElementById("settings-avatar-clear");
+const settingsThemeDarkBtn = document.getElementById("settings-theme-dark");
+const settingsThemeLightBtn = document.getElementById("settings-theme-light");
+
+const notificationsPanel = document.getElementById("notifications-panel");
+const notificationsToggleBtn = document.getElementById("notifications-toggle");
+const notificationsCloseBtn = document.getElementById("notifications-close");
+
+const logoutBtn = document.getElementById("logout-btn");
+
 let actorUser = null;
 let pendingSpaceAvatarId = null;
+
+const ROLE_LABELS = {
+  Owner: "Владелец",
+  Admin: "Администратор",
+  Member: "Участник"
+};
+
+const getRoleLabel = (role) => ROLE_LABELS[String(role || "")] || String(role || "");
+
+const formatMembersLabel = (count) => {
+  const n = Number(count) || 0;
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} участник`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} участника`;
+  return `${n} участников`;
+};
+
+const getStoredAccountNickname = (id) => {
+  if (!Number.isFinite(Number(id))) return "";
+  try {
+    return localStorage.getItem(`gtt-account-nickname:${id}`) || "";
+  } catch {
+    return "";
+  }
+};
+
+const setStoredAccountNickname = (id, value) => {
+  if (!Number.isFinite(Number(id))) return;
+  const cleaned = normalizeToken(value);
+  try {
+    if (!cleaned) {
+      localStorage.removeItem(`gtt-account-nickname:${id}`);
+    } else {
+      localStorage.setItem(`gtt-account-nickname:${id}`, cleaned);
+    }
+  } catch {
+    // ignore
+  }
+};
+
+const getStoredAccountAvatar = (id) => {
+  if (!Number.isFinite(Number(id))) return "";
+  try {
+    return localStorage.getItem(`gtt-account-avatar:${id}`) || "";
+  } catch {
+    return "";
+  }
+};
+
+const setStoredAccountAvatar = (id, dataUrl) => {
+  if (!Number.isFinite(Number(id))) return;
+  const value = typeof dataUrl === "string" ? dataUrl : "";
+  try {
+    if (!value) {
+      localStorage.removeItem(`gtt-account-avatar:${id}`);
+    } else {
+      localStorage.setItem(`gtt-account-avatar:${id}`, value);
+    }
+  } catch {
+    // ignore
+  }
+};
+
+const applyAccountAvatarToElement = (element, textElement, initials, dataUrl) => {
+  if (!element) return;
+  const url = normalizeToken(dataUrl);
+  if (url) {
+    element.classList.add("has-image");
+    element.style.backgroundImage = `url("${url.replace(/"/g, "%22")}")`;
+    if (textElement) {
+      textElement.textContent = "";
+    } else {
+      element.textContent = "";
+    }
+    return;
+  }
+
+  element.classList.remove("has-image");
+  element.style.backgroundImage = "";
+  if (textElement) {
+    textElement.textContent = initials;
+  } else {
+    element.textContent = initials;
+  }
+};
+
+const refreshSettingsThemeState = () => {
+  const theme = document.body.dataset.theme === "light" ? "light" : "dark";
+  settingsThemeDarkBtn?.classList.toggle("is-selected", theme === "dark");
+  settingsThemeLightBtn?.classList.toggle("is-selected", theme === "light");
+};
+
+const isNotificationsOpen = () => appShell?.classList.contains("is-notifications-open");
+
+const setNotificationsOpen = (open) => {
+  if (!appShell) return;
+  appShell.classList.toggle("is-notifications-open", open);
+  if (notificationsToggleBtn) {
+    notificationsToggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  if (notificationsPanel) {
+    notificationsPanel.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+
+  if (open) {
+    window.setTimeout(() => notificationsCloseBtn?.focus(), 0);
+  }
+};
+
+const isSettingsOpen = () => appShell?.classList.contains("is-settings-open");
+
+const setSettingsOpen = (open) => {
+  if (!appShell) return;
+  appShell.classList.toggle("is-settings-open", open);
+  if (settingsToggleBtn) {
+    settingsToggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  if (settingsPanel) {
+    settingsPanel.setAttribute("aria-hidden", open ? "false" : "true");
+  }
+  if (open) {
+    refreshSettingsThemeState();
+    window.setTimeout(() => settingsNicknameInput?.focus(), 0);
+  }
+};
 
 const getActorUserId = () => {
   const id = Number(actorUser?.id);
@@ -35,13 +177,26 @@ const getActorUserId = () => {
 };
 
 const updateActorUi = () => {
-  const name = actorUser?.name || "Account";
+  const id = getActorUserId();
   const email = actorUser?.email || "account@example.com";
+  const apiName = normalizeToken(actorUser?.name);
+  const storedNickname = id ? normalizeToken(getStoredAccountNickname(id)) : "";
+  const fallbackName = apiName
+    ? (apiName.toLowerCase() !== "system" ? apiName : "Без имени")
+    : "Аккаунт";
+  const name = storedNickname || fallbackName;
   const initials = toInitials(name, email);
+  const avatarDataUrl = id ? getStoredAccountAvatar(id) : "";
 
   if (spacesAccountNameEl) spacesAccountNameEl.textContent = name;
   if (spacesAccountEmailEl) spacesAccountEmailEl.textContent = email;
-  if (spacesAccountAvatarEl) spacesAccountAvatarEl.textContent = initials;
+
+  applyAccountAvatarToElement(spacesAccountAvatarEl, null, initials, avatarDataUrl);
+  applyAccountAvatarToElement(settingsAvatarPreview, settingsAvatarPreviewTextEl, initials, avatarDataUrl);
+
+  if (settingsNicknameInput && document.activeElement !== settingsNicknameInput) {
+    settingsNicknameInput.value = storedNickname;
+  }
 };
 
 const setActorUser = (user) => {
@@ -59,7 +214,7 @@ const setActorUser = (user) => {
 };
 
 const loadCurrentUserFromApi = async () => {
-  const me = await fetchJsonOrNull(buildApiUrl("/auth/me"), "Load current account", {
+  const me = await fetchJsonOrNull(buildApiUrl("/auth/me"), "Загрузка аккаунта", {
     headers: { Accept: "application/json" }
   });
 
@@ -104,6 +259,23 @@ const renderSpaces = (spaces) => {
   spacesGrid.innerHTML = "";
 
   const list = Array.isArray(spaces) ? spaces : [];
+
+  const addCard = document.createElement("button");
+  addCard.type = "button";
+  addCard.className = "space-add-card";
+  addCard.innerHTML = `<span class="space-add-plus">+</span><span>Создать новый проект</span>`;
+  addCard.addEventListener("click", () => {
+    openSpaceModal();
+  });
+  spacesGrid.appendChild(addCard);
+
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "spaces-empty";
+    empty.textContent = "Пока нет проектов. Создайте свой первый проект.";
+    spacesGrid.appendChild(empty);
+  }
+
   list.forEach((space) => {
     const id = Number(space?.id);
     if (!Number.isFinite(id) || id <= 0) return;
@@ -121,11 +293,12 @@ const renderSpaces = (spaces) => {
 
     const preview = document.createElement("div");
     preview.className = "space-card-preview";
+    const safeSpaceName = normalizeToken(space?.name) || `Проект ${id}`;
     const avatarPath = normalizeToken(space?.avatarPath);
     if (avatarPath) {
       const img = document.createElement("img");
       img.src = avatarPath;
-      img.alt = `${space.name || "Workspace"} avatar`;
+      img.alt = `Аватар проекта ${safeSpaceName}`;
       preview.appendChild(img);
     } else {
       const initials = document.createElement("span");
@@ -138,13 +311,13 @@ const renderSpaces = (spaces) => {
 
     const title = document.createElement("h3");
     title.className = "space-card-title";
-    title.textContent = normalizeToken(space?.name) || `Workspace ${id}`;
+    title.textContent = safeSpaceName;
 
     const sub = document.createElement("span");
     sub.className = "space-card-sub";
     const role = toWorkspaceRole(space?.currentUserRole);
     const members = Number(space?.memberCount || 0);
-    sub.textContent = `${role} · ${members} member${members === 1 ? "" : "s"}`;
+    sub.textContent = `${getRoleLabel(role)} · ${formatMembersLabel(members)}`;
 
     const actions = document.createElement("div");
     actions.className = "space-card-actions";
@@ -152,7 +325,7 @@ const renderSpaces = (spaces) => {
     const openBtn = document.createElement("button");
     openBtn.type = "button";
     openBtn.className = "space-open-btn";
-    openBtn.textContent = "Open";
+    openBtn.textContent = "Открыть";
     openBtn.addEventListener("click", () => {
       openWorkspace(space);
     });
@@ -162,7 +335,7 @@ const renderSpaces = (spaces) => {
       const avatarBtn = document.createElement("button");
       avatarBtn.type = "button";
       avatarBtn.className = "space-avatar-btn";
-      avatarBtn.textContent = "Set avatar";
+      avatarBtn.textContent = "Фото";
       avatarBtn.addEventListener("click", () => {
         pendingSpaceAvatarId = id;
         spaceAvatarInput?.click();
@@ -174,22 +347,6 @@ const renderSpaces = (spaces) => {
     card.append(preview, body);
     spacesGrid.appendChild(card);
   });
-
-  const addCard = document.createElement("button");
-  addCard.type = "button";
-  addCard.className = "space-add-card";
-  addCard.innerHTML = `<span class="space-add-plus">+</span><span>Create new workspace</span>`;
-  addCard.addEventListener("click", () => {
-    openSpaceModal();
-  });
-  spacesGrid.appendChild(addCard);
-
-  if (!list.length) {
-    const empty = document.createElement("div");
-    empty.className = "spaces-empty";
-    empty.textContent = "No workspaces yet. Create your first workspace.";
-    spacesGrid.prepend(empty);
-  }
 };
 
 const loadSpacesFromApi = async () => {
@@ -198,7 +355,7 @@ const loadSpacesFromApi = async () => {
     return;
   }
 
-  const spaces = await fetchJsonOrNull(buildApiUrl("/spaces"), "Load spaces", {
+  const spaces = await fetchJsonOrNull(buildApiUrl("/spaces"), "Загрузка проектов", {
     headers: { Accept: "application/json" }
   });
 
@@ -206,9 +363,114 @@ const loadSpacesFromApi = async () => {
 };
 
 const bindEvents = () => {
-  if (spaceCreateOpenBtn) {
-    spaceCreateOpenBtn.addEventListener("click", () => {
-      openSpaceModal();
+  if (notificationsToggleBtn) {
+    notificationsToggleBtn.addEventListener("click", () => {
+      const next = !isNotificationsOpen();
+      if (next) {
+        setSettingsOpen(false);
+      }
+      setNotificationsOpen(next);
+    });
+  }
+
+  if (notificationsCloseBtn) {
+    notificationsCloseBtn.addEventListener("click", () => {
+      setNotificationsOpen(false);
+    });
+  }
+
+  if (settingsToggleBtn) {
+    settingsToggleBtn.addEventListener("click", () => {
+      const next = !isSettingsOpen();
+      if (next) {
+        setNotificationsOpen(false);
+      }
+      setSettingsOpen(next);
+    });
+  }
+
+  if (logoutBtn) {
+    logoutBtn.addEventListener("click", () => {
+      clearAccessToken();
+      redirectToAuthPage();
+    });
+  }
+
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target || !isSettingsOpen()) return;
+    if (target.closest("#settings-panel") || target.closest("#settings-toggle")) return;
+    setSettingsOpen(false);
+  });
+
+  document.addEventListener("click", (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target || !isNotificationsOpen()) return;
+    if (target.closest("#notifications-panel") || target.closest("#notifications-toggle")) return;
+    setNotificationsOpen(false);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    if (isNotificationsOpen()) setNotificationsOpen(false);
+    if (isSettingsOpen()) setSettingsOpen(false);
+  });
+
+  if (settingsNicknameInput) {
+    settingsNicknameInput.addEventListener("input", () => {
+      const id = getActorUserId();
+      if (!id) return;
+      setStoredAccountNickname(id, settingsNicknameInput.value);
+      updateActorUi();
+    });
+  }
+
+  if (settingsAvatarBtn && settingsAvatarInput) {
+    settingsAvatarBtn.addEventListener("click", () => {
+      settingsAvatarInput.click();
+    });
+  }
+
+  if (settingsAvatarInput) {
+    settingsAvatarInput.addEventListener("change", () => {
+      const file = settingsAvatarInput.files && settingsAvatarInput.files[0];
+      const id = getActorUserId();
+      // Allow re-selecting the same file.
+      settingsAvatarInput.value = "";
+      if (!id || !file) return;
+
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        const dataUrl = typeof reader.result === "string" ? reader.result : "";
+        if (!dataUrl) return;
+        setStoredAccountAvatar(id, dataUrl);
+        updateActorUi();
+      });
+      reader.readAsDataURL(file);
+    });
+  }
+
+  if (settingsAvatarClearBtn) {
+    settingsAvatarClearBtn.addEventListener("click", () => {
+      const id = getActorUserId();
+      if (!id) return;
+      setStoredAccountAvatar(id, "");
+      if (settingsAvatarInput) settingsAvatarInput.value = "";
+      updateActorUi();
+    });
+  }
+
+  if (settingsThemeDarkBtn) {
+    settingsThemeDarkBtn.addEventListener("click", () => {
+      setTheme("dark");
+      refreshSettingsThemeState();
+    });
+  }
+
+  if (settingsThemeLightBtn) {
+    settingsThemeLightBtn.addEventListener("click", () => {
+      setTheme("light");
+      refreshSettingsThemeState();
     });
   }
 
@@ -224,7 +486,7 @@ const bindEvents = () => {
           return;
         }
 
-        const created = await fetchJsonOrNull(buildApiUrl("/spaces"), "Create workspace", {
+        const created = await fetchJsonOrNull(buildApiUrl("/spaces"), "Создание проекта", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -269,7 +531,7 @@ const bindEvents = () => {
         });
 
         if (!response.ok) {
-          await handleApiError(response, "Set workspace avatar");
+          await handleApiError(response, "Установка аватара проекта");
           return;
         }
 
@@ -279,22 +541,15 @@ const bindEvents = () => {
   }
 };
 
-const hideLegacyAccountControls = () => {
-  accountSelect?.closest(".spaces-account-switch")?.setAttribute("hidden", "");
-  accountNameInput?.closest(".spaces-account-create")?.setAttribute("hidden", "");
-  accountEmailInput?.closest(".spaces-account-create")?.setAttribute("hidden", "");
-  accountCreateBtn?.closest(".spaces-account-create")?.setAttribute("hidden", "");
-};
-
 const bootstrap = async () => {
   if (!ensureAuthOrRedirect()) {
     return;
   }
 
-  hideLegacyAccountControls();
   bindEvents();
   await loadCurrentUserFromApi();
   updateActorUi();
+  refreshSettingsThemeState();
 
   if (!getActorUserId()) {
     redirectToAuthPage();
@@ -303,5 +558,26 @@ const bootstrap = async () => {
 
   await loadSpacesFromApi();
 };
+
+window.addEventListener("pageshow", () => {
+  setTheme(getPreferredTheme());
+  refreshSettingsThemeState();
+  updateActorUi();
+});
+
+window.addEventListener("storage", (event) => {
+  const key = String(event?.key || "");
+  if (key === "gtt-theme") {
+    setTheme(getPreferredTheme());
+    refreshSettingsThemeState();
+    return;
+  }
+
+  const id = getActorUserId();
+  if (!id) return;
+  if (key === `gtt-account-nickname:${id}` || key === `gtt-account-avatar:${id}`) {
+    updateActorUi();
+  }
+});
 
 void bootstrap();

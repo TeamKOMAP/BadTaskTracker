@@ -1,4 +1,4 @@
-import { apiFetch, buildApiUrl, clearAccessToken } from "../shared/api.js?v=auth2";
+import { apiFetch, buildApiUrl, clearAccessToken } from "../shared/api.js?v=auth4";
 
 const THEME_KEY = "gtt-theme";
 const DEV_AUTH_CODE_KEY = "gtt-dev-auth-code";
@@ -137,19 +137,31 @@ if (emailForm) {
         return;
       }
 
-      if (confirmEmailBtn) confirmEmailBtn.disabled = true;
+      if (confirmEmailBtn) {
+        confirmEmailBtn.disabled = true;
+        confirmEmailBtn.textContent = "Отправляем...";
+      }
 
-      const response = await apiFetch(buildApiUrl("/auth/email/request"), {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json"
-        },
-        body: JSON.stringify({ email }),
-        skipAuthRedirect: true
-      });
-
-      if (confirmEmailBtn) confirmEmailBtn.disabled = false;
+      let response = null;
+      try {
+        response = await apiFetch(buildApiUrl("/auth/email/request"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body: JSON.stringify({ email }),
+          skipAuthRedirect: true
+        });
+      } catch {
+        setAlert("Не удалось подключиться к серверу. Убедись, что API запущен и страница открыта по https.");
+        return;
+      } finally {
+        if (confirmEmailBtn) {
+          confirmEmailBtn.disabled = false;
+          confirmEmailBtn.textContent = "Подтвердить";
+        }
+      }
 
       if (!response.ok) {
         const message = await parseErrorMessage(response, "Не удалось отправить код. Попробуйте ещё раз.");
