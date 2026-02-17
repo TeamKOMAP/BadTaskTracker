@@ -143,6 +143,7 @@ import {
 } from "./storage.js?v=authflow1";
 import { createBoardViewController } from "./board-view.js?v=perf1";
 import { createCalendarViewController } from "./calendar-view.js?v=perf1";
+import { createPriorityViewController } from "./priority-view.js?v=perf2";
 import { createFlowEditorController } from "./flow-editor.js?v=perf1";
 import { createTaskDetailController } from "./task-detail.js?v=perf7";
 
@@ -540,7 +541,9 @@ const setLayoutStyle = (style) => {
 const setBoardView = (view) => {
   if (!board) return;
   closeAddColumnMenu();
-  const next = view === "calendar" ? "calendar" : (view === "list" ? "list" : "board");
+  const next = view === "calendar"
+    ? "calendar"
+    : (view === "priority" ? "priority" : (view === "list" ? "list" : "board"));
   board.dataset.view = next;
   viewButtons.forEach((btn) => {
     const isActive = (btn.dataset.view || "board") === next;
@@ -555,6 +558,9 @@ const isPanelOpen = () => appShell?.classList.contains("is-panel-open");
 const setPanelOpen = (open) => {
   if (!appShell) return;
   appShell.classList.toggle("is-panel-open", open);
+  if (!open) {
+    closeUserMiniMenu();
+  }
   if (!open && panelWorkspaceEditing && panelWorkspaceNameEl) {
     panelWorkspaceNameEl.blur();
   }
@@ -662,11 +668,7 @@ const buildUserItemFromApi = (user, options) => {
   const email = normalizeToken(user?.email);
   const role = toWorkspaceRole(user?.role);
 
-  const item = buildUserItem(name, email, {
-    role,
-    removable: Boolean(options?.removable),
-    onRemove: options?.onRemove
-  });
+  const item = buildUserItem(name, email, { role });
   item.dataset.userId = Number.isFinite(id) ? String(id) : "";
   item.dataset.userRole = role;
   item.dataset.userKey = `${id} ${name} ${email} ${role}`.toLowerCase();
@@ -709,6 +711,7 @@ const setAllUsersMode = () => {
 
 const loadUsersFromApi = async () => {
   if (!currentWorkspaceId) {
+    closeUserMiniMenu();
     if (userList) userList.innerHTML = "";
     return;
   }
@@ -722,11 +725,13 @@ const loadUsersFromApi = async () => {
   if (userAddInput) userAddInput.disabled = !isAdmin();
 
   userList.innerHTML = "";
+  closeUserMiniMenu();
 
   const allItem = buildUserItem("Все участники", "Все задачи");
   allItem.dataset.userId = "";
   allItem.classList.add("is-current");
   allItem.addEventListener("click", async () => {
+    closeUserMiniMenu();
     setAllUsersMode();
     await loadTasksFromApi();
   });
@@ -752,30 +757,39 @@ const loadUsersFromApi = async () => {
     .filter((u) => Number.isFinite(u.id) && u.name && u.email)
     .sort((a, b) => a.name.localeCompare(b.name))
     .forEach((u) => {
-      const removable = isAdmin() && Number(u.id) !== getActorUserId();
-      const item = buildUserItemFromApi(u, {
-        removable,
-        onRemove: async () => {
-          const response = await apiFetch(buildApiUrl(`/spaces/${currentWorkspaceId}/members/${u.id}`), {
-            method: "DELETE"
-          });
-          if (!response.ok) {
-            await handleApiError(response, "Удаление участника");
-            return;
-          }
-          await loadUsersFromApi();
-          await loadTasksFromApi();
-        }
-      });
-      item.addEventListener("click", async () => {
+      const item = buildUserItemFromApi(u);
+      item.addEventListener("click", () => {
         setCurrentUser(u);
-        await loadTasksFromApi();
+        void loadTasksFromApi();
+
+        const actorId = getActorUserId();
+        const canManage = isAdmin()
+          && Number.isFinite(Number(actorId))
+          && Number(u.id) !== Number(actorId)
+          && u.role !== "Owner";
+
+        openUserMiniMenu(item, u, {
+          canToggleAdmin: canManage,
+          canRemove: canManage
+        });
       });
       userList.appendChild(item);
     });
 
   refreshUserFilter();
-  setAllUsersMode();
+  const preservedId = Number(currentUserId);
+  if (Number.isFinite(preservedId) && preservedId > 0) {
+    const preservedItem = userList.querySelector(`.user-item[data-user-id="${preservedId}"]`);
+    if (preservedItem instanceof Element) {
+      Array.from(userList.querySelectorAll(".user-item")).forEach((el) => {
+        el.classList.toggle("is-current", el === preservedItem);
+      });
+    } else {
+      setAllUsersMode();
+    }
+  } else {
+    setAllUsersMode();
+  }
 };
 
 const updateMyMemberItem = (displayName, email) => {
@@ -1000,21 +1014,6 @@ const buildUserItem = (nickname, email, options) => {
     actions.appendChild(roleEl);
   }
 
-  if (options?.removable) {
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "user-remove-btn";
-    removeBtn.textContent = "Удалить";
-    removeBtn.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (typeof options.onRemove === "function") {
-        await options.onRemove();
-      }
-    });
-    actions.appendChild(removeBtn);
-  }
-
   if (actions.childElementCount > 0) {
     item.appendChild(actions);
   }
@@ -1022,8 +1021,303 @@ const buildUserItem = (nickname, email, options) => {
   return item;
 };
 
+let activeUserMiniMenu = null;
+let activeUserMiniMenuUserId = null;
+let activeUserMiniMenuAnchor = null;
+
+const closeUserMiniMenu = () => {
+  if (activeUserMiniMenuAnchor) {
+    activeUserMiniMenuAnchor.classList.remove("is-menu-open");
+  }
+  if (activeUserMiniMenu instanceof Element) {
+    activeUserMiniMenu.remove();
+  }
+  activeUserMiniMenu = null;
+  activeUserMiniMenuUserId = null;
+  activeUserMiniMenuAnchor = null;
+};
+
+const profileModal = document.getElementById("profile-modal");
+const profileUserNameEl = document.getElementById("profile-user-name");
+const profileAvatarEl = document.getElementById("profile-avatar");
+const profileAvatarTextEl = document.getElementById("profile-avatar-text");
+const profileUserEmailEl = document.getElementById("profile-user-email");
+const profileUserRoleEl = document.getElementById("profile-user-role");
+
+const avatarModal = document.getElementById("avatar-modal");
+const avatarModalTitleEl = document.getElementById("avatar-modal-title");
+const avatarModalAvatarEl = document.getElementById("avatar-modal-avatar");
+const avatarModalAvatarTextEl = document.getElementById("avatar-modal-avatar-text");
+
+let activeProfileMember = null;
+
+const isProfileModalOpen = () => Boolean(profileModal && !profileModal.hasAttribute("hidden"));
+
+const closeProfileModal = () => {
+  if (!isProfileModalOpen()) return false;
+  profileModal.setAttribute("hidden", "");
+  activeProfileMember = null;
+  return true;
+};
+
+const isAvatarModalOpen = () => Boolean(avatarModal && !avatarModal.hasAttribute("hidden"));
+
+const closeAvatarModal = () => {
+  if (!isAvatarModalOpen()) return false;
+  avatarModal.setAttribute("hidden", "");
+  return true;
+};
+
+const openAvatarModal = (member) => {
+  if (!avatarModal || !avatarModalAvatarEl) return;
+
+  const id = Number(member?.id);
+  const name = normalizeToken(member?.name) || "Пользователь";
+  const email = normalizeToken(member?.email) || "";
+  const initials = toInitials(name || email, "U");
+  const storedAvatar = getStoredAccountAvatar(id);
+
+  if (avatarModalTitleEl) avatarModalTitleEl.textContent = name;
+  applyAccountAvatarToElement(avatarModalAvatarEl, avatarModalAvatarTextEl, initials, storedAvatar);
+
+  avatarModal.removeAttribute("hidden");
+  window.setTimeout(() => {
+    const btn = avatarModal.querySelector("button[data-close-avatar]");
+    if (btn instanceof HTMLElement) {
+      btn.focus();
+    }
+  }, 0);
+};
+
+const openProfileModal = (member) => {
+  if (!profileModal) {
+    const name = normalizeToken(member?.name) || "Пользователь";
+    const email = normalizeToken(member?.email) || "-";
+    const role = normalizeToken(member?.role) || "Member";
+    window.alert(`${name}\n\nПочта: ${email}\nРоль: ${getRoleLabel(role)}`);
+    return;
+  }
+
+  const id = Number(member?.id);
+  const name = normalizeToken(member?.name) || "Пользователь";
+  const email = normalizeToken(member?.email) || "-";
+  const role = normalizeToken(member?.role) || "Member";
+  const initials = toInitials(name || email, "U");
+  const storedAvatar = getStoredAccountAvatar(id);
+
+  activeProfileMember = {
+    id,
+    name,
+    email,
+    role
+  };
+
+  if (profileUserNameEl) profileUserNameEl.textContent = name;
+  if (profileUserEmailEl) profileUserEmailEl.textContent = email;
+  if (profileUserRoleEl) profileUserRoleEl.textContent = getRoleLabel(role);
+  applyAccountAvatarToElement(profileAvatarEl, profileAvatarTextEl, initials, storedAvatar);
+
+  profileModal.removeAttribute("hidden");
+  window.setTimeout(() => {
+    const btn = profileModal.querySelector("button[data-close-profile]");
+    if (btn instanceof HTMLElement) {
+      btn.focus();
+    }
+  }, 0);
+};
+
+if (profileAvatarEl) {
+  profileAvatarEl.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!activeProfileMember) return;
+    openAvatarModal(activeProfileMember);
+  });
+}
+
+const WORKSPACE_ROLE_VALUES = {
+  Member: 1,
+  Admin: 2,
+  Owner: 3
+};
+
+const setUserMiniMenuBusy = (menu, busy) => {
+  if (!(menu instanceof Element)) return;
+  menu.classList.toggle("is-busy", Boolean(busy));
+  menu.querySelectorAll("button").forEach((btn) => {
+    if (!(btn instanceof HTMLButtonElement)) return;
+    if (btn.dataset.keepEnabled === "true") return;
+    btn.disabled = Boolean(busy);
+  });
+};
+
+const buildUserMiniMenu = (member, options) => {
+  const menu = document.createElement("div");
+  menu.className = "user-mini-menu";
+  menu.setAttribute("role", "menu");
+  menu.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+
+  const header = document.createElement("div");
+  header.className = "user-mini-menu-header";
+
+  const meta = document.createElement("div");
+  meta.className = "user-mini-menu-meta";
+  const nameEl = document.createElement("div");
+  nameEl.className = "user-mini-menu-name";
+  nameEl.textContent = normalizeToken(member?.name) || "Пользователь";
+  const emailEl = document.createElement("div");
+  emailEl.className = "user-mini-menu-email";
+  emailEl.textContent = normalizeToken(member?.email) || "";
+  meta.append(nameEl, emailEl);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "icon-btn user-mini-menu-close";
+  closeBtn.dataset.keepEnabled = "true";
+  closeBtn.setAttribute("aria-label", "Закрыть меню");
+  closeBtn.title = "Закрыть";
+  closeBtn.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 7l10 10M17 7L7 17" />
+    </svg>
+  `;
+  closeBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeUserMiniMenu();
+  });
+
+  header.append(meta, closeBtn);
+
+  const actions = document.createElement("div");
+  actions.className = "user-mini-menu-actions";
+
+  const profileBtn = document.createElement("button");
+  profileBtn.type = "button";
+  profileBtn.className = "ghost-btn";
+  profileBtn.textContent = "Открыть профиль";
+  profileBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    closeUserMiniMenu();
+    openProfileModal(member);
+  });
+  actions.appendChild(profileBtn);
+
+  const toggleAdminBtn = document.createElement("button");
+  toggleAdminBtn.type = "button";
+  toggleAdminBtn.className = "ghost-btn";
+  const currentRole = normalizeToken(member?.role) || "Member";
+  toggleAdminBtn.textContent = currentRole === "Admin" ? "Забрать администратора" : "Дать администратора";
+
+  if (!options?.canToggleAdmin) {
+    toggleAdminBtn.disabled = true;
+    toggleAdminBtn.title = "Недоступно";
+  }
+
+  toggleAdminBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (toggleAdminBtn.disabled) return;
+    void (async () => {
+      const userId = Number(member?.id);
+      if (!Number.isFinite(userId) || !currentWorkspaceId) return;
+      const nextRoleValue = currentRole === "Admin" ? WORKSPACE_ROLE_VALUES.Member : WORKSPACE_ROLE_VALUES.Admin;
+
+      setUserMiniMenuBusy(menu, true);
+      const updated = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Изменение роли участника", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({ userId, role: nextRoleValue })
+      });
+      setUserMiniMenuBusy(menu, false);
+
+      if (!updated) {
+        return;
+      }
+      closeUserMiniMenu();
+      await loadUsersFromApi();
+    })();
+  });
+  actions.appendChild(toggleAdminBtn);
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "danger-btn";
+  removeBtn.textContent = "Удалить";
+
+  if (!options?.canRemove) {
+    removeBtn.disabled = true;
+    removeBtn.title = "Недоступно";
+  }
+
+  removeBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (removeBtn.disabled) return;
+    void (async () => {
+      const userId = Number(member?.id);
+      if (!Number.isFinite(userId) || !currentWorkspaceId) return;
+
+      const displayName = normalizeToken(member?.name) || normalizeToken(member?.email) || `#${userId}`;
+      const confirmed = await openConfirmModal({
+        kicker: "Удаление участника",
+        title: `Удалить "${displayName}"?`,
+        message: "Пользователь потеряет доступ к задачам этого проекта.",
+        confirmText: "Удалить"
+      });
+      if (confirmed !== true) return;
+
+      setUserMiniMenuBusy(menu, true);
+      const response = await apiFetch(buildApiUrl(`/spaces/${currentWorkspaceId}/members/${userId}`), {
+        method: "DELETE"
+      });
+      setUserMiniMenuBusy(menu, false);
+
+      if (!response.ok) {
+        await handleApiError(response, "Удаление участника");
+        return;
+      }
+
+      closeUserMiniMenu();
+      await loadUsersFromApi();
+      await loadTasksFromApi();
+    })();
+  });
+  actions.appendChild(removeBtn);
+
+  menu.append(header, actions);
+  return menu;
+};
+
+const openUserMiniMenu = (anchor, member, options) => {
+  const userId = Number(member?.id);
+  if (!Number.isFinite(userId) || !(anchor instanceof Element)) return;
+
+  if (activeUserMiniMenuUserId === userId && activeUserMiniMenu instanceof Element) {
+    closeUserMiniMenu();
+    return;
+  }
+
+  closeUserMiniMenu();
+
+  anchor.classList.add("is-menu-open");
+  const menu = buildUserMiniMenu(member, options);
+  anchor.after(menu);
+
+  activeUserMiniMenu = menu;
+  activeUserMiniMenuUserId = userId;
+  activeUserMiniMenuAnchor = anchor;
+};
+
 const refreshUserFilter = () => {
   if (!userList) return;
+  closeUserMiniMenu();
   const query = normalizeToken(userSearch?.value).toLowerCase();
   const items = Array.from(userList.querySelectorAll(".user-item"));
   let visible = 0;
@@ -1079,7 +1373,7 @@ const shouldShowTrashZone = () => {
   if (!taskTrashZone || !board) return false;
   if (!isAdmin()) return false;
   if (board.dataset.style !== "columns") return false;
-  if (board.dataset.view === "calendar") return false;
+  if (board.dataset.view === "calendar" || board.dataset.view === "priority") return false;
   return true;
 };
 
@@ -1670,6 +1964,8 @@ const syncTaskStateToUi = () => {
 
 const isCalendarViewActive = () => (board?.dataset.view || "board") === "calendar";
 
+const isPriorityViewActive = () => (board?.dataset.view || "board") === "priority";
+
 const boardViewController = createBoardViewController({
   calendarLayout,
   clearBoardTasks,
@@ -1712,6 +2008,20 @@ const {
   removeTaskFromCalendar
 } = calendarViewController;
 
+const priorityViewController = createPriorityViewController({
+  calendarLayout,
+  board,
+  clearBoardTasks,
+  createTaskCard,
+  toPriorityValue
+});
+
+const {
+  renderPriorityView,
+  upsertTaskInPriority,
+  removeTaskFromPriority
+} = priorityViewController;
+
 const upsertFlowTaskItem = (taskData) => {
   if (!flowListItems) return;
   const taskId = Number.parseInt(String(taskData?.id ?? ""), 10);
@@ -1750,6 +2060,14 @@ const applyTaskUpsertToUi = (taskData) => {
     return;
   }
 
+  if (isPriorityViewActive()) {
+    const updated = upsertTaskInPriority(taskData);
+    if (!updated) {
+      syncTaskStateToUi();
+    }
+    return;
+  }
+
   upsertTaskInBoard(taskData);
 };
 
@@ -1758,6 +2076,14 @@ const applyTaskRemovalToUi = (taskId) => {
 
   if (isCalendarViewActive()) {
     const removed = removeTaskFromCalendar(taskId);
+    if (!removed) {
+      syncTaskStateToUi();
+    }
+    return;
+  }
+
+  if (isPriorityViewActive()) {
+    const removed = removeTaskFromPriority(taskId);
     if (!removed) {
       syncTaskStateToUi();
     }
@@ -2002,6 +2328,10 @@ const renderCurrentView = () => {
   const view = board?.dataset.view || "board";
   if (view === "calendar") {
     renderCalendarView(lastNormalizedTasks);
+    return;
+  }
+  if (view === "priority") {
+    renderPriorityView(lastNormalizedTasks);
     return;
   }
   renderBoardView(lastNormalizedTasks);
@@ -2532,6 +2862,34 @@ document.addEventListener("click", (event) => {
   }
 });
 
+document.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target || !profileModal || profileModal.hasAttribute("hidden")) return;
+  if (target.closest("[data-close-profile]")) {
+    closeProfileModal();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target || !avatarModal || avatarModal.hasAttribute("hidden")) return;
+  if (target.closest("[data-close-avatar]")) {
+    closeAvatarModal();
+  }
+});
+
+document.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!(activeUserMiniMenu instanceof Element)) return;
+  if (!target) {
+    closeUserMiniMenu();
+    return;
+  }
+  if (target.closest(".user-mini-menu")) return;
+  if (target.closest(".user-item")) return;
+  closeUserMiniMenu();
+});
+
 if (confirmModal) {
   confirmModal.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
@@ -2600,6 +2958,16 @@ document.addEventListener("keydown", (event) => {
       return;
     }
     if (closeConfirmModal(false)) {
+      return;
+    }
+    if (closeAvatarModal()) {
+      return;
+    }
+    if (closeProfileModal()) {
+      return;
+    }
+    if (activeUserMiniMenu instanceof Element) {
+      closeUserMiniMenu();
       return;
     }
     if (isNotificationsOpen()) {

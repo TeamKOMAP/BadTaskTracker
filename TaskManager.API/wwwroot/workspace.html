@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/workspace.css?v=perf14">
+  <link rel="stylesheet" href="css/workspace.css?v=perf22">
 </head>
 <body data-theme="dark">
   <div class="app-shell" id="app-shell">
@@ -73,6 +73,7 @@
          <button class="view-btn is-active" data-view="board" aria-pressed="true">Board</button>
          <button class="view-btn" data-view="list" aria-pressed="false">List</button>
          <button class="view-btn" data-view="calendar" aria-pressed="false">Calendar</button>
+         <button class="view-btn" data-view="priority" aria-pressed="false">Priority</button>
        </div>
       <div class="topbar-right">
         <div class="user-meta">
@@ -481,8 +482,59 @@
     </div>
   </div>
 
+  <div class="task-modal" id="profile-modal" hidden>
+    <div class="task-modal-backdrop" data-close-profile></div>
+    <div class="task-modal-card" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker">Профиль</span>
+          <h3 class="task-modal-title" id="profile-modal-title">Профиль</h3>
+        </div>
+        <button class="icon-btn" type="button" data-close-profile aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7l10 10M17 7L7 17" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="profile-hero" aria-label="Профиль пользователя">
+        <button class="profile-avatar" id="profile-avatar" type="button" aria-label="Открыть аватар пользователя">
+          <span id="profile-avatar-text">U</span>
+        </button>
+        <div class="profile-hero-meta">
+          <div class="profile-user-name" id="profile-user-name">Пользователь</div>
+          <div class="profile-user-email" id="profile-user-email">-</div>
+          <span class="profile-role" id="profile-user-role">-</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="task-modal" id="avatar-modal" hidden>
+    <div class="task-modal-backdrop" data-close-avatar></div>
+    <div class="task-modal-card avatar-modal-card" role="dialog" aria-modal="true" aria-labelledby="avatar-modal-title">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker">Аватар</span>
+          <h3 class="task-modal-title" id="avatar-modal-title">Аватар</h3>
+        </div>
+        <button class="icon-btn" type="button" data-close-avatar aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7l10 10M17 7L7 17" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="avatar-modal-body">
+        <div class="avatar-modal-avatar" id="avatar-modal-avatar" role="img" aria-label="Аватар пользователя">
+          <span id="avatar-modal-avatar-text">U</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow16"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow27"></script>
 </body>
 </html>
