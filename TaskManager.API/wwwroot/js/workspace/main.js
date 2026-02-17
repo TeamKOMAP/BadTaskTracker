@@ -90,7 +90,7 @@ import {
   hasAccessToken,
   setAccessToken,
   clearAccessToken
-} from "../shared/api.js?v=auth2";
+} from "../shared/api.js?v=auth5";
 import {
   DEFAULT_PRIORITY_VALUE,
   STORAGE_WORKSPACE_ID,
@@ -101,6 +101,14 @@ import {
 } from "../shared/constants.js";
 import { navigateToSpacesPage } from "../shared/navigation.js";
 import { normalizeToken, normalizeEmail, toInitials, toWorkspaceRole, clampValue } from "../shared/utils.js";
+import { getRoleLabel } from "../shared/roles.js?v=auth1";
+import {
+  getStoredAccountNickname,
+  setStoredAccountNickname,
+  getStoredAccountAvatar,
+  setStoredAccountAvatar,
+  applyAccountAvatarToElement
+} from "../shared/account-prefs.js?v=auth1";
 import {
   toStatusValue,
   toPriorityValue,
@@ -121,7 +129,7 @@ import {
   buildTaskKey,
   buildFlowNote,
   getCalendarBucketId
-} from "./helpers.js?v=authflow2";
+} from "./helpers.js?v=authflow3";
 import {
   getPreferredTheme,
   setTheme,
@@ -129,7 +137,10 @@ import {
   setStoredTaskMeta,
   getStoredTaskBg
 } from "./storage.js";
-import { createTaskDetailController } from "./task-detail.js?v=perf4";
+import { createBoardViewController } from "./board-view.js?v=perf1";
+import { createCalendarViewController } from "./calendar-view.js?v=perf1";
+import { createFlowEditorController } from "./flow-editor.js?v=perf1";
+import { createTaskDetailController } from "./task-detail.js?v=perf6";
 
 let lastNormalizedTasks = [];
 
@@ -183,14 +194,6 @@ const getActorUserId = () => {
 
 const extraColumnNames = ["Backlog", "Blocked", "QA", "Ideas", "Ready"];
 
-const ROLE_LABELS = {
-  Owner: "Владелец",
-  Admin: "Администратор",
-  Member: "Участник"
-};
-
-const getRoleLabel = (role) => ROLE_LABELS[String(role || "")] || String(role || "");
-
 const FLOW_STATUS_LABELS = {
   1: "New",
   2: "In Progress",
@@ -207,8 +210,6 @@ let dragTask = null;
 let dragTaskColumn = null;
 let lastTaskAfter = null;
 let lastTaskContainer = null;
-let selectedFlowNode = null;
-const flowConnections = new Map();
 let activeTaskColumn = null;
 let editingTaskId = null;
 let editingTaskCard = null;
@@ -310,12 +311,6 @@ const setBoardView = (view) => {
     btn.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
   renderCurrentView();
-};
-
-const updateFlowEmptyState = () => {
-  if (!flowCanvas || !flowDropzone) return;
-  const hasNodes = Boolean(flowCanvas.querySelector(".flow-node"));
-  flowDropzone.classList.toggle("is-hidden", hasNodes);
 };
 
 const isPanelOpen = () => appShell?.classList.contains("is-panel-open");
@@ -822,8 +817,21 @@ const setTaskCardAttachmentCount = (card, count) => {
 };
 
 const applyAttachmentCountToCards = (id, count) => {
+  const taskId = Number.parseInt(String(id || ""), 10);
+  const normalizedCount = Number.isFinite(Number(count)) && Number(count) > 0 ? Number(count) : 0;
+  if (Number.isFinite(taskId)) {
+    lastNormalizedTasks = lastNormalizedTasks.map((task) => {
+      const currentId = Number.parseInt(String(task?.id ?? ""), 10);
+      if (!Number.isFinite(currentId) || currentId !== taskId) return task;
+      return {
+        ...task,
+        attachmentCount: normalizedCount
+      };
+    });
+  }
+
   document.querySelectorAll(`.task-card[data-task-id="${id}"]`).forEach((card) => {
-    setTaskCardAttachmentCount(card, count);
+    setTaskCardAttachmentCount(card, normalizedCount);
   });
 };
 
@@ -1095,6 +1103,11 @@ const createTaskCard = (taskData) => {
     card.dataset.tagIds = "";
   }
 
+  const attachmentCount = Number(taskData?.attachmentCount);
+  card.dataset.attachmentCount = Number.isFinite(attachmentCount) && attachmentCount > 0
+    ? String(attachmentCount)
+    : "0";
+
   const dueIso = card.dataset.dueDate || taskData.dueDate;
   const urgency = getUrgency(dueIso, statusValue);
   if (urgency && urgency !== URGENCY.none) {
@@ -1155,7 +1168,6 @@ const createTaskCard = (taskData) => {
   card.append(head, title, text, footer);
   initTaskCard(card);
   if (taskData.id !== undefined && taskData.id !== null) {
-    // will be refreshed after load; keep initial hidden
     setTaskCardAttachmentCount(card, Number(card.dataset.attachmentCount || 0));
   }
   return card;
@@ -1196,6 +1208,28 @@ const createFlowTaskItem = (taskData) => {
   item.append(tag, title, noteEl);
   return item;
 };
+
+const flowEditorController = createFlowEditorController({
+  flowCanvas,
+  flowLinks,
+  flowDropzone,
+  flowListItems,
+  clampValue,
+  normalizeToken,
+  buildTaskKey,
+  buildFlowNote,
+  getFlowStatusLabel,
+  getTasks: () => lastNormalizedTasks,
+  createFlowTaskItem
+});
+
+const {
+  updateFlowEmptyState,
+  updateFlowLines,
+  initFlowTask,
+  rebuildFlowPool,
+  bindCanvasInteractions
+} = flowEditorController;
 
 const addTaskToColumn = (column, taskCard) => {
   if (!column || !taskCard) return;
@@ -1310,7 +1344,10 @@ const normalizeApiTask = (task) => {
     assigneeId: task?.assigneeId ?? null,
     dueDate: task?.dueDate,
     tags: metaTags || (apiTagNames.length ? apiTagNames : tagIds.map((id) => `Tag-${id}`)),
-    tagIds
+    tagIds,
+    attachmentCount: Number.isFinite(Number(task?.attachmentCount)) && Number(task.attachmentCount) > 0
+      ? Number(task.attachmentCount)
+      : 0
   };
 };
 
@@ -1328,17 +1365,6 @@ const clearBoardTasks = () => {
   document.querySelectorAll(".column .task-card").forEach((card) => card.remove());
 };
 
-const rebuildFlowPool = (tasks) => {
-  if (!flowListItems) return;
-  flowListItems.querySelectorAll(".flow-task").forEach((item) => item.remove());
-
-  (Array.isArray(tasks) ? tasks : []).forEach((taskData) => {
-    const flowItem = createFlowTaskItem(taskData);
-    flowListItems.appendChild(flowItem);
-    initFlowTask(flowItem);
-  });
-};
-
 const fetchTasks = async () => {
   if (!currentWorkspaceId) return [];
 
@@ -1354,6 +1380,153 @@ const fetchTasks = async () => {
     return null;
   }
   return response.json();
+};
+
+const isTaskVisibleWithCurrentFilters = (taskData) => {
+  const filterId = Number.parseInt(String(currentAssigneeIdFilter ?? ""), 10);
+  if (!Number.isFinite(filterId) || filterId <= 0) {
+    return true;
+  }
+
+  const assigneeId = Number.parseInt(String(taskData?.assigneeId ?? ""), 10);
+  return Number.isFinite(assigneeId) && assigneeId === filterId;
+};
+
+const upsertTaskInState = (taskData) => {
+  const taskId = Number.parseInt(String(taskData?.id ?? ""), 10);
+  if (!Number.isFinite(taskId) || taskId <= 0) return;
+
+  let replaced = false;
+  lastNormalizedTasks = lastNormalizedTasks.map((item) => {
+    const itemId = Number.parseInt(String(item?.id ?? ""), 10);
+    if (!Number.isFinite(itemId) || itemId !== taskId) {
+      return item;
+    }
+
+    replaced = true;
+    return {
+      ...item,
+      ...taskData
+    };
+  });
+
+  if (!replaced) {
+    lastNormalizedTasks = [...lastNormalizedTasks, taskData];
+  }
+};
+
+const removeTaskFromState = (taskId) => {
+  const normalizedId = Number.parseInt(String(taskId ?? ""), 10);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) return;
+
+  lastNormalizedTasks = lastNormalizedTasks.filter((task) => {
+    const itemId = Number.parseInt(String(task?.id ?? ""), 10);
+    return !Number.isFinite(itemId) || itemId !== normalizedId;
+  });
+};
+
+const syncTaskStateToUi = () => {
+  rebuildFlowPool(lastNormalizedTasks);
+  renderCurrentView();
+};
+
+const isCalendarViewActive = () => (board?.dataset.view || "board") === "calendar";
+
+const boardViewController = createBoardViewController({
+  calendarLayout,
+  clearBoardTasks,
+  addTaskToBoard,
+  addTaskToColumn,
+  getDefaultColumn,
+  createTaskCard,
+  ensureColumnPlaceholder,
+  updateColumnCount,
+  updateFlowEmptyState,
+  refreshAllTaskTimings,
+  setColumnDelays,
+  updateTaskCardStatus,
+  refreshTaskCardTiming,
+  setTaskCardAttachmentCount,
+  toStatusValue,
+  toPriorityValue,
+  getColumnIdForStatus,
+  getPriorityLabel
+});
+
+const {
+  renderBoardView,
+  upsertTaskInBoard,
+  removeTaskFromBoard
+} = boardViewController;
+
+const calendarViewController = createCalendarViewController({
+  calendarLayout,
+  board,
+  clearBoardTasks,
+  createTaskCard,
+  getCalendarBucketId,
+  toPriorityValue
+});
+
+const {
+  renderCalendarView,
+  upsertTaskInCalendar,
+  removeTaskFromCalendar
+} = calendarViewController;
+
+const upsertFlowTaskItem = (taskData) => {
+  if (!flowListItems) return;
+  const taskId = Number.parseInt(String(taskData?.id ?? ""), 10);
+  if (!Number.isFinite(taskId) || taskId <= 0) return;
+
+  const existing = flowListItems.querySelector(`.flow-task[data-task-id="${taskId}"]`);
+  if (existing) {
+    existing.remove();
+  }
+
+  const flowItem = createFlowTaskItem(taskData);
+  flowListItems.appendChild(flowItem);
+  initFlowTask(flowItem);
+};
+
+const removeFlowTaskItem = (taskId) => {
+  if (!flowListItems) return;
+  const normalizedId = Number.parseInt(String(taskId ?? ""), 10);
+  if (!Number.isFinite(normalizedId) || normalizedId <= 0) return;
+  const existing = flowListItems.querySelector(`.flow-task[data-task-id="${normalizedId}"]`);
+  if (existing) {
+    existing.remove();
+  }
+};
+
+const applyTaskUpsertToUi = (taskData) => {
+  if (!taskData) return;
+
+  upsertFlowTaskItem(taskData);
+
+  if (isCalendarViewActive()) {
+    const updated = upsertTaskInCalendar(taskData);
+    if (!updated) {
+      syncTaskStateToUi();
+    }
+    return;
+  }
+
+  upsertTaskInBoard(taskData);
+};
+
+const applyTaskRemovalToUi = (taskId) => {
+  removeFlowTaskItem(taskId);
+
+  if (isCalendarViewActive()) {
+    const removed = removeTaskFromCalendar(taskId);
+    if (!removed) {
+      syncTaskStateToUi();
+    }
+    return;
+  }
+
+  removeTaskFromBoard(taskId);
 };
 
 const createTaskViaApi = async (uiTaskData) => {
@@ -1387,77 +1560,40 @@ const createTaskViaApi = async (uiTaskData) => {
     return;
   }
 
-  const createdTask = await response.json();
-  const taskData = normalizeApiTask(createdTask);
-  const createdId = taskData.id;
+  let createdTask = null;
+  try {
+    createdTask = await response.json();
+  } catch {
+    createdTask = null;
+  }
+
+  const createdId = Number.parseInt(String(createdTask?.id ?? ""), 10);
+  if (!Number.isFinite(createdId) || createdId <= 0) {
+    closeTaskModal();
+    await loadTasksFromApi();
+    return;
+  }
+
   const tags = Array.isArray(uiTaskData.tags) ? uiTaskData.tags.filter((t) => typeof t === "string" && t.trim()) : [];
-  if (createdId !== undefined && createdId !== null) {
+  if (Number.isFinite(createdId) && createdId > 0) {
     setStoredTaskMeta(createdId, { tags });
   }
+
+  const taskData = normalizeApiTask(createdTask);
   if (tags.length) taskData.tags = tags;
+
+  if (isTaskVisibleWithCurrentFilters(taskData)) {
+    upsertTaskInState(taskData);
+    applyTaskUpsertToUi(taskData);
+  } else {
+    removeTaskFromState(createdId);
+    applyTaskRemovalToUi(createdId);
+  }
+
   closeTaskModal();
-  await loadTasksFromApi();
-};
-
-const upsertTaskChips = (footer, tags) => {
-  if (!(footer instanceof Element)) return;
-  footer.querySelectorAll(".task-chip").forEach((chip) => chip.remove());
-  const actions = footer.querySelector(".task-actions");
-  const fragment = document.createDocumentFragment();
-  (Array.isArray(tags) ? tags : []).forEach((item) => {
-    const value = normalizeToken(item);
-    if (!value) return;
-    const chip = document.createElement("span");
-    chip.className = "task-chip";
-    chip.textContent = value;
-    fragment.appendChild(chip);
-  });
-  if (actions) {
-    footer.insertBefore(fragment, actions);
-  } else {
-    footer.appendChild(fragment);
-  }
-};
-
-const updateFlowTaskItemForId = (id, taskData) => {
-  if (!flowListItems) return;
-  const item = flowListItems.querySelector(`.flow-task[data-task-id="${id}"]`);
-  if (!item) return;
-
-  const statusValue = toStatusValue(taskData.statusValue ?? taskData.status);
-  const statusLabel = getFlowStatusLabel(statusValue);
-  const note = buildFlowNote({ ...taskData, statusValue });
-
-  item.dataset.taskTitle = taskData.title || "New task";
-  item.dataset.taskTag = statusLabel;
-  item.dataset.taskNote = note;
-  item.dataset.taskDescription = taskData.description || "";
-  item.dataset.taskKey = buildTaskKey({
-    title: item.dataset.taskTitle,
-    tag: item.dataset.taskTag,
-    note: item.dataset.taskNote
-  });
-  if (taskData.dueDate) {
-    item.dataset.taskDueDate = taskData.dueDate;
-  } else {
-    delete item.dataset.taskDueDate;
-  }
-  item.dataset.taskUrgency = getUrgency(taskData.dueDate, statusValue);
-
-  const tagEl = item.querySelector(".flow-task-tag");
-  if (tagEl) tagEl.textContent = statusLabel;
-  const titleEl = item.querySelector(".flow-task-title");
-  if (titleEl) titleEl.textContent = taskData.title || "New task";
-  const noteEl = item.querySelector(".flow-task-note");
-  if (noteEl) noteEl.textContent = note;
-
 };
 
 const updateTaskViaApi = async (id, uiTaskData) => {
-  const card = editingTaskCard
-    || document.querySelector(`.task-card[data-task-id="${id}"]`);
-  if (!(card instanceof Element)) return;
-
   const statusValue = toStatusValue(uiTaskData.statusValue);
   const tagIds = Array.isArray(uiTaskData.tagIds) ? uiTaskData.tagIds : [];
 
@@ -1493,44 +1629,50 @@ const updateTaskViaApi = async (id, uiTaskData) => {
     return;
   }
 
+  let updatedTask = null;
+  try {
+    updatedTask = await response.json();
+  } catch {
+    updatedTask = null;
+  }
+
+  const updatedId = Number.parseInt(String(updatedTask?.id ?? id), 10);
+  if (!Number.isFinite(updatedId) || updatedId <= 0) {
+    closeTaskModal();
+    await loadTasksFromApi();
+    return;
+  }
+
   const tags = Array.isArray(uiTaskData.tags)
     ? uiTaskData.tags.filter((t) => typeof t === "string" && t.trim())
     : [];
-  setStoredTaskMeta(id, { tags });
+  setStoredTaskMeta(updatedId, { tags });
 
-  const tagEl = card.querySelector(".task-tag");
-  if (tagEl) tagEl.textContent = STATUS_LABELS[statusValue] || "Новая";
-  const titleEl = card.querySelector("h3");
-  if (titleEl) titleEl.textContent = uiTaskData.title || titleEl.textContent;
-  const textEl = card.querySelector(".task-text");
-  if (textEl) textEl.textContent = uiTaskData.description || "";
-
-  if (assigneeId) {
-    card.dataset.assigneeId = String(assigneeId);
-  } else {
-    delete card.dataset.assigneeId;
-  }
-  card.dataset.dueDate = dueDate;
-  card.dataset.priorityValue = String(priority);
-  card.dataset.priority = getPriorityLabel(priority);
-  card.dataset.taskStatus = String(statusValue);
-  card.dataset.tagIds = tagIds.join(",");
-
-  const footer = card.querySelector(".task-footer");
-  upsertTaskChips(footer, tags);
-  refreshTaskCardTiming(card);
-
-  updateFlowTaskItemForId(id, {
-    id,
+  const normalizedTask = normalizeApiTask(updatedTask || {
+    id: updatedId,
     title: uiTaskData.title,
     description: uiTaskData.description,
+    status: statusValue,
+    assigneeId,
     dueDate,
-    statusValue,
-    tags
+    priority,
+    tagIds,
+    attachmentCount: 0
   });
 
+  if (tags.length) {
+    normalizedTask.tags = tags;
+  }
+
+  if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
+    upsertTaskInState(normalizedTask);
+    applyTaskUpsertToUi(normalizedTask);
+  } else {
+    removeTaskFromState(updatedId);
+    applyTaskRemovalToUi(updatedId);
+  }
+
   closeTaskModal();
-  await loadTasksFromApi();
 };
 
 const buildUpdatePayloadFromCard = (card, statusValue) => {
@@ -1569,10 +1711,30 @@ const updateTaskStatus = async (card, statusValue) => {
   });
   if (!response.ok) {
     await handleApiError(response, "Обновление задачи");
+    syncTaskStateToUi();
     return;
   }
 
-  await loadTasksFromApi();
+  let updatedTask = null;
+  try {
+    updatedTask = await response.json();
+  } catch {
+    updatedTask = null;
+  }
+
+  if (!updatedTask || !Number.isFinite(Number(updatedTask.id))) {
+    await loadTasksFromApi();
+    return;
+  }
+
+  const normalizedTask = normalizeApiTask(updatedTask);
+  if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
+    upsertTaskInState(normalizedTask);
+    applyTaskUpsertToUi(normalizedTask);
+  } else {
+    removeTaskFromState(normalizedTask.id);
+    applyTaskRemovalToUi(normalizedTask.id);
+  }
 };
 
 const deleteTaskViaApi = async (id) => {
@@ -1595,124 +1757,7 @@ const loadTasksFromApi = async () => {
   const tasks = await fetchTasks();
   if (!Array.isArray(tasks)) return;
   lastNormalizedTasks = tasks.map(normalizeApiTask);
-  rebuildFlowPool(lastNormalizedTasks);
-  renderCurrentView();
-};
-
-const syncAttachmentIndicators = async () => {
-  const cards = Array.from(document.querySelectorAll('.task-card[data-task-id]:not(.is-empty)'));
-  const ids = Array.from(new Set(cards
-    .map((c) => Number.parseInt(c.dataset.taskId || "", 10))
-    .filter((id) => Number.isFinite(id))));
-  if (!ids.length) return;
-
-  const concurrency = 8;
-  let index = 0;
-
-  const worker = async () => {
-    while (index < ids.length) {
-      const id = ids[index];
-      index += 1;
-      const meta = await fetchJsonOrNull(buildApiUrl(`/tasks/${id}/attachments/exists`), "Метаданные вложений", {
-        headers: { Accept: "application/json" }
-      });
-      const count = meta && Number.isFinite(Number(meta.count)) ? Number(meta.count) : 0;
-      applyAttachmentCountToCards(id, count);
-    }
-  };
-
-  await Promise.all(Array.from({ length: Math.min(concurrency, ids.length) }, worker));
-};
-
-const renderCalendarView = (tasks) => {
-  if (!calendarLayout || !board) return;
-  clearBoardTasks();
-  calendarLayout.innerHTML = "";
-  calendarLayout.setAttribute("aria-hidden", "false");
-
-  const buckets = [
-    { id: "high", title: "Высокий приоритет" },
-    { id: "today", title: "Сегодня" },
-    { id: "week", title: "В течение недели" },
-    { id: "gtweek", title: "Больше недели" },
-    { id: "gtmonth", title: "Больше месяца" },
-    { id: "done", title: "Завершено" },
-    { id: "overdue", title: "Просрочено" }
-  ];
-
-  const lists = new Map(buckets.map((b) => [b.id, []]));
-  (Array.isArray(tasks) ? tasks : []).forEach((t) => {
-    const id = getCalendarBucketId(t);
-    const arr = lists.get(id);
-    if (arr) arr.push(t);
-  });
-
-  const sortTasks = (a, b) => {
-    const ad = a?.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
-    const bd = b?.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
-    const ap = toPriorityValue(a?.priorityValue ?? a?.priority);
-    const bp = toPriorityValue(b?.priorityValue ?? b?.priority);
-    if (ad !== bd) return ad - bd;
-    if (ap !== bp) return bp - ap;
-    return String(a?.title || "").localeCompare(String(b?.title || ""));
-  };
-
-  buckets.forEach((bucket) => {
-    const group = document.createElement("section");
-    group.className = "calendar-group";
-    group.dataset.groupId = bucket.id;
-
-    const header = document.createElement("header");
-    header.className = "calendar-group-header";
-    const title = document.createElement("div");
-    title.className = "calendar-group-title";
-    title.textContent = bucket.title;
-    const count = document.createElement("span");
-    count.className = "calendar-group-count";
-
-    const body = document.createElement("div");
-    body.className = "calendar-group-body";
-
-    const list = (lists.get(bucket.id) || []).slice().sort(sortTasks);
-    count.textContent = String(list.length);
-
-    if (list.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "task-detail-attachments-empty";
-      empty.textContent = "Нет задач";
-      body.appendChild(empty);
-    } else {
-      list.forEach((t) => {
-        const card = createTaskCard(t);
-        card.setAttribute("draggable", "false");
-        body.appendChild(card);
-      });
-    }
-
-    header.append(title, count);
-    group.append(header, body);
-    calendarLayout.appendChild(group);
-  });
-
-  void syncAttachmentIndicators();
-};
-
-const renderBoardView = (tasks) => {
-  if (calendarLayout) {
-    calendarLayout.setAttribute("aria-hidden", "true");
-    calendarLayout.innerHTML = "";
-  }
-  clearBoardTasks();
-  (Array.isArray(tasks) ? tasks : []).forEach((task) => addTaskToBoard(task));
-
-  document.querySelectorAll(".column").forEach((column) => {
-    updateColumnCount(column);
-    ensureColumnPlaceholder(column);
-  });
-  updateFlowEmptyState();
-  setColumnDelays();
-  refreshAllTaskTimings();
-  void syncAttachmentIndicators();
+  syncTaskStateToUi();
 };
 
 const renderCurrentView = () => {
@@ -1722,258 +1767,6 @@ const renderCurrentView = () => {
     return;
   }
   renderBoardView(lastNormalizedTasks);
-};
-
-const clampNodePosition = (node, left, top) => {
-  if (!flowCanvas) return { left, top };
-  const padding = 16;
-  const maxLeft = flowCanvas.clientWidth - node.offsetWidth - padding;
-  const maxTop = flowCanvas.clientHeight - node.offsetHeight - padding;
-  return {
-    left: clampValue(left, padding, Math.max(padding, maxLeft)),
-    top: clampValue(top, padding, Math.max(padding, maxTop))
-  };
-};
-
-const highlightDuplicateNode = (node) => {
-  if (!node) return;
-  node.classList.add("is-duplicate");
-  window.setTimeout(() => {
-    node.classList.remove("is-duplicate");
-  }, 500);
-};
-
-const updateFlowLines = () => {
-  if (!flowCanvas || !flowLinks) return;
-  const canvasRect = flowCanvas.getBoundingClientRect();
-
-  const getEdgePoint = (center, size, dx, dy, padding) => {
-    const absDx = Math.abs(dx);
-    const absDy = Math.abs(dy);
-    if (absDx < 0.001 && absDy < 0.001) {
-      return { x: center.x, y: center.y };
-    }
-    let t = 0;
-    if (absDx === 0) {
-      t = (size.h / 2) / absDy;
-    } else if (absDy === 0) {
-      t = (size.w / 2) / absDx;
-    } else {
-      t = Math.min((size.w / 2) / absDx, (size.h / 2) / absDy);
-    }
-    const len = Math.hypot(dx, dy);
-    const nx = dx / len;
-    const ny = dy / len;
-    return {
-      x: center.x + dx * t + nx * padding,
-      y: center.y + dy * t + ny * padding
-    };
-  };
-
-  for (const [key, line] of flowConnections.entries()) {
-    const fromNode = flowCanvas.querySelector(`[data-node-id="${line.dataset.from}"]`);
-    const toNode = flowCanvas.querySelector(`[data-node-id="${line.dataset.to}"]`);
-    if (!fromNode || !toNode) {
-      line.remove();
-      flowConnections.delete(key);
-      continue;
-    }
-
-    const fromRect = fromNode.getBoundingClientRect();
-    const toRect = toNode.getBoundingClientRect();
-    const fromCenter = {
-      x: fromRect.left + fromRect.width / 2 - canvasRect.left,
-      y: fromRect.top + fromRect.height / 2 - canvasRect.top
-    };
-    const toCenter = {
-      x: toRect.left + toRect.width / 2 - canvasRect.left,
-      y: toRect.top + toRect.height / 2 - canvasRect.top
-    };
-    const dx = toCenter.x - fromCenter.x;
-    const dy = toCenter.y - fromCenter.y;
-    const start = getEdgePoint(
-      fromCenter,
-      { w: fromRect.width, h: fromRect.height },
-      dx,
-      dy,
-      4
-    );
-    const end = getEdgePoint(
-      toCenter,
-      { w: toRect.width, h: toRect.height },
-      -dx,
-      -dy,
-      8
-    );
-    line.setAttribute("x1", start.x);
-    line.setAttribute("y1", start.y);
-    line.setAttribute("x2", end.x);
-    line.setAttribute("y2", end.y);
-  }
-};
-
-const connectFlowNodes = (fromNode, toNode) => {
-  if (!flowLinks) return;
-  const fromId = fromNode.dataset.nodeId;
-  const toId = toNode.dataset.nodeId;
-  if (!fromId || !toId || fromId === toId) return;
-  const key = `${fromId}=>${toId}`;
-  if (flowConnections.has(key)) return;
-  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-  line.classList.add("flow-line");
-  line.dataset.from = fromId;
-  line.dataset.to = toId;
-  flowLinks.appendChild(line);
-  flowConnections.set(key, line);
-  updateFlowLines();
-};
-
-const removeOutgoingConnectionsForNode = (node) => {
-  const nodeId = node.dataset.nodeId;
-  if (!nodeId) return;
-  const keysToRemove = [];
-  for (const [key, line] of flowConnections.entries()) {
-    if (line.dataset.from === nodeId) {
-      line.remove();
-      keysToRemove.push(key);
-    }
-  }
-  keysToRemove.forEach((key) => flowConnections.delete(key));
-  updateFlowLines();
-};
-
-const removeAllConnectionsForNode = (node) => {
-  const nodeId = node.dataset.nodeId;
-  if (!nodeId) return;
-  const keysToRemove = [];
-  for (const [key, line] of flowConnections.entries()) {
-    if (line.dataset.from === nodeId || line.dataset.to === nodeId) {
-      line.remove();
-      keysToRemove.push(key);
-    }
-  }
-  keysToRemove.forEach((key) => flowConnections.delete(key));
-  updateFlowLines();
-};
-
-const clearFlowSelection = () => {
-  if (selectedFlowNode) {
-    selectedFlowNode.classList.remove("is-selected");
-  }
-  selectedFlowNode = null;
-};
-
-const removeFlowNode = (node) => {
-  if (!node) return;
-  if (selectedFlowNode === node) {
-    clearFlowSelection();
-  }
-  removeAllConnectionsForNode(node);
-  node.remove();
-  updateFlowEmptyState();
-};
-
-const handleFlowNodeSelect = (node) => {
-  if (!selectedFlowNode) {
-    selectedFlowNode = node;
-    node.classList.add("is-selected");
-    return;
-  }
-  if (selectedFlowNode === node) {
-    clearFlowSelection();
-    return;
-  }
-  connectFlowNodes(selectedFlowNode, node);
-  clearFlowSelection();
-};
-
-const initFlowNode = (node) => {
-  node.addEventListener("pointerdown", (event) => {
-    if (event.target instanceof Element && event.target.closest(".flow-node-remove")) {
-      return;
-    }
-    if (event.button !== 0) return;
-    const startX = event.clientX;
-    const startY = event.clientY;
-    const startLeft = parseFloat(node.style.left) || 0;
-    const startTop = parseFloat(node.style.top) || 0;
-    let moved = false;
-
-    node.setPointerCapture(event.pointerId);
-
-    const onMove = (moveEvent) => {
-      const dx = moveEvent.clientX - startX;
-      const dy = moveEvent.clientY - startY;
-      if (Math.abs(dx) + Math.abs(dy) > 3) {
-        moved = true;
-      }
-      if (!moved) return;
-      const next = clampNodePosition(node, startLeft + dx, startTop + dy);
-      node.style.left = `${next.left}px`;
-      node.style.top = `${next.top}px`;
-      updateFlowLines();
-    };
-
-    const onUp = (upEvent) => {
-      node.releasePointerCapture(upEvent.pointerId);
-      node.removeEventListener("pointermove", onMove);
-      node.removeEventListener("pointerup", onUp);
-      if (!moved) {
-        handleFlowNodeSelect(node);
-      }
-    };
-
-    node.addEventListener("pointermove", onMove);
-    node.addEventListener("pointerup", onUp);
-  });
-
-  const removeBtn = node.querySelector(".flow-node-remove");
-  if (removeBtn) {
-    removeBtn.addEventListener("click", (event) => {
-      event.stopPropagation();
-      removeOutgoingConnectionsForNode(node);
-    });
-  }
-
-  node.addEventListener("dblclick", (event) => {
-    if (event.target instanceof Element && event.target.closest(".flow-node-remove")) {
-      return;
-    }
-    event.stopPropagation();
-    removeFlowNode(node);
-  });
-};
-
-const createFlowNode = (taskData, position) => {
-  if (!flowCanvas) return null;
-  const node = document.createElement("div");
-  node.className = "flow-node";
-  node.dataset.nodeId = `node-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-  node.dataset.taskKey = taskData?.taskKey ? String(taskData.taskKey) : buildTaskKey(taskData);
-  if (taskData?.taskId) {
-    node.dataset.taskId = String(taskData.taskId);
-  }
-  node.innerHTML = `
-    <button class="flow-node-remove" type="button" aria-label="Clear outgoing links">
-      <svg viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M7 7l10 10M17 7L7 17" />
-      </svg>
-    </button>
-    <span class="flow-node-tag">${taskData.tag || "Task"}</span>
-    <h4 class="flow-node-title">${taskData.title || "New task"}</h4>
-    <p class="flow-node-note">${taskData.note || ""}</p>
-  `;
-  flowCanvas.appendChild(node);
-
-  const adjustedLeft = position.x - node.offsetWidth / 2;
-  const adjustedTop = position.y - node.offsetHeight / 2;
-  const next = clampNodePosition(node, adjustedLeft, adjustedTop);
-  node.style.left = `${next.left}px`;
-  node.style.top = `${next.top}px`;
-  initFlowNode(node);
-  updateFlowEmptyState();
-  updateFlowLines();
-  return node;
 };
 
 const initColumn = (column) => {
@@ -2263,13 +2056,19 @@ if (taskTrashZone) {
     });
     if (confirmed !== true) {
       setTrashZoneVisible(false);
-      void loadTasksFromApi();
+      syncTaskStateToUi();
       return;
     }
     void (async () => {
-      await deleteTaskViaApi(id);
+      const deleted = await deleteTaskViaApi(id);
       setTrashZoneVisible(false);
-      await loadTasksFromApi();
+      if (!deleted) {
+        syncTaskStateToUi();
+        return;
+      }
+
+      removeTaskFromState(id);
+      applyTaskRemovalToUi(id);
     })();
   });
 }
@@ -2318,28 +2117,6 @@ if (styleToggle) {
     setLayoutStyle(nextStyle);
   });
 }
-
-const initFlowTask = (task) => {
-  if (!task) return;
-  task.addEventListener("dragstart", (event) => {
-      const payload = {
-        title: task.dataset.taskTitle || task.textContent.trim(),
-        tag: task.dataset.taskTag || "Task",
-        note: task.dataset.taskDescription || task.dataset.taskNote || "",
-        taskKey: task.dataset.taskKey || "",
-        taskId: task.dataset.taskId || ""
-      };
-    if (!payload.taskKey) {
-      payload.taskKey = buildTaskKey(payload);
-      task.dataset.taskKey = payload.taskKey;
-    }
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = "copy";
-      event.dataTransfer.setData("text/plain", JSON.stringify(payload));
-      event.dataTransfer.setDragImage(task, 20, 20);
-    }
-  });
-};
 
 document.querySelectorAll(".flow-task").forEach(initFlowTask);
 
@@ -2770,85 +2547,7 @@ if (taskBgInput) {
   taskBgInput.addEventListener("change", taskDetailController.onTaskBgInputChange);
 }
 
-if (flowCanvas) {
-  flowCanvas.addEventListener("dragover", (event) => {
-    event.preventDefault();
-    flowCanvas.classList.add("is-dragging-over");
-  });
-
-  flowCanvas.addEventListener("dragleave", () => {
-    flowCanvas.classList.remove("is-dragging-over");
-  });
-
-  flowCanvas.addEventListener("drop", (event) => {
-    event.preventDefault();
-    flowCanvas.classList.remove("is-dragging-over");
-    if (!event.dataTransfer) return;
-    const raw = event.dataTransfer.getData("text/plain");
-    if (!raw) return;
-    let payload = null;
-    try {
-      payload = JSON.parse(raw);
-    } catch (error) {
-      payload = { taskId: raw, title: raw, tag: "Task", note: "" };
-    }
-
-    if (!payload || typeof payload !== "object") {
-      payload = { title: String(payload || ""), tag: "Task", note: "" };
-    }
-
-    const rawId = normalizeToken(payload.taskId);
-    const numericId = /^[0-9]+$/.test(rawId) ? Number.parseInt(rawId, 10) : null;
-    if (Number.isFinite(numericId)) {
-      payload.taskId = String(numericId);
-      const task = Array.isArray(lastNormalizedTasks)
-        ? lastNormalizedTasks.find((t) => Number(t?.id) === numericId)
-        : null;
-      if (task) {
-        payload.title = task.title || payload.title;
-        payload.tag = getFlowStatusLabel(task.statusValue) || payload.tag;
-        payload.note = buildFlowNote(task);
-      }
-    }
-
-    const taskKey = normalizeToken(payload.taskKey) || buildTaskKey(payload);
-    payload.taskKey = taskKey;
-    if (payload.taskId !== undefined && payload.taskId !== null && payload.taskId !== "") {
-      payload.taskId = String(payload.taskId);
-    } else {
-      delete payload.taskId;
-    }
-    const existing = Array.from(flowCanvas.querySelectorAll(".flow-node")).find(
-      (node) => node.dataset.taskKey === taskKey
-    );
-    if (existing) {
-      highlightDuplicateNode(existing);
-      return;
-    }
-
-    const rect = flowCanvas.getBoundingClientRect();
-    const position = {
-      x: event.clientX - rect.left,
-      y: event.clientY - rect.top
-    };
-    createFlowNode(payload, position);
-  });
-
-  flowCanvas.addEventListener("click", (event) => {
-    const target = event.target;
-    if (target instanceof Element && target.closest(".flow-node")) {
-      return;
-    }
-    clearFlowSelection();
-  });
-
-  flowCanvas.addEventListener("transitionend", (event) => {
-    const target = event.target;
-    if (target instanceof Element && target.classList.contains("flow-node-note")) {
-      updateFlowLines();
-    }
-  });
-}
+bindCanvasInteractions();
 
 window.addEventListener("resize", () => {
   updateFlowLines();
@@ -2962,74 +2661,6 @@ void (async () => {
   }
   await bootstrapWorkspacePage();
 })();
-
-function getStoredAccountNickname(id) {
-  if (!Number.isFinite(Number(id))) return "";
-  try {
-    return localStorage.getItem(`gtt-account-nickname:${id}`) || "";
-  } catch {
-    return "";
-  }
-}
-
-function setStoredAccountNickname(id, value) {
-  if (!Number.isFinite(Number(id))) return;
-  const cleaned = normalizeToken(value);
-  try {
-    if (!cleaned) {
-      localStorage.removeItem(`gtt-account-nickname:${id}`);
-    } else {
-      localStorage.setItem(`gtt-account-nickname:${id}`, cleaned);
-    }
-  } catch {
-    // ignore
-  }
-}
-
-function getStoredAccountAvatar(id) {
-  if (!Number.isFinite(Number(id))) return "";
-  try {
-    return localStorage.getItem(`gtt-account-avatar:${id}`) || "";
-  } catch {
-    return "";
-  }
-}
-
-function setStoredAccountAvatar(id, dataUrl) {
-  if (!Number.isFinite(Number(id))) return;
-  const value = typeof dataUrl === "string" ? dataUrl : "";
-  try {
-    if (!value) {
-      localStorage.removeItem(`gtt-account-avatar:${id}`);
-    } else {
-      localStorage.setItem(`gtt-account-avatar:${id}`, value);
-    }
-  } catch {
-    // ignore
-  }
-}
-
-function applyAccountAvatarToElement(element, textElement, initials, dataUrl) {
-  if (!element) return;
-  const url = normalizeToken(dataUrl);
-  if (url) {
-    element.classList.add("has-image");
-    element.style.backgroundImage = `url("${url.replace(/"/g, "%22")}")`;
-    if (textElement) {
-      textElement.textContent = "";
-    } else {
-      element.textContent = "";
-    }
-    return;
-  }
-  element.classList.remove("has-image");
-  element.style.backgroundImage = "";
-  if (textElement) {
-    textElement.textContent = initials;
-  } else {
-    element.textContent = initials;
-  }
-}
 
 function refreshSettingsThemeState() {
   const theme = document.body.dataset.theme === "light" ? "light" : "dark";

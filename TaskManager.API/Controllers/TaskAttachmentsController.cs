@@ -84,6 +84,42 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        [HttpPost("~/api/tasks/attachments/counts")]
+        public async Task<ActionResult<IEnumerable<TaskAttachmentCountDto>>> GetAttachmentCounts([FromBody] TaskAttachmentCountsRequestDto? dto)
+        {
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue) return Unauthorized(new { error = "Actor user id is required" });
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue) return BadRequest(new { error = "Workspace id is required" });
+
+            var requestedIds = (dto?.TaskIds ?? new List<int>())
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            if (requestedIds.Count == 0)
+            {
+                return Ok(Array.Empty<TaskAttachmentCountDto>());
+            }
+
+            try
+            {
+                var counts = await _attachmentService.CountByTaskIdsAsync(workspaceId.Value, actorUserId.Value, requestedIds);
+                var result = requestedIds.Select(id => new TaskAttachmentCountDto
+                {
+                    TaskId = id,
+                    Count = counts.TryGetValue(id, out var count) ? count : 0
+                });
+
+                return Ok(result);
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+        }
+
         [HttpPost]
         [RequestSizeLimit(50L * 1024 * 1024)]
         public async Task<ActionResult<IEnumerable<TaskAttachmentDto>>> UploadAttachments(int taskId)

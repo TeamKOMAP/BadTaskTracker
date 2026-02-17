@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Threading;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using TaskManager.Application.Attachments;
 using TaskManager.Application.Interfaces;
@@ -9,6 +10,8 @@ namespace TaskManager.Infrastructure.Storage
 {
     public class FileAttachmentStorage : IAttachmentStorage
     {
+        private static readonly ConcurrentDictionary<int, SemaphoreSlim> TaskLocks = new();
+
         private readonly string _contentRootPath;
         private readonly ILogger<FileAttachmentStorage> _logger;
 
@@ -55,6 +58,46 @@ namespace TaskManager.Infrastructure.Storage
             return index.Items.Count;
         }
 
+        public async Task<IReadOnlyDictionary<int, int>> CountByTaskIdsAsync(
+            IReadOnlyCollection<int> taskIds,
+            CancellationToken cancellationToken = default)
+        {
+            if (taskIds == null || taskIds.Count == 0)
+            {
+                return new Dictionary<int, int>();
+            }
+
+            var normalizedIds = taskIds
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            if (normalizedIds.Count == 0)
+            {
+                return new Dictionary<int, int>();
+            }
+
+            const int maxConcurrency = 8;
+            using var gate = new SemaphoreSlim(maxConcurrency, maxConcurrency);
+
+            var countTasks = normalizedIds.Select(async taskId =>
+            {
+                await gate.WaitAsync(cancellationToken);
+                try
+                {
+                    var count = await CountAsync(taskId, cancellationToken);
+                    return new KeyValuePair<int, int>(taskId, count);
+                }
+                finally
+                {
+                    gate.Release();
+                }
+            });
+
+            var result = await Task.WhenAll(countTasks);
+            return result.ToDictionary(x => x.Key, x => x.Value);
+        }
+
         public async Task<IReadOnlyList<AttachmentMeta>> SaveAsync(
             int taskId,
             IReadOnlyList<AttachmentUpload> uploads,
@@ -65,59 +108,68 @@ namespace TaskManager.Infrastructure.Storage
                 return Array.Empty<AttachmentMeta>();
             }
 
-            var folder = GetTaskFolder(taskId);
-            Directory.CreateDirectory(folder);
-            var index = await LoadIndexAsync(taskId, cancellationToken);
-            var created = new List<AttachmentMeta>();
-
-            foreach (var upload in uploads)
+            var gate = GetTaskGate(taskId);
+            await gate.WaitAsync(cancellationToken);
+            try
             {
-                if (upload == null || upload.Size <= 0 || upload.Content == null)
-                {
-                    continue;
-                }
+                var folder = GetTaskFolder(taskId);
+                Directory.CreateDirectory(folder);
+                var index = await LoadIndexAsync(taskId, cancellationToken);
+                var created = new List<AttachmentMeta>();
 
-                var originalName = Path.GetFileName(upload.FileName ?? "file");
-                if (string.IsNullOrWhiteSpace(originalName))
+                foreach (var upload in uploads)
                 {
-                    originalName = "file";
-                }
-
-                var id = Guid.NewGuid().ToString("N");
-                var ext = Path.GetExtension(originalName);
-                var storedName = string.IsNullOrWhiteSpace(ext) ? id : (id + ext);
-                var path = Path.Combine(folder, storedName);
-
-                try
-                {
-                    await using (var stream = File.Create(path))
+                    if (upload == null || upload.Size <= 0 || upload.Content == null)
                     {
-                        await upload.Content.CopyToAsync(stream, cancellationToken);
+                        continue;
                     }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to store attachment for task {TaskId}", taskId);
-                    continue;
+
+                    var originalName = Path.GetFileName(upload.FileName ?? "file");
+                    if (string.IsNullOrWhiteSpace(originalName))
+                    {
+                        originalName = "file";
+                    }
+
+                    var id = Guid.NewGuid().ToString("N");
+                    var ext = Path.GetExtension(originalName);
+                    var storedName = string.IsNullOrWhiteSpace(ext) ? id : (id + ext);
+                    var path = Path.Combine(folder, storedName);
+
+                    try
+                    {
+                        await using (var stream = File.Create(path))
+                        {
+                            await upload.Content.CopyToAsync(stream, cancellationToken);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to store attachment for task {TaskId}", taskId);
+                        continue;
+                    }
+
+                    var record = new AttachmentRecord
+                    {
+                        Id = id,
+                        TaskId = taskId,
+                        FileName = originalName,
+                        StoredName = storedName,
+                        ContentType = string.IsNullOrWhiteSpace(upload.ContentType) ? "application/octet-stream" : upload.ContentType,
+                        Size = upload.Size,
+                        UploadedAtUtc = DateTime.UtcNow
+                    };
+
+                    index.Items[id] = record;
+                    created.Add(ToMeta(record));
                 }
 
-                var record = new AttachmentRecord
-                {
-                    Id = id,
-                    TaskId = taskId,
-                    FileName = originalName,
-                    StoredName = storedName,
-                    ContentType = string.IsNullOrWhiteSpace(upload.ContentType) ? "application/octet-stream" : upload.ContentType,
-                    Size = upload.Size,
-                    UploadedAtUtc = DateTime.UtcNow
-                };
-
-                index.Items[id] = record;
-                created.Add(ToMeta(record));
+                await SaveIndexAsync(taskId, index, cancellationToken);
+                return created;
             }
-
-            await SaveIndexAsync(taskId, index, cancellationToken);
-            return created;
+            finally
+            {
+                gate.Release();
+            }
         }
 
         public async Task<AttachmentContent?> OpenReadAsync(
@@ -153,29 +205,38 @@ namespace TaskManager.Infrastructure.Storage
                 return false;
             }
 
-            var index = await LoadIndexAsync(taskId, cancellationToken);
-            if (!index.Items.TryGetValue(attachmentId, out var record))
-            {
-                return false;
-            }
-
-            var path = Path.Combine(GetTaskFolder(taskId), record.StoredName);
+            var gate = GetTaskGate(taskId);
+            await gate.WaitAsync(cancellationToken);
             try
             {
-                if (File.Exists(path))
+                var index = await LoadIndexAsync(taskId, cancellationToken);
+                if (!index.Items.TryGetValue(attachmentId, out var record))
                 {
-                    File.Delete(path);
+                    return false;
                 }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to delete attachment {AttachmentId} for task {TaskId}", attachmentId, taskId);
-                return false;
-            }
 
-            index.Items.Remove(attachmentId);
-            await SaveIndexAsync(taskId, index, cancellationToken);
-            return true;
+                var path = Path.Combine(GetTaskFolder(taskId), record.StoredName);
+                try
+                {
+                    if (File.Exists(path))
+                    {
+                        File.Delete(path);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to delete attachment {AttachmentId} for task {TaskId}", attachmentId, taskId);
+                    return false;
+                }
+
+                index.Items.Remove(attachmentId);
+                await SaveIndexAsync(taskId, index, cancellationToken);
+                return true;
+            }
+            finally
+            {
+                gate.Release();
+            }
         }
 
         private async Task<AttachmentIndex> LoadIndexAsync(int taskId, CancellationToken cancellationToken)
@@ -207,12 +268,35 @@ namespace TaskManager.Infrastructure.Storage
             var folder = GetTaskFolder(taskId);
             Directory.CreateDirectory(folder);
             var path = GetIndexPath(taskId);
+            var tempPath = Path.Combine(folder, $"index.{Guid.NewGuid():N}.tmp");
             var json = JsonSerializer.Serialize(index, new JsonSerializerOptions
             {
                 WriteIndented = true
             });
-            await File.WriteAllTextAsync(path, json, cancellationToken);
+
+            try
+            {
+                await File.WriteAllTextAsync(tempPath, json, cancellationToken);
+                File.Move(tempPath, path, true);
+            }
+            finally
+            {
+                if (File.Exists(tempPath))
+                {
+                    try
+                    {
+                        File.Delete(tempPath);
+                    }
+                    catch
+                    {
+                        // best effort cleanup
+                    }
+                }
+            }
         }
+
+        private static SemaphoreSlim GetTaskGate(int taskId)
+            => TaskLocks.GetOrAdd(taskId, _ => new SemaphoreSlim(1, 1));
 
         private static AttachmentMeta ToMeta(AttachmentRecord record)
         {

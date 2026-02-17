@@ -45,6 +45,38 @@ namespace TaskManager.Application.Services
             return await _storage.CountAsync(taskId, cancellationToken);
         }
 
+        public async Task<IReadOnlyDictionary<int, int>> CountByTaskIdsAsync(
+            int workspaceId,
+            int actorUserId,
+            IReadOnlyList<int> taskIds,
+            CancellationToken cancellationToken = default)
+        {
+            await EnsureMemberAsync(workspaceId, actorUserId);
+
+            if (taskIds == null || taskIds.Count == 0)
+            {
+                return new Dictionary<int, int>();
+            }
+
+            var normalizedIds = taskIds
+                .Where(id => id > 0)
+                .Distinct()
+                .ToList();
+
+            if (normalizedIds.Count == 0)
+            {
+                return new Dictionary<int, int>();
+            }
+
+            var existingIds = await _taskRepository.GetExistingIdsAsync(workspaceId, normalizedIds, cancellationToken);
+            if (existingIds.Count == 0)
+            {
+                return new Dictionary<int, int>();
+            }
+
+            return await _storage.CountByTaskIdsAsync(existingIds.ToList(), cancellationToken);
+        }
+
         public async Task<IReadOnlyList<AttachmentMeta>> UploadAsync(
             int workspaceId,
             int actorUserId,

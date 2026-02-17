@@ -22,14 +22,6 @@ namespace TaskManager.Infrastructure.Repositories
                 .FirstOrDefaultAsync(x => x.Email == normalized && !x.IsConsumed);
         }
 
-        public Task<EmailAuthCode?> GetLatestByEmailAsync(string email)
-        {
-            var normalized = NormalizeEmail(email);
-            return _context.EmailAuthCodes
-                .OrderByDescending(x => x.CreatedAtUtc)
-                .FirstOrDefaultAsync(x => x.Email == normalized);
-        }
-
         public async Task AddAsync(EmailAuthCode code)
         {
             _context.EmailAuthCodes.Add(code);

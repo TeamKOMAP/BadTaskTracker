@@ -10,4 +10,16 @@ namespace TaskManager.Application.DTOs
         public DateTime UploadedAtUtc { get; set; }
         public string DownloadUrl { get; set; } = string.Empty;
     }
+
+    public class TaskAttachmentCountsRequestDto
+    {
+        public List<int> TaskIds { get; set; } = new();
+    }
+
+    public class TaskAttachmentCountDto
+    {
+        public int TaskId { get; set; }
+        public int Count { get; set; }
+        public bool HasAttachments => Count > 0;
+    }
 }

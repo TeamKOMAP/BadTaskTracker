@@ -8,6 +8,6 @@ namespace TaskManager.Application.Auth
         public string Username { get; set; } = string.Empty;
         public string Password { get; set; } = string.Empty;
         public string FromEmail { get; set; } = string.Empty;
-        public string FromName { get; set; } = "GoodTaskTracker";
+        public string FromName { get; set; } = "BadTaskTracker";
     }
 }

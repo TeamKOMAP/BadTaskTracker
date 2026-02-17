@@ -1,7 +1,16 @@
 {
   "Version": 1,
   "WorkspaceRootPath": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\",
-  "Documents": [],
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{EAFE2C7A-0C0F-4C6F-B4D5-A999602FACAE}|TaskManager.Application\\TaskManager.Application.csproj|c:\\users\\0_offlayt\\source\\repos\\goodtasktracker\\taskmanager.application\\globalusings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{EAFE2C7A-0C0F-4C6F-B4D5-A999602FACAE}|TaskManager.Application\\TaskManager.Application.csproj|solutionrelative:taskmanager.application\\globalusings.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{EAFE2C7A-0C0F-4C6F-B4D5-A999602FACAE}|TaskManager.Application\\TaskManager.Application.csproj|c:\\users\\0_offlayt\\source\\repos\\goodtasktracker\\taskmanager.application\\services\\authservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{EAFE2C7A-0C0F-4C6F-B4D5-A999602FACAE}|TaskManager.Application\\TaskManager.Application.csproj|solutionrelative:taskmanager.application\\services\\authservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
   "DocumentGroupContainers": [
     {
       "Orientation": 0,
@@ -9,7 +18,7 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": -1,
+          "SelectedChildIndex": 2,
           "Children": [
             {
               "$type": "Bookmark",
@@ -18,6 +27,32 @@
             {
               "$type": "Bookmark",
               "Name": "ST:0:0:{aa2115a1-9712-457b-9047-dbb71ca2cdd2}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "GlobalUsings.cs",
+              "DocumentMoniker": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Application\\GlobalUsings.cs",
+              "RelativeDocumentMoniker": "TaskManager.Application\\GlobalUsings.cs",
+              "ToolTip": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Application\\GlobalUsings.cs",
+              "RelativeToolTip": "TaskManager.Application\\GlobalUsings.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-17T12:42:40.339Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "AuthService.cs",
+              "DocumentMoniker": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Application\\Services\\AuthService.cs",
+              "RelativeDocumentMoniker": "TaskManager.Application\\Services\\AuthService.cs",
+              "ToolTip": "C:\\Users\\0_offlayt\\source\\repos\\GoodTaskTracker\\TaskManager.Application\\Services\\AuthService.cs",
+              "RelativeToolTip": "TaskManager.Application\\Services\\AuthService.cs",
+              "ViewState": "AgIAAEgAAAAAAAAAAAAowAAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-02-17T12:42:36.67Z",
+              "EditorCaption": ""
             }
           ]
         },
