@@ -1,0 +1,48 @@
+name: 🚀 CI/CD with Telegram
+
+on:
+  push:
+    branches: [ main, develop, helpme, feature/* ]
+  pull_request:
+    branches: [ main, develop, helpme ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Restore
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --no-restore --configuration Release
+    
+    - name: Test
+      run: dotnet test --verbosity normal
+      continue-on-error: true
+    
+    - name: Notify Telegram
+      if: always()
+      uses: appleboy/telegram-action@master
+      with:
+        to: ${{ secrets.TELEGRAM_CHAT_ID }}
+        token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        format: markdown
+        message: |
+          ${{ job.status == 'success' && '✅ УСПЕХ' || '❌ ПРОВАЛ' }}
+          
+          ${{ github.repository }}
+          ${{ github.event_name == 'pull_request' && '🔀 PR' || '🔨 Push' }} to ${{ github.ref_name }}
+          
+          👤 ${{ github.actor }} | 🔖 ${{ github.sha }}[:7]
+          
+          📝 ${{ github.event.head_commit.message || github.event.pull_request.title }}
+          
+          [Actions](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
