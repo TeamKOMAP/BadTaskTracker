@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/workspace.css?v=perf12">
+  <link rel="stylesheet" href="css/workspace.css?v=perf14">
 </head>
 <body data-theme="dark">
   <div class="app-shell" id="app-shell">
@@ -118,12 +118,29 @@
               <span>Перетащите сюда, чтобы удалить</span>
             </div>
           </div>
-          <button class="primary-btn board-add-column" id="add-column" type="button">Создать колонку</button>
+          <div class="board-add-column-control" id="add-column-control">
+            <button
+              class="primary-btn board-add-column"
+              id="add-column"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="add-column-menu"
+            >
+              Создать столбец
+            </button>
+            <div class="board-add-column-menu" id="add-column-menu" role="menu" hidden>
+              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="new">Обычный</button>
+              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="inprogress">Inprogress</button>
+              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="done">Done</button>
+              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="overdue">Overdue</button>
+            </div>
+          </div>
           </div>
         </div>
 
       <section class="board-columns" id="board-columns">
-        <section class="column" data-column-id="todo">
+        <section class="column" data-column-id="todo" data-column-type="new">
           <header class="column-header">
             <button class="column-handle" type="button" draggable="true" aria-label="Перетащить колонку">
               <span></span><span></span><span></span>
@@ -140,7 +157,7 @@
           <button class="add-task" type="button">Создать задачу</button>
         </section>
 
-        <section class="column" data-column-id="progress">
+        <section class="column" data-column-id="progress" data-column-type="inprogress">
           <header class="column-header">
             <button class="column-handle" type="button" draggable="true" aria-label="Перетащить колонку">
               <span></span><span></span><span></span>
@@ -157,7 +174,7 @@
           <button class="add-task" type="button">Создать задачу</button>
         </section>
 
-        <section class="column" data-column-id="done">
+        <section class="column" data-column-id="done" data-column-type="done">
           <header class="column-header">
             <button class="column-handle" type="button" draggable="true" aria-label="Перетащить колонку">
               <span></span><span></span><span></span>
@@ -174,7 +191,7 @@
           <button class="add-task" type="button">Создать задачу</button>
         </section>
 
-        <section class="column" data-column-id="overdue">
+        <section class="column" data-column-id="overdue" data-column-type="overdue">
           <header class="column-header">
             <button class="column-handle" type="button" draggable="true" aria-label="Перетащить колонку">
               <span></span><span></span><span></span>
@@ -466,6 +483,6 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow11"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow16"></script>
 </body>
 </html>

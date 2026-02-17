@@ -6,7 +6,9 @@ import {
   brandToggle,
   userPanel,
   columnsWrap,
+  addColumnControl,
   addColumnBtn,
+  addColumnMenu,
   viewButtons,
   viewToggle,
   styleToggle,
@@ -78,7 +80,7 @@ import {
   confirmModalMessageEl,
   confirmModalCancelBtn,
   confirmModalAcceptBtn
-} from "./dom.js?v=authflow2";
+} from "./dom.js?v=authflow3";
 
 import {
   buildApiUrl,
@@ -135,12 +137,14 @@ import {
   setTheme,
   getStoredTaskMeta,
   setStoredTaskMeta,
-  getStoredTaskBg
-} from "./storage.js";
+  getStoredTaskBg,
+  getStoredWorkspaceColumns,
+  setStoredWorkspaceColumns
+} from "./storage.js?v=authflow1";
 import { createBoardViewController } from "./board-view.js?v=perf1";
 import { createCalendarViewController } from "./calendar-view.js?v=perf1";
 import { createFlowEditorController } from "./flow-editor.js?v=perf1";
-import { createTaskDetailController } from "./task-detail.js?v=perf6";
+import { createTaskDetailController } from "./task-detail.js?v=perf7";
 
 let lastNormalizedTasks = [];
 
@@ -192,7 +196,28 @@ const getActorUserId = () => {
   return Number.isFinite(id) && id > 0 ? id : null;
 };
 
-const extraColumnNames = ["Backlog", "Blocked", "QA", "Ideas", "Ready"];
+const COLUMN_CREATE_VARIANTS = {
+  new: {
+    title: "New",
+    columnId: null,
+    specialized: false
+  },
+  inprogress: {
+    title: "In progress",
+    columnId: "progress",
+    specialized: true
+  },
+  done: {
+    title: "Done",
+    columnId: "done",
+    specialized: true
+  },
+  overdue: {
+    title: "Overdue",
+    columnId: "overdue",
+    specialized: true
+  }
+};
 
 const FLOW_STATUS_LABELS = {
   1: "New",
@@ -203,7 +228,6 @@ const FLOW_STATUS_LABELS = {
 
 const getFlowStatusLabel = (statusValue) => FLOW_STATUS_LABELS[toStatusValue(statusValue)] || FLOW_STATUS_LABELS[1];
 
-let newColumnIndex = 0;
 let dragColumn = null;
 let lastAfter = null;
 let dragTask = null;
@@ -213,6 +237,7 @@ let lastTaskContainer = null;
 let activeTaskColumn = null;
 let editingTaskId = null;
 let editingTaskCard = null;
+let isAddColumnMenuOpen = false;
 
 const setColumnDelays = () => {
   if (!columnsWrap) return;
@@ -229,11 +254,221 @@ const updateColumnCount = (column) => {
   countElement.textContent = count;
 };
 
+const getColumnCreateVariant = (type) => {
+  const key = normalizeToken(type).toLowerCase();
+  return COLUMN_CREATE_VARIANTS[key] || COLUMN_CREATE_VARIANTS.new;
+};
+
+const RESERVED_STATUS_COLUMN_IDS = new Set(["progress", "done", "overdue"]);
+
+const generateColumnId = () => `column-${Date.now()}-${Math.floor(Math.random() * 1000)}-${Math.floor(Math.random() * 1000)}`;
+
+const getColumnTypeFromColumnId = (columnId) => {
+  const id = normalizeToken(columnId).toLowerCase();
+  if (id === "progress") return "inprogress";
+  if (id === "done") return "done";
+  if (id === "overdue") return "overdue";
+  return "new";
+};
+
+const inferColumnType = (column) => {
+  const explicitType = normalizeToken(column?.dataset?.columnType).toLowerCase();
+  if (COLUMN_CREATE_VARIANTS[explicitType]) {
+    return explicitType;
+  }
+  return getColumnTypeFromColumnId(column?.dataset?.columnId);
+};
+
+const getExistingColumnByType = (type) => {
+  if (!columnsWrap) return null;
+  const token = normalizeToken(type).toLowerCase();
+  const normalizedType = COLUMN_CREATE_VARIANTS[token] ? token : "new";
+
+  return Array.from(columnsWrap.querySelectorAll(".column")).find((column) => {
+    return inferColumnType(column) === normalizedType;
+  }) || null;
+};
+
+const ensureColumnMetadata = (column) => {
+  if (!(column instanceof Element)) {
+    return { columnType: "new", columnId: "" };
+  }
+
+  const columnType = inferColumnType(column);
+  const variant = getColumnCreateVariant(columnType);
+  column.dataset.columnType = columnType;
+
+  if (variant.specialized && variant.columnId) {
+    column.dataset.columnId = variant.columnId;
+    return { columnType, columnId: variant.columnId };
+  }
+
+  let columnId = normalizeToken(column.dataset.columnId);
+  if (!columnId || RESERVED_STATUS_COLUMN_IDS.has(columnId.toLowerCase())) {
+    columnId = generateColumnId();
+    column.dataset.columnId = columnId;
+  }
+
+  return { columnType, columnId };
+};
+
+const normalizeStoredColumnType = (rawType, rawColumnId) => {
+  const type = normalizeToken(rawType).toLowerCase();
+  if (COLUMN_CREATE_VARIANTS[type]) {
+    return type;
+  }
+  return getColumnTypeFromColumnId(rawColumnId);
+};
+
+const buildColumnLayoutSnapshot = () => {
+  if (!columnsWrap) return [];
+
+  return Array.from(columnsWrap.querySelectorAll(".column"))
+    .map((column) => {
+      const { columnType, columnId } = ensureColumnMetadata(column);
+      const titleEl = column.querySelector(".column-title");
+      const fallbackTitle = getColumnCreateVariant(columnType).title || "Untitled";
+      const title = normalizeToken(titleEl?.textContent) || fallbackTitle;
+      if (titleEl) {
+        titleEl.textContent = title;
+      }
+      return {
+        columnId,
+        columnType,
+        title
+      };
+    })
+    .filter((item) => normalizeToken(item?.title));
+};
+
+const saveBoardColumnsLayout = () => {
+  if (!currentWorkspaceId || !columnsWrap) return;
+  const snapshot = buildColumnLayoutSnapshot();
+  setStoredWorkspaceColumns(currentWorkspaceId, snapshot);
+};
+
+const restoreBoardColumnsLayout = () => {
+  if (!columnsWrap || !currentWorkspaceId) return;
+
+  const stored = getStoredWorkspaceColumns(currentWorkspaceId);
+  if (!Array.isArray(stored) || stored.length === 0) {
+    Array.from(columnsWrap.querySelectorAll(".column")).forEach((column) => {
+      ensureColumnMetadata(column);
+    });
+    setColumnDelays();
+    refreshAddColumnMenuState();
+    saveBoardColumnsLayout();
+    return;
+  }
+
+  Array.from(columnsWrap.querySelectorAll(".column")).forEach((column) => column.remove());
+
+  const usedColumnIds = new Set();
+  const seenSpecialColumnTypes = new Set();
+
+  stored.forEach((entry) => {
+    if (!entry || typeof entry !== "object") return;
+
+    const columnType = normalizeStoredColumnType(entry.columnType, entry.columnId);
+    const variant = getColumnCreateVariant(columnType);
+    if (variant.specialized) {
+      if (seenSpecialColumnTypes.has(columnType)) {
+        return;
+      }
+      seenSpecialColumnTypes.add(columnType);
+    }
+    const fallbackTitle = variant.title || "Untitled";
+    const title = normalizeToken(entry.title) || fallbackTitle;
+
+    let columnId = "";
+    if (variant.specialized && variant.columnId) {
+      columnId = variant.columnId;
+    } else {
+      const candidate = normalizeToken(entry.columnId);
+      if (candidate && !RESERVED_STATUS_COLUMN_IDS.has(candidate.toLowerCase())) {
+        columnId = candidate;
+      }
+      if (!columnId || usedColumnIds.has(columnId)) {
+        columnId = generateColumnId();
+      }
+    }
+
+    usedColumnIds.add(columnId);
+
+    const column = createColumn({
+      title,
+      columnId,
+      columnType
+    });
+    column.style.setProperty("--delay", "0ms");
+    columnsWrap.appendChild(column);
+  });
+
+  if (!columnsWrap.querySelector(".column")) {
+    const fallback = createColumn({
+      title: "To do",
+      columnId: "todo",
+      columnType: "new"
+    });
+    fallback.style.setProperty("--delay", "0ms");
+    columnsWrap.appendChild(fallback);
+  }
+
+  setColumnDelays();
+  refreshAddColumnMenuState();
+  saveBoardColumnsLayout();
+};
+
+const refreshAddColumnMenuState = () => {
+  if (!addColumnMenu) return;
+
+  const options = Array.from(addColumnMenu.querySelectorAll(".board-add-column-option[data-column-type]"));
+  options.forEach((option) => {
+    const type = normalizeToken(option.dataset.columnType).toLowerCase();
+    const variant = getColumnCreateVariant(type);
+    const exists = variant.specialized ? Boolean(getExistingColumnByType(type)) : false;
+    option.hidden = false;
+    option.disabled = exists;
+    option.setAttribute("aria-disabled", exists ? "true" : "false");
+    option.classList.toggle("is-disabled", exists);
+  });
+};
+
+const closeAddColumnMenu = () => {
+  if (addColumnMenu) {
+    addColumnMenu.setAttribute("hidden", "");
+  }
+  if (addColumnBtn) {
+    addColumnBtn.setAttribute("aria-expanded", "false");
+  }
+  isAddColumnMenuOpen = false;
+};
+
+const openAddColumnMenu = () => {
+  if (!addColumnMenu) return;
+  refreshAddColumnMenuState();
+  addColumnMenu.removeAttribute("hidden");
+  if (addColumnBtn) {
+    addColumnBtn.setAttribute("aria-expanded", "true");
+  }
+  isAddColumnMenuOpen = true;
+};
+
+const toggleAddColumnMenu = () => {
+  if (isAddColumnMenuOpen) {
+    closeAddColumnMenu();
+    return;
+  }
+  openAddColumnMenu();
+};
+
 const removeColumn = (column) => {
   if (!column) return;
   const finalize = () => {
     column.remove();
     setColumnDelays();
+    refreshAddColumnMenuState();
+    saveBoardColumnsLayout();
   };
 
   if (prefersReducedMotion) {
@@ -253,6 +488,7 @@ const removeColumn = (column) => {
 
 const setLayoutStyle = (style) => {
   if (!board) return;
+  closeAddColumnMenu();
   const nextStyle = style === "flow" ? "flow" : "columns";
   board.dataset.style = nextStyle;
 
@@ -303,6 +539,7 @@ const setLayoutStyle = (style) => {
 
 const setBoardView = (view) => {
   if (!board) return;
+  closeAddColumnMenu();
   const next = view === "calendar" ? "calendar" : (view === "list" ? "list" : "board");
   board.dataset.view = next;
   viewButtons.forEach((btn) => {
@@ -708,6 +945,7 @@ const openWorkspace = async (space) => {
   if (!Number.isFinite(workspaceId) || workspaceId <= 0) return;
 
   setWorkspaceContext(space);
+  restoreBoardColumnsLayout();
   setAppScreen("board");
   await loadTagsFromApi();
   await loadUsersFromApi();
@@ -1770,6 +2008,8 @@ const renderCurrentView = () => {
 };
 
 const initColumn = (column) => {
+  ensureColumnMetadata(column);
+
   const title = column.querySelector(".column-title");
   if (title) {
     title.addEventListener("keydown", (event) => {
@@ -1780,9 +2020,13 @@ const initColumn = (column) => {
     });
 
     title.addEventListener("blur", () => {
-      if (!title.textContent.trim()) {
-        title.textContent = "Untitled";
+      const { columnType } = ensureColumnMetadata(column);
+      const fallbackTitle = getColumnCreateVariant(columnType).title || "Untitled";
+      const nextTitle = normalizeToken(title.textContent) || fallbackTitle;
+      if (title.textContent !== nextTitle) {
+        title.textContent = nextTitle;
       }
+      saveBoardColumnsLayout();
     });
   }
 
@@ -1808,15 +2052,26 @@ const initColumn = (column) => {
 };
 
 const createColumn = (name) => {
+  const config = name && typeof name === "object"
+    ? name
+    : { title: normalizeToken(name) };
+
+  const title = normalizeToken(config.title) || "Untitled";
+  const columnId = normalizeToken(config.columnId) || generateColumnId();
+  const columnType = normalizeToken(config.columnType).toLowerCase();
+
   const column = document.createElement("section");
   column.className = "column";
-  column.dataset.columnId = `column-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+  column.dataset.columnId = columnId;
+  if (columnType) {
+    column.dataset.columnType = columnType;
+  }
   column.innerHTML = `
     <header class="column-header">
       <button class="column-handle" type="button" draggable="true" aria-label="Перетащить колонку">
         <span></span><span></span><span></span>
       </button>
-      <div class="column-title" contenteditable="true" spellcheck="false">${name}</div>
+      <div class="column-title" contenteditable="true" spellcheck="false">${title}</div>
       <span class="column-count">0</span>
       <button class="column-delete" type="button" aria-label="Удалить колонку">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1836,6 +2091,41 @@ const createColumn = (name) => {
   return column;
 };
 
+const createColumnFromType = (type) => {
+  if (!columnsWrap) return;
+
+  const variant = getColumnCreateVariant(type);
+  const existing = variant.specialized ? getExistingColumnByType(type) : null;
+  if (existing instanceof Element) {
+    existing.scrollIntoView({
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+      inline: "center",
+      block: "nearest"
+    });
+    closeAddColumnMenu();
+    return;
+  }
+
+  const column = createColumn({
+    title: variant.title,
+    columnId: variant.columnId,
+    columnType: normalizeToken(type).toLowerCase()
+  });
+
+  column.style.setProperty("--delay", "0ms");
+  columnsWrap.appendChild(column);
+  setColumnDelays();
+  refreshAddColumnMenuState();
+  saveBoardColumnsLayout();
+  closeAddColumnMenu();
+
+  column.scrollIntoView({
+    behavior: prefersReducedMotion ? "auto" : "smooth",
+    inline: "end",
+    block: "nearest"
+  });
+};
+
 const onDragStart = (event) => {
   const handle = event.currentTarget;
   const column = handle.closest(".column");
@@ -1853,6 +2143,7 @@ const onDragStart = (event) => {
 const onDragEnd = () => {
   if (dragColumn) {
     dragColumn.classList.remove("is-dragging");
+    saveBoardColumnsLayout();
   }
   dragColumn = null;
   lastAfter = null;
@@ -2011,7 +2302,9 @@ const onTaskDrop = (event) => {
   const targetContainer = event.currentTarget instanceof Element ? event.currentTarget : null;
   const targetColumn = targetContainer?.closest(".column") || null;
   if (dragTaskColumn && targetColumn && dragTaskColumn !== targetColumn) {
-    const nextStatus = getStatusForColumnId(targetColumn.dataset.columnId);
+    const nextStatus =
+      getStatusForColumnId(targetColumn.dataset.columnId)
+      || getStatusForColumnId(getColumnCreateVariant(targetColumn.dataset.columnType).columnId);
     if (nextStatus && dragTask.dataset.taskId) {
       updateTaskCardStatus(dragTask, nextStatus);
       void updateTaskStatus(dragTask, nextStatus);
@@ -2095,18 +2388,25 @@ if (columnsWrap) {
 }
 
 if (addColumnBtn) {
-  addColumnBtn.addEventListener("click", () => {
+  addColumnBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     if (!columnsWrap) return;
-    const name = extraColumnNames[newColumnIndex % extraColumnNames.length];
-    newColumnIndex += 1;
-    const column = createColumn(name || `Column ${columnsWrap.children.length + 1}`);
-    column.style.setProperty("--delay", "0ms");
-    columnsWrap.appendChild(column);
-    column.scrollIntoView({
-      behavior: prefersReducedMotion ? "auto" : "smooth",
-      inline: "end",
-      block: "nearest"
-    });
+    toggleAddColumnMenu();
+  });
+}
+
+if (addColumnMenu) {
+  addColumnMenu.addEventListener("click", (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest(".board-add-column-option[data-column-type]")
+      : null;
+    if (!(target instanceof HTMLButtonElement)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const type = normalizeToken(target.dataset.columnType).toLowerCase() || "new";
+    createColumnFromType(type);
   });
 }
 
@@ -2211,6 +2511,19 @@ if (flowAddTaskBtn) {
 }
 
 document.addEventListener("click", (event) => {
+  if (!isAddColumnMenuOpen) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) {
+    closeAddColumnMenu();
+    return;
+  }
+  if (addColumnControl && addColumnControl.contains(target)) {
+    return;
+  }
+  closeAddColumnMenu();
+});
+
+document.addEventListener("click", (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target || !taskModal || taskModal.hasAttribute("hidden")) return;
   if (target.closest("[data-close-modal]")) {
@@ -2282,6 +2595,10 @@ const taskDetailController = createTaskDetailController({
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (isAddColumnMenuOpen) {
+      closeAddColumnMenu();
+      return;
+    }
     if (closeConfirmModal(false)) {
       return;
     }
@@ -2561,6 +2878,7 @@ viewButtons.forEach((button) => {
 
 refreshUserFilter();
 setLayoutStyle(board?.dataset.style || "columns");
+refreshAddColumnMenuState();
 updateFlowEmptyState();
 startTaskTimingTicker();
 
