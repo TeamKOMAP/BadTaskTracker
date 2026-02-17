@@ -27,7 +27,7 @@ import {
 } from "./dom.js?v=authflow2";
 
 import { normalizeToken } from "../shared/utils.js";
-import { getStoredTaskMeta, getStoredTaskBg, setStoredTaskBg, clearStoredTaskBg } from "./storage.js";
+import { getStoredTaskMeta, getStoredTaskBg, setStoredTaskBg, clearStoredTaskBg } from "./storage.js?v=authflow1";
 import { optimizeImageForStorage } from "./media-utils.js";
 import { createTaskDetailCache } from "./task-detail-cache.js";
 import {

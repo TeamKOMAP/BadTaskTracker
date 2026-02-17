@@ -22,6 +22,20 @@ export const setTheme = (theme) => {
 
 const taskBgKey = (id) => `gtt-taskbg:${id}`;
 const taskMetaKey = (id) => `gtt-taskmeta:${id}`;
+const workspaceColumnsKey = (workspaceId) => `gtt-columns:${workspaceId}`;
+
+const normalizeWorkspaceId = (workspaceId) => {
+  const id = Number(workspaceId);
+  return Number.isFinite(id) && id > 0 ? id : null;
+};
+
+const normalizeColumnType = (value) => {
+  const token = String(value || "").trim().toLowerCase();
+  if (token === "inprogress" || token === "done" || token === "overdue") {
+    return token;
+  }
+  return "new";
+};
 
 export const getStoredTaskMeta = (id) => {
   try {
@@ -70,6 +84,99 @@ export const setStoredTaskBg = (id, dataUrl) => {
 export const clearStoredTaskBg = (id) => {
   try {
     localStorage.removeItem(taskBgKey(id));
+  } catch {
+    // ignore
+  }
+};
+
+export const getStoredWorkspaceColumns = (workspaceId) => {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  if (!normalizedWorkspaceId) {
+    return [];
+  }
+
+  try {
+    const raw = localStorage.getItem(workspaceColumnsKey(normalizedWorkspaceId));
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .slice(0, 64)
+      .map((item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+
+        const columnId = String(item.columnId || "").trim().slice(0, 120);
+        const title = String(item.title || "").trim().slice(0, 120);
+        const columnType = normalizeColumnType(item.columnType);
+        if (!title) {
+          return null;
+        }
+
+        return {
+          columnId,
+          title,
+          columnType
+        };
+      })
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+export const setStoredWorkspaceColumns = (workspaceId, columns) => {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  if (!normalizedWorkspaceId) {
+    return;
+  }
+
+  const safeColumns = Array.isArray(columns)
+    ? columns
+      .slice(0, 64)
+      .map((item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+
+        const columnId = String(item.columnId || "").trim().slice(0, 120);
+        const title = String(item.title || "").trim().slice(0, 120);
+        const columnType = normalizeColumnType(item.columnType);
+        if (!title) {
+          return null;
+        }
+
+        return {
+          columnId,
+          title,
+          columnType
+        };
+      })
+      .filter(Boolean)
+    : [];
+
+  try {
+    localStorage.setItem(workspaceColumnsKey(normalizedWorkspaceId), JSON.stringify(safeColumns));
+  } catch {
+    // ignore
+  }
+};
+
+export const clearStoredWorkspaceColumns = (workspaceId) => {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  if (!normalizedWorkspaceId) {
+    return;
+  }
+
+  try {
+    localStorage.removeItem(workspaceColumnsKey(normalizedWorkspaceId));
   } catch {
     // ignore
   }
