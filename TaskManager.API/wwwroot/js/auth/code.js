@@ -1,77 +1,14 @@
-import { apiFetch, buildApiUrl, setAccessToken } from "../shared/api.js?v=auth4";
-
-const THEME_KEY = "gtt-theme";
-const DEV_AUTH_CODE_KEY = "gtt-dev-auth-code";
-
-const clearDevelopmentCode = () => {
-  try {
-    sessionStorage.removeItem(DEV_AUTH_CODE_KEY);
-  } catch {
-    // ignore
-  }
-};
-
-const saveDevelopmentCode = (email, code) => {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  const normalizedCode = String(code || "").replace(/\D+/g, "").trim();
-  try {
-    if (!normalizedEmail || !normalizedCode) {
-      sessionStorage.removeItem(DEV_AUTH_CODE_KEY);
-      return;
-    }
-
-    sessionStorage.setItem(DEV_AUTH_CODE_KEY, JSON.stringify({
-      email: normalizedEmail,
-      code: normalizedCode
-    }));
-  } catch {
-    // ignore
-  }
-};
-
-const getDevelopmentCodeForEmail = (email) => {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  if (!normalizedEmail) return "";
-  try {
-    const raw = sessionStorage.getItem(DEV_AUTH_CODE_KEY);
-    if (!raw) return "";
-    const parsed = JSON.parse(raw);
-    const storedEmail = String(parsed?.email || "").trim().toLowerCase();
-    const storedCode = String(parsed?.code || "").replace(/\D+/g, "").trim();
-    if (storedEmail !== normalizedEmail) return "";
-    return storedCode;
-  } catch {
-    return "";
-  }
-};
-
-const getPreferredTheme = () => {
-  try {
-    const saved = localStorage.getItem(THEME_KEY);
-    if (saved === "light" || saved === "dark") return saved;
-  } catch {
-    // ignore
-  }
-
-  return window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches
-    ? "light"
-    : "dark";
-};
-
-const setTheme = (theme) => {
-  const next = theme === "light" ? "light" : "dark";
-  document.body.dataset.theme = next;
-  try {
-    localStorage.setItem(THEME_KEY, next);
-  } catch {
-    // ignore
-  }
-};
-
-const toggleTheme = () => {
-  const current = document.body.dataset.theme || "dark";
-  setTheme(current === "dark" ? "light" : "dark");
-};
+import { apiFetch, buildApiUrl, setAccessToken } from "../shared/api.js?v=auth5";
+import {
+  getPreferredTheme,
+  setTheme,
+  toggleTheme,
+  hasDotInDomain,
+  parseApiErrorMessage,
+  clearDevelopmentCode,
+  saveDevelopmentCode,
+  getDevelopmentCodeForEmail
+} from "../shared/auth-utils.js?v=auth1";
 
 setTheme(getPreferredTheme());
 
@@ -86,25 +23,23 @@ const params = new URLSearchParams(window.location.search);
 const rawEmail = String(params.get("email") || "").trim().toLowerCase();
 const returnUrl = String(params.get("returnUrl") || "").trim();
 
-const hasDotInDomain = (email) => {
-  const value = String(email || "").trim();
-  const parts = value.split("@");
-  if (parts.length !== 2) return false;
-  const domain = parts[1].trim();
-  if (!domain) return false;
-  if (!domain.includes(".")) return false;
-  if (domain.startsWith(".") || domain.endsWith(".")) return false;
-  return true;
-};
-
 const emailValidationEl = document.getElementById("email-validation");
 const codeAlertEl = document.getElementById("code-alert");
 const emailValueEl = document.getElementById("email-value");
+const changeEmailLink = document.getElementById("change-email");
 const codeForm = document.getElementById("code-form");
 const codeInput = document.getElementById("code");
 const confirmCodeBtn = document.getElementById("confirm-code");
 const timerEl = document.getElementById("timer");
 const resendBtn = document.getElementById("resend");
+
+if (changeEmailLink) {
+  const next = new URL("auth-email.html", window.location.href);
+  if (returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//")) {
+    next.searchParams.set("returnUrl", returnUrl);
+  }
+  changeEmailLink.href = `${next.pathname}${next.search}`;
+}
 
 const applyDevelopmentCodeToInput = (code) => {
   const normalizedCode = String(code || "").replace(/\D+/g, "").trim();
@@ -188,18 +123,7 @@ const startTimer = (seconds) => {
   }
 
   renderTimer();
-  timerHandle = window.setInterval(renderTimer, 250);
-};
-
-const parseErrorMessage = async (response, fallback) => {
-  try {
-    const data = await response.json();
-    const message = String(data?.error || data?.title || "").trim();
-    if (message) return message;
-  } catch {
-    // ignore
-  }
-  return fallback;
+  timerHandle = window.setInterval(renderTimer, 1000);
 };
 
 const requestCode = async () => {
@@ -220,7 +144,7 @@ const requestCode = async () => {
   }
 
   if (!response.ok) {
-    const message = await parseErrorMessage(response, "Не удалось отправить код. Попробуйте позже.");
+    const message = await parseApiErrorMessage(response, "Не удалось отправить код. Попробуйте позже.");
     setCodeAlert(message);
     return null;
   }
@@ -259,7 +183,7 @@ const verifyCode = async (code) => {
   }
 
   if (!response.ok) {
-    const message = await parseErrorMessage(response, "Неверный код или код истёк.");
+    const message = await parseApiErrorMessage(response, "Неверный код или код истёк.");
     setCodeAlert(message);
     return null;
   }

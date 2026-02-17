@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Threading.RateLimiting;
+using TaskManager.API.Background;
 using TaskManager.API.Security;
 using TaskManager.Application.Auth;
 using TaskManager.Application.Interfaces;
@@ -28,6 +31,13 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Issuer)
     || jwtSettings.SigningKey.Length < 32)
 {
     throw new InvalidOperationException("JWT configuration is invalid. Provide Jwt:Issuer, Jwt:Audience and Jwt:SigningKey (at least 32 chars).");
+}
+
+const string insecureJwtPlaceholder = "CHANGE_ME_IN_PRODUCTION_WITH_32_PLUS_CHARS";
+if ((builder.Environment.IsProduction() || builder.Environment.IsStaging())
+    && string.Equals(jwtSettings.SigningKey, insecureJwtPlaceholder, StringComparison.Ordinal))
+{
+    throw new InvalidOperationException("JWT signing key uses insecure placeholder. Set a unique Jwt:SigningKey for this environment.");
 }
 
 var emailAuthSettings = builder.Configuration.GetSection("EmailAuth").Get<EmailAuthSettings>() ?? new EmailAuthSettings();
@@ -63,6 +73,40 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("AuthEmailRequest", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"auth-email-request:{ip}",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 3,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
+
+    options.AddPolicy("AuthEmailVerify", httpContext =>
+    {
+        var ip = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: $"auth-email-verify:{ip}",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            });
+    });
+});
 
 // Add DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -78,7 +122,6 @@ builder.Services.AddScoped<IEmailAuthCodeRepository, EmailAuthCodeRepository>();
 
 // Add Services
 builder.Services.AddScoped<ITaskService, TaskService>();
-builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IWorkspaceService, WorkspaceService>();
 builder.Services.AddScoped<IOverdueStatusService, OverdueStatusService>();
@@ -87,6 +130,7 @@ builder.Services.AddScoped<ITaskAttachmentService, TaskAttachmentService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
+builder.Services.AddHostedService<OverdueStatusSyncBackgroundService>();
 
 builder.Services.AddSingleton<IAttachmentStorage>(sp =>
 {
@@ -153,6 +197,12 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 app.UseHttpsRedirection();
 
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.TryAdd("X-Content-Type-Options", "nosniff");
+    await next();
+});
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -168,6 +218,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseRouting();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -205,6 +257,10 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         logger.LogError(ex, "An error occurred while migrating or seeding the database.");
+        if (!app.Environment.IsDevelopment())
+        {
+            throw;
+        }
     }
 }
 

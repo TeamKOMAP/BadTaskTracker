@@ -85,7 +85,7 @@ namespace TaskManager.Application.Services
             {
                 await _emailSender.SendAsync(
                     email,
-                    "GoodTaskTracker sign-in code",
+                    "BadTaskTracker sign-in code",
                     BuildEmailBody(code, _settings.CodeLifetimeMinutes));
             }
             catch
@@ -233,7 +233,7 @@ namespace TaskManager.Application.Services
         private static string BuildEmailBody(string code, int minutes)
         {
             var safeMinutes = Math.Max(1, minutes);
-            return $"<p>Your GoodTaskTracker code:</p><h2 style=\"letter-spacing: 0.2em;\">{code}</h2><p>This code expires in {safeMinutes} minute(s).</p>";
+            return $"<p>Your BadTaskTracker code:</p><h2 style=\"letter-spacing: 0.2em;\">{code}</h2><p>This code expires in {safeMinutes} minute(s).</p>";
         }
 
         private static string NormalizeCode(string? rawCode)

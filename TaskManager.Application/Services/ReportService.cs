@@ -1,6 +1,5 @@
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Interfaces;
-using TaskManager.Domain.Enums;
 
 namespace TaskManager.Application.Services
 {
@@ -8,45 +7,32 @@ namespace TaskManager.Application.Services
     {
         private readonly ITaskRepository _taskRepository;
         private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
-        private readonly IOverdueStatusService _overdueStatusService;
 
         public ReportService(
             ITaskRepository taskRepository,
-            IWorkspaceMemberRepository workspaceMemberRepository,
-            IOverdueStatusService overdueStatusService)
+            IWorkspaceMemberRepository workspaceMemberRepository)
         {
             _taskRepository = taskRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
-            _overdueStatusService = overdueStatusService;
         }
 
         public async Task<StatusSummaryDto> GetStatusSummaryAsync(int workspaceId, int actorUserId)
         {
             await EnsureMemberAsync(workspaceId, actorUserId);
-            await _overdueStatusService.SyncOverdueStatusesAsync(workspaceId);
-            var tasks = (await _taskRepository.GetAllAsync(workspaceId)).ToList();
-
-            return new StatusSummaryDto
-            {
-                New = tasks.Count(t => t.Status == TaskItemStatus.New),
-                InProgress = tasks.Count(t => t.Status == TaskItemStatus.InProgress),
-                Done = tasks.Count(t => t.Status == TaskItemStatus.Done),
-                Overdue = tasks.Count(t => t.Status == TaskItemStatus.Overdue),
-                Total = tasks.Count
-            };
+            return await _taskRepository.GetStatusSummaryAsync(workspaceId, DateTime.UtcNow);
         }
 
         public async Task<IEnumerable<OverdueByAssigneeDto>> GetOverdueTasksByAssigneeAsync(int workspaceId, int actorUserId)
         {
             await EnsureMemberAsync(workspaceId, actorUserId);
-            await _overdueStatusService.SyncOverdueStatusesAsync(workspaceId);
-            var overdueTasks = (await _taskRepository.GetAllAsync(workspaceId, status: TaskItemStatus.Overdue)).ToList();
+            var now = DateTime.UtcNow;
+            var overdueTasks = await _taskRepository.GetOverdueTaskRowsAsync(workspaceId, now);
 
             var result = overdueTasks
                 .GroupBy(t => new
                 {
                     AssigneeId = t.AssigneeId,
-                    AssigneeName = t.Assignee?.Name
+                    t.AssigneeName
                 })
                 .Select(g => new OverdueByAssigneeDto
                 {
@@ -55,10 +41,10 @@ namespace TaskManager.Application.Services
                     OverdueCount = g.Count(),
                     Tasks = g.Select(t => new OverdueTaskDto
                     {
-                        TaskId = t.Id,
+                        TaskId = t.TaskId,
                         Title = t.Title,
                         DueDate = t.DueDate,
-                        DaysOverdue = Math.Max(0, (int)(DateTime.UtcNow - t.DueDate).TotalDays)
+                        DaysOverdue = Math.Max(0, (int)(now - t.DueDate).TotalDays)
                     }).ToList()
                 })
                 .ToList();
@@ -69,31 +55,7 @@ namespace TaskManager.Application.Services
         public async Task<AverageCompletionTimeDto> GetAverageCompletionTimeAsync(int workspaceId, int actorUserId)
         {
             await EnsureMemberAsync(workspaceId, actorUserId);
-            await _overdueStatusService.SyncOverdueStatusesAsync(workspaceId);
-            var completedTasks = (await _taskRepository.GetAllAsync(workspaceId, status: TaskItemStatus.Done))
-                .Where(t => t.CompletedAt.HasValue)
-                .ToList();
-
-            if (!completedTasks.Any())
-            {
-                return new AverageCompletionTimeDto
-                {
-                    AverageDays = 0,
-                    AverageHours = 0,
-                    SampleSize = 0
-                };
-            }
-
-            var averageCompletionHours = completedTasks
-                .Select(t => (t.CompletedAt!.Value - t.CreatedAt).TotalHours)
-                .Average();
-
-            return new AverageCompletionTimeDto
-            {
-                AverageDays = Math.Round(averageCompletionHours / 24, 2),
-                AverageHours = Math.Round(averageCompletionHours, 2),
-                SampleSize = completedTasks.Count
-            };
+            return await _taskRepository.GetAverageCompletionTimeStatsAsync(workspaceId);
         }
 
         private async Task EnsureMemberAsync(int workspaceId, int actorUserId)

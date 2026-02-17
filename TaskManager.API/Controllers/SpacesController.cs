@@ -12,6 +12,15 @@ namespace TaskManager.API.Controllers
     [Authorize]
     public class SpacesController : ControllerBase
     {
+        private const long MaxAvatarSizeBytes = 5L * 1024 * 1024;
+        private static readonly HashSet<string> AllowedAvatarContentTypes =
+            new(StringComparer.OrdinalIgnoreCase)
+            {
+                "image/jpeg",
+                "image/png",
+                "image/webp"
+            };
+
         private readonly IWorkspaceService _workspaceService;
         private readonly IWebHostEnvironment _environment;
 
@@ -135,13 +144,30 @@ namespace TaskManager.API.Controllers
                 return BadRequest(new { error = "Avatar file is required" });
             }
 
+            if (file.Length > MaxAvatarSizeBytes)
+            {
+                return BadRequest(new { error = "Avatar is too large. Max size is 5 MB." });
+            }
+
+            if (!string.IsNullOrWhiteSpace(file.ContentType)
+                && !AllowedAvatarContentTypes.Contains(file.ContentType))
+            {
+                return BadRequest(new { error = "Only JPEG, PNG and WEBP avatars are allowed." });
+            }
+
+            var detectedExtension = await DetectAvatarExtensionAsync(file);
+            if (detectedExtension == null)
+            {
+                return BadRequest(new { error = "Unsupported avatar file format." });
+            }
+
             try
             {
-                var ext = Path.GetExtension(file.FileName);
-                if (string.IsNullOrWhiteSpace(ext)) ext = ".png";
-
-                var fileName = $"space-{workspaceId}-{Guid.NewGuid():N}{ext}";
-                var folder = Path.Combine(_environment.WebRootPath, "uploads", "spaces");
+                var fileName = $"space-{workspaceId}-{Guid.NewGuid():N}{detectedExtension}";
+                var webRoot = string.IsNullOrWhiteSpace(_environment.WebRootPath)
+                    ? Path.Combine(_environment.ContentRootPath, "wwwroot")
+                    : _environment.WebRootPath;
+                var folder = Path.Combine(webRoot, "uploads", "spaces");
                 Directory.CreateDirectory(folder);
 
                 var fullPath = Path.Combine(folder, fileName);
@@ -166,6 +192,49 @@ namespace TaskManager.API.Controllers
             {
                 return BadRequest(new { error = ex.Message });
             }
+        }
+
+        private static async Task<string?> DetectAvatarExtensionAsync(IFormFile file)
+        {
+            await using var stream = file.OpenReadStream();
+            var header = new byte[12];
+            var read = await stream.ReadAsync(header.AsMemory(0, header.Length));
+
+            if (read >= 3
+                && header[0] == 0xFF
+                && header[1] == 0xD8
+                && header[2] == 0xFF)
+            {
+                return ".jpg";
+            }
+
+            if (read >= 8
+                && header[0] == 0x89
+                && header[1] == 0x50
+                && header[2] == 0x4E
+                && header[3] == 0x47
+                && header[4] == 0x0D
+                && header[5] == 0x0A
+                && header[6] == 0x1A
+                && header[7] == 0x0A)
+            {
+                return ".png";
+            }
+
+            if (read >= 12
+                && header[0] == 0x52
+                && header[1] == 0x49
+                && header[2] == 0x46
+                && header[3] == 0x46
+                && header[8] == 0x57
+                && header[9] == 0x45
+                && header[10] == 0x42
+                && header[11] == 0x50)
+            {
+                return ".webp";
+            }
+
+            return null;
         }
 
         [HttpDelete("{workspaceId:int}/avatar")]

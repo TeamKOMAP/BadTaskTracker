@@ -6,7 +6,7 @@ namespace TaskManager.Application.Auth
         public int CodeLifetimeMinutes { get; set; } = 10;
         public int ResendCooldownSeconds { get; set; } = 60;
         public int MaxAttempts { get; set; } = 5;
-        public string SenderName { get; set; } = "GoodTaskTracker";
+        public string SenderName { get; set; } = "BadTaskTracker";
         public bool EnableDevelopmentCodeFallback { get; set; } = false;
         public bool ExposeDevelopmentCodeInResponse { get; set; } = false;
     }

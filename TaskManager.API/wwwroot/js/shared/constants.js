@@ -1,9 +1,7 @@
 export const STORAGE_WORKSPACE_ID = "gtt-workspace-id";
-export const STORAGE_ACCESS_TOKEN = "gtt-access-token";
 
 export const MANAGE_ROLES = new Set(["Owner", "Admin"]);
 
-export const DEFAULT_ASSIGNEE_ID = 1;
 export const DEFAULT_DUE_DAYS = 7;
 export const DEFAULT_PRIORITY_VALUE = 2;
 

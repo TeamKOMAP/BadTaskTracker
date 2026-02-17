@@ -11,9 +11,9 @@ namespace TaskManager.Application.Services
             _taskRepository = taskRepository;
         }
 
-        public Task<int> SyncOverdueStatusesAsync(int workspaceId)
+        public Task<int> SyncAllOverdueStatusesAsync(CancellationToken cancellationToken = default)
         {
-            return _taskRepository.UpdateOverdueStatusesAsync(workspaceId, DateTime.UtcNow);
+            return _taskRepository.UpdateOverdueStatusesAsync(DateTime.UtcNow, null, cancellationToken);
         }
     }
 }

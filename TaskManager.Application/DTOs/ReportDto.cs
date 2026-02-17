@@ -31,4 +31,13 @@
         public double AverageHours { get; set; }
         public int SampleSize { get; set; }
     }
+
+    public class OverdueTaskAssigneeRowDto
+    {
+        public int? AssigneeId { get; set; }
+        public string? AssigneeName { get; set; }
+        public int TaskId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public DateTime DueDate { get; set; }
+    }
 }

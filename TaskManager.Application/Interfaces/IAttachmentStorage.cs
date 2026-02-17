@@ -7,6 +7,9 @@ namespace TaskManager.Application.Interfaces
     {
         Task<IReadOnlyList<AttachmentMeta>> ListAsync(int taskId, CancellationToken cancellationToken = default);
         Task<int> CountAsync(int taskId, CancellationToken cancellationToken = default);
+        Task<IReadOnlyDictionary<int, int>> CountByTaskIdsAsync(
+            IReadOnlyCollection<int> taskIds,
+            CancellationToken cancellationToken = default);
         Task<IReadOnlyList<AttachmentMeta>> SaveAsync(
             int taskId,
             IReadOnlyList<AttachmentUpload> uploads,

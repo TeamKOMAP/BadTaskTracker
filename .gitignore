@@ -1,0 +1,16 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Build outputs
+**/bin/
+**/obj/
+
+# Logs and local runtime artifacts
+*.log
+TaskManager.API/App_Data/
+TaskManager.API/wwwroot/uploads/
+
+# Test runtime artifacts
+TaskManager.Tests/App_Data/

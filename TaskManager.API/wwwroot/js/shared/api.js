@@ -1,18 +1,12 @@
 const ACCESS_TOKEN_KEY = "gtt-access-token";
 
 const resolveApiBase = () => {
-  const params = new URLSearchParams(window.location.search);
-  const fromQuery = String(params.get("api") ?? "").trim();
-  if (fromQuery) {
-    return fromQuery.endsWith("/api") ? fromQuery : `${fromQuery.replace(/\/$/, "")}/api`;
-  }
-
   return "/api";
 };
 
-export const API_BASE = resolveApiBase();
+const API_BASE = resolveApiBase();
 
-export const getAccessToken = () => {
+const getAccessToken = () => {
   try {
     return String(localStorage.getItem(ACCESS_TOKEN_KEY) || "").trim();
   } catch {
@@ -45,7 +39,7 @@ export const clearAccessToken = () => {
   }
 };
 
-export const isAuthPage = () => {
+const isAuthPage = () => {
   const path = String(window.location.pathname || "").toLowerCase();
   return path.endsWith("/auth-email.html") || path.endsWith("/auth-code.html");
 };
