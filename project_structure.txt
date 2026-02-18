@@ -1,0 +1,1071 @@
+Структура папок
+Серийный номер тома: 70AC-165C
+C:.
+|   .env
+|   .env.example
+|   .gitignore
+|   api_stderr.log
+|   api_stdout.log
+|   DEFINITION_OF_DONE.md
+|   LICENSE
+|   photo_2026-01-08_15-01-48.jpg
+|   project_structure.txt
+|   README.md
+|   TaskManager.sln
+|   test-trigger.txt
+|   ФА.jpg
+|   
++---.config
+|       dotnet-tools.json
+|       
++---.github
+|   \---workflows
+|           ci-telegram.yml
+|           dotnet.yml
+|           email-on-push.yml
+|           
++---.vs
+|   +---ProjectEvaluation
+|   |       taskmanager.metadata.v9.bin
+|   |       taskmanager.projects.v9.bin
+|   |       taskmanager.strings.v9.bin
+|   |       
+|   \---TaskManager
+|       +---config
+|       |       applicationhost.config
+|       |       
+|       +---CopilotIndices
+|       |   \---17.14.670.39694
+|       |           CodeChunks.db
+|       |           CodeChunks.db-shm
+|       |           CodeChunks.db-wal
+|       |           SemanticSymbols.db
+|       |           SemanticSymbols.db-shm
+|       |           SemanticSymbols.db-wal
+|       |           
+|       +---DesignTimeBuild
+|       |       .dtbcache.v2
+|       |       
+|       +---FileContentIndex
+|       |       145fca3d-a7a2-4548-81be-d2d10ab56c26.vsidx
+|       |       3df8e986-49a0-4490-8367-bb546745860c.vsidx
+|       |       c8e7c225-4064-4f57-bca7-b54f86908675.vsidx
+|       |       e23b6a31-5a80-4ddb-86ac-e7fed9623977.vsidx
+|       |       fe2a2bf7-41f1-4a6b-b6bc-bb5225f193ac.vsidx
+|       |       
+|       +---v17
+|       |       .futdcache.v2
+|       |       .suo
+|       |       DocumentLayout.backup.json
+|       |       DocumentLayout.json
+|       |       
+|       \---v18
+|               .futdcache.v2
+|               .suo
+|               DocumentLayout.backup.json
+|               DocumentLayout.json
+|               
++---TaskManager.API
+|   |   .gitignore
+|   |   appsettings.Development.json
+|   |   appsettings.json
+|   |   GlobalUsings.cs
+|   |   Program.cs
+|   |   TaskManager.API.csproj
+|   |   TaskManager.API.csproj.user
+|   |   TaskManager.API.http
+|   |   
+|   +---App_Data
+|   |   \---attachments
+|   |       +---task-1
+|   |       |       01f80598a0414862bce42bee9caeeb5c.txt
+|   |       |       256cd69278384ecfba775a004272986a.txt
+|   |       |       33522bb639e44d70a37c6263925565d3.txt
+|   |       |       51902cebe9c64fb4a3417703bb37c110.txt
+|   |       |       7a52b032ce6b43c5b62fe758f151849b.txt
+|   |       |       86ca7743e25b456ca516146e54524f9f.txt
+|   |       |       index.json
+|   |       |       
+|   |       +---task-11
+|   |       |       56fe6cccfb2347d6b97b7f78cd3bb22c.jpg
+|   |       |       index.json
+|   |       |       
+|   |       +---task-13
+|   |       |       947dcccf2d344a18892e628c83b35d54.jpg
+|   |       |       index.json
+|   |       |       
+|   |       +---task-2
+|   |       |       index.json
+|   |       |       
+|   |       \---task-7
+|   |               9606a3002e834661bf89e55ed1ce62fa.jpg
+|   |               index.json
+|   |               
+|   +---Background
+|   |       OverdueStatusSyncBackgroundService.cs
+|   |       
+|   +---bin
+|   |   \---Debug
+|   |       \---net8.0
+|   +---Configuration
+|   |       DotEnvLoader.cs
+|   |       
+|   +---Controllers
+|   |       AuthController.cs
+|   |       ReportsController.cs
+|   |       SpacesController.cs
+|   |       TagsController.cs
+|   |       TaskAttachmentsController.cs
+|   |       TasksController.cs
+|   |       
+|   +---obj
+|   |   |   project.assets.json
+|   |   |   project.nuget.cache
+|   |   |   TaskManager.API.csproj.nuget.dgspec.json
+|   |   |   TaskManager.API.csproj.nuget.g.props
+|   |   |   TaskManager.API.csproj.nuget.g.targets
+|   |   |   
+|   |   \---Debug
+|   |       \---net8.0
+|   |           |   .NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+|   |           |   rpswa.dswa.cache.json
+|   |           |   staticwebassets.removed.txt
+|   |           |   TaskManager.API.AssemblyInfo.cs
+|   |           |   TaskManager.API.AssemblyInfoInputs.cache
+|   |           |   TaskManager.API.assets.cache
+|   |           |   TaskManager.API.csproj.AssemblyReference.cache
+|   |           |   TaskManager.API.GeneratedMSBuildEditorConfig.editorconfig
+|   |           |   TaskManager.API.GlobalUsings.g.cs
+|   |           |   
+|   |           +---ref
+|   |           +---refint
+|   |           \---staticwebassets
+|   +---Properties
+|   |       launchSettings.json
+|   |       
+|   +---Security
+|   |       JwtSettings.cs
+|   |       JwtTokenService.cs
+|   |       RequestContextResolver.cs
+|   |       
+|   \---wwwroot
+|       |   auth-code.html
+|       |   auth-email.html
+|       |   index.html
+|       |   workspace.html
+|       |   
+|       +---css
+|       |       auth.css
+|       |       base.css
+|       |       components.css
+|       |       spaces.css
+|       |       workspace.css
+|       |       
+|       +---js
+|       |   +---auth
+|       |   |       code.js
+|       |   |       email.js
+|       |   |       
+|       |   +---shared
+|       |   |       account-prefs.js
+|       |   |       api.js
+|       |   |       auth-utils.js
+|       |   |       constants.js
+|       |   |       navigation.js
+|       |   |       roles.js
+|       |   |       utils.js
+|       |   |       
+|       |   +---spaces
+|       |   |       main.js
+|       |   |       
+|       |   \---workspace
+|       |           board-view.js
+|       |           calendar-view.js
+|       |           dom.js
+|       |           flow-drag.js
+|       |           flow-editor.js
+|       |           flow-links.js
+|       |           flow-nodes.js
+|       |           flow-select.js
+|       |           helpers.js
+|       |           main.js
+|       |           media-utils.js
+|       |           priority-view.js
+|       |           storage.js
+|       |           task-detail-api.js
+|       |           task-detail-cache.js
+|       |           task-detail-render.js
+|       |           task-detail.js
+|       |           
+|       \---uploads
+|           \---spaces
+|                   space-1-048056db84a942c79cb8e83948293fab.png
+|                   space-1-38d299c60a3146348500919193850adb.jpg
+|                   space-1-8225dec6dd624e89981c7f2066bca787.png
+|                   space-1-8331270bf972491285889100f7171165.png
+|                   space-2-756dda545c4d4e4e950363e0957fa8e2.jpg
+|                   space-4-073730e63c5e40888ea20930e6642fc9.jpg
+|                   
++---TaskManager.Application
+|   |   GlobalUsings.cs
+|   |   TaskManager.Application.csproj
+|   |   
+|   +---Attachments
+|   |       AttachmentModels.cs
+|   |       
+|   +---Auth
+|   |       EmailAuthSettings.cs
+|   |       SmtpSettings.cs
+|   |       
+|   +---bin
+|   |   \---Debug
+|   |       \---net8.0
+|   |               TaskManager.Application.deps.json
+|   |               TaskManager.Application.dll
+|   |               TaskManager.Application.pdb
+|   |               TaskManager.Domain.dll
+|   |               TaskManager.Domain.pdb
+|   |               
+|   +---DTOs
+|   |       AttachmentDtos.cs
+|   |       AuthDtos.cs
+|   |       ReportDto.cs
+|   |       TagDtos.cs
+|   |       TaskDto.cs
+|   |       WorkspaceDtos.cs
+|   |       
+|   +---Exceptions
+|   |       ConflictException.cs
+|   |       ForbiddenException.cs
+|   |       NotFoundException.cs
+|   |       ValidationException.cs
+|   |       
+|   +---Interfaces
+|   |       IAttachmentStorage.cs
+|   |       IAuthService.cs
+|   |       IEmailAuthCodeRepository.cs
+|   |       IEmailSender.cs
+|   |       IJwtTokenService.cs
+|   |       IOverdueStatusService.cs
+|   |       IReportService.cs
+|   |       ITagRepository.cs
+|   |       ITagService.cs
+|   |       ITaskAttachmentService.cs
+|   |       ITaskRepository.cs
+|   |       ITaskService.cs
+|   |       IUserRepository.cs
+|   |       IWorkspaceMemberRepository.cs
+|   |       IWorkspaceRepository.cs
+|   |       IWorkspaceService.cs
+|   |       
+|   +---obj
+|   |   |   project.assets.json
+|   |   |   project.nuget.cache
+|   |   |   TaskManager.Application.csproj.nuget.dgspec.json
+|   |   |   TaskManager.Application.csproj.nuget.g.props
+|   |   |   TaskManager.Application.csproj.nuget.g.targets
+|   |   |   
+|   |   \---Debug
+|   |       \---net8.0
+|   |           |   .NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+|   |           |   TaskMana.898BD9DB.Up2Date
+|   |           |   TaskManager.Application.AssemblyInfo.cs
+|   |           |   TaskManager.Application.AssemblyInfoInputs.cache
+|   |           |   TaskManager.Application.assets.cache
+|   |           |   TaskManager.Application.csproj.AssemblyReference.cache
+|   |           |   TaskManager.Application.csproj.BuildWithSkipAnalyzers
+|   |           |   TaskManager.Application.csproj.CoreCompileInputs.cache
+|   |           |   TaskManager.Application.csproj.FileListAbsolute.txt
+|   |           |   TaskManager.Application.dll
+|   |           |   TaskManager.Application.GeneratedMSBuildEditorConfig.editorconfig
+|   |           |   TaskManager.Application.GlobalUsings.g.cs
+|   |           |   TaskManager.Application.pdb
+|   |           |   TaskManager.Application.sourcelink.json
+|   |           |   
+|   |           +---ref
+|   |           |       TaskManager.Application.dll
+|   |           |       
+|   |           \---refint
+|   |                   TaskManager.Application.dll
+|   |                   
+|   \---Services
+|           AuthService.cs
+|           OverdueStatusService.cs
+|           ReportService.cs
+|           TagService.cs
+|           TaskAttachmentService.cs
+|           TaskService.cs
+|           WorkspaceService.cs
+|           
++---TaskManager.Domain
+|   |   GlobalUsings.cs
+|   |   TaskManager.Domain.csproj
+|   |   
+|   +---bin
+|   |   \---Debug
+|   |       \---net8.0
+|   |               TaskManager.Domain.deps.json
+|   |               TaskManager.Domain.dll
+|   |               TaskManager.Domain.pdb
+|   |               
+|   +---Entities
+|   |       EmailAuthCode.cs
+|   |       Tag.cs
+|   |       TaskItem.cs
+|   |       TaskTag.cs
+|   |       User.cs
+|   |       Workspace.cs
+|   |       WorkspaceMember.cs
+|   |       
+|   +---Enums
+|   |       TaskItemStatus.cs
+|   |       TaskPriority.cs
+|   |       WorkspaceRole.cs
+|   |       
+|   \---obj
+|       |   project.assets.json
+|       |   project.nuget.cache
+|       |   TaskManager.Domain.csproj.nuget.dgspec.json
+|       |   TaskManager.Domain.csproj.nuget.g.props
+|       |   TaskManager.Domain.csproj.nuget.g.targets
+|       |   
+|       \---Debug
+|           \---net8.0
+|               |   .NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+|               |   TaskManager.Domain.AssemblyInfo.cs
+|               |   TaskManager.Domain.AssemblyInfoInputs.cache
+|               |   TaskManager.Domain.assets.cache
+|               |   TaskManager.Domain.csproj.BuildWithSkipAnalyzers
+|               |   TaskManager.Domain.csproj.CoreCompileInputs.cache
+|               |   TaskManager.Domain.csproj.FileListAbsolute.txt
+|               |   TaskManager.Domain.dll
+|               |   TaskManager.Domain.GeneratedMSBuildEditorConfig.editorconfig
+|               |   TaskManager.Domain.GlobalUsings.g.cs
+|               |   TaskManager.Domain.pdb
+|               |   TaskManager.Domain.sourcelink.json
+|               |   
+|               +---ref
+|               |       TaskManager.Domain.dll
+|               |       
+|               \---refint
+|                       TaskManager.Domain.dll
+|                       
++---TaskManager.Infrastructure
+|   |   DesignTimeDbContextFactory.cs
+|   |   GlobalUsings.cs
+|   |   TaskManager.db
+|   |   TaskManager.Infrastructure.csproj
+|   |   
+|   +---bin
+|   |   \---Debug
+|   |       \---net8.0
+|   |               TaskManager.Application.dll
+|   |               TaskManager.Application.pdb
+|   |               TaskManager.Domain.dll
+|   |               TaskManager.Domain.pdb
+|   |               TaskManager.Infrastructure.deps.json
+|   |               TaskManager.Infrastructure.dll
+|   |               TaskManager.Infrastructure.pdb
+|   |               TaskManager.Infrastructure.runtimeconfig.json
+|   |               
+|   +---Data
+|   |   |   ApplicationDbContext.cs
+|   |   |   SeedData.cs
+|   |   |   
+|   |   \---Migrations
+|   |           20260209052724_InitialCreate.cs
+|   |           20260209052724_InitialCreate.Designer.cs
+|   |           20260211170619_WorkspaceIsolation.cs
+|   |           20260211170619_WorkspaceIsolation.Designer.cs
+|   |           20260216053244_EmailAuthCodes.cs
+|   |           20260216053244_EmailAuthCodes.Designer.cs
+|   |           ApplicationDbContextModelSnapshot.cs
+|   |           
+|   +---Email
+|   |       SmtpEmailSender.cs
+|   |       
+|   +---obj
+|   |   |   project.assets.json
+|   |   |   project.nuget.cache
+|   |   |   TaskManager.Infrastructure.csproj.EntityFrameworkCore.targets
+|   |   |   TaskManager.Infrastructure.csproj.nuget.dgspec.json
+|   |   |   TaskManager.Infrastructure.csproj.nuget.g.props
+|   |   |   TaskManager.Infrastructure.csproj.nuget.g.targets
+|   |   |   
+|   |   \---Debug
+|   |       \---net8.0
+|   |           |   .NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+|   |           |   TaskMana.DD0CDC6B.Up2Date
+|   |           |   TaskManager.Infrastructure.AssemblyInfo.cs
+|   |           |   TaskManager.Infrastructure.AssemblyInfoInputs.cache
+|   |           |   TaskManager.Infrastructure.assets.cache
+|   |           |   TaskManager.Infrastructure.csproj.AssemblyReference.cache
+|   |           |   TaskManager.Infrastructure.csproj.BuildWithSkipAnalyzers
+|   |           |   TaskManager.Infrastructure.csproj.CoreCompileInputs.cache
+|   |           |   TaskManager.Infrastructure.csproj.FileListAbsolute.txt
+|   |           |   TaskManager.Infrastructure.dll
+|   |           |   TaskManager.Infrastructure.GeneratedMSBuildEditorConfig.editorconfig
+|   |           |   TaskManager.Infrastructure.genruntimeconfig.cache
+|   |           |   TaskManager.Infrastructure.GlobalUsings.g.cs
+|   |           |   TaskManager.Infrastructure.pdb
+|   |           |   TaskManager.Infrastructure.sourcelink.json
+|   |           |   
+|   |           +---ref
+|   |           |       TaskManager.Infrastructure.dll
+|   |           |       
+|   |           \---refint
+|   |                   TaskManager.Infrastructure.dll
+|   |                   
+|   +---Repositories
+|   |       EmailAuthCodeRepository.cs
+|   |       TagRepository.cs
+|   |       TaskRepository.cs
+|   |       UserRepository.cs
+|   |       WorkspaceMemberRepository.cs
+|   |       WorkspaceRepository.cs
+|   |       
+|   \---Storage
+|           FileAttachmentStorage.cs
+|           
+\---TaskManager.Tests
+    |   TaskManager.Tests.csproj
+    |   
+    +---bin
+    |   \---Debug
+    |       \---net8.0
+    |           |   appsettings.Development.json
+    |           |   appsettings.json
+    |           |   Azure.Core.dll
+    |           |   Azure.Identity.dll
+    |           |   FluentAssertions.dll
+    |           |   Microsoft.AspNetCore.Authentication.JwtBearer.dll
+    |           |   Microsoft.AspNetCore.Mvc.Testing.dll
+    |           |   Microsoft.AspNetCore.TestHost.dll
+    |           |   Microsoft.Bcl.AsyncInterfaces.dll
+    |           |   Microsoft.Data.SqlClient.dll
+    |           |   Microsoft.Data.Sqlite.dll
+    |           |   Microsoft.EntityFrameworkCore.Abstractions.dll
+    |           |   Microsoft.EntityFrameworkCore.dll
+    |           |   Microsoft.EntityFrameworkCore.InMemory.dll
+    |           |   Microsoft.EntityFrameworkCore.Relational.dll
+    |           |   Microsoft.EntityFrameworkCore.Sqlite.dll
+    |           |   Microsoft.EntityFrameworkCore.SqlServer.dll
+    |           |   Microsoft.Extensions.DependencyModel.dll
+    |           |   Microsoft.Identity.Client.dll
+    |           |   Microsoft.Identity.Client.Extensions.Msal.dll
+    |           |   Microsoft.IdentityModel.Abstractions.dll
+    |           |   Microsoft.IdentityModel.JsonWebTokens.dll
+    |           |   Microsoft.IdentityModel.Logging.dll
+    |           |   Microsoft.IdentityModel.Protocols.dll
+    |           |   Microsoft.IdentityModel.Protocols.OpenIdConnect.dll
+    |           |   Microsoft.IdentityModel.Tokens.dll
+    |           |   Microsoft.OpenApi.dll
+    |           |   Microsoft.SqlServer.Server.dll
+    |           |   Microsoft.TestPlatform.CommunicationUtilities.dll
+    |           |   Microsoft.TestPlatform.CoreUtilities.dll
+    |           |   Microsoft.TestPlatform.CrossPlatEngine.dll
+    |           |   Microsoft.TestPlatform.PlatformAbstractions.dll
+    |           |   Microsoft.TestPlatform.Utilities.dll
+    |           |   Microsoft.VisualStudio.CodeCoverage.Shim.dll
+    |           |   Microsoft.VisualStudio.TestPlatform.Common.dll
+    |           |   Microsoft.VisualStudio.TestPlatform.ObjectModel.dll
+    |           |   Microsoft.Win32.SystemEvents.dll
+    |           |   MvcTestingAppManifest.json
+    |           |   Newtonsoft.Json.dll
+    |           |   SQLitePCLRaw.batteries_v2.dll
+    |           |   SQLitePCLRaw.core.dll
+    |           |   SQLitePCLRaw.provider.e_sqlite3.dll
+    |           |   Swashbuckle.AspNetCore.Swagger.dll
+    |           |   Swashbuckle.AspNetCore.SwaggerGen.dll
+    |           |   Swashbuckle.AspNetCore.SwaggerUI.dll
+    |           |   System.Configuration.ConfigurationManager.dll
+    |           |   System.Drawing.Common.dll
+    |           |   System.IdentityModel.Tokens.Jwt.dll
+    |           |   System.Memory.Data.dll
+    |           |   System.Runtime.Caching.dll
+    |           |   System.Security.Cryptography.ProtectedData.dll
+    |           |   System.Security.Permissions.dll
+    |           |   System.Windows.Extensions.dll
+    |           |   TaskManager.API.deps.json
+    |           |   TaskManager.API.dll
+    |           |   TaskManager.API.exe
+    |           |   TaskManager.API.pdb
+    |           |   TaskManager.API.runtimeconfig.json
+    |           |   TaskManager.API.staticwebassets.endpoints.json
+    |           |   TaskManager.API.staticwebassets.runtime.json
+    |           |   TaskManager.Application.deps.json
+    |           |   TaskManager.Application.dll
+    |           |   TaskManager.Application.pdb
+    |           |   TaskManager.Domain.deps.json
+    |           |   TaskManager.Domain.dll
+    |           |   TaskManager.Domain.pdb
+    |           |   TaskManager.Infrastructure.deps.json
+    |           |   TaskManager.Infrastructure.dll
+    |           |   TaskManager.Infrastructure.pdb
+    |           |   TaskManager.Tests.deps.json
+    |           |   TaskManager.Tests.dll
+    |           |   TaskManager.Tests.pdb
+    |           |   TaskManager.Tests.runtimeconfig.json
+    |           |   testhost.dll
+    |           |   testhost.exe
+    |           |   xunit.abstractions.dll
+    |           |   xunit.assert.dll
+    |           |   xunit.core.dll
+    |           |   xunit.execution.dotnet.dll
+    |           |   xunit.runner.reporters.netcoreapp10.dll
+    |           |   xunit.runner.utility.netcoreapp10.dll
+    |           |   xunit.runner.visualstudio.testadapter.dll
+    |           |   
+    |           +---App_Data
+    |           |   \---attachments
+    |           |       +---task-1
+    |           |       |       index.json
+    |           |       |       
+    |           |       +---task-11
+    |           |       |       index.json
+    |           |       |       
+    |           |       +---task-13
+    |           |       |       index.json
+    |           |       |       
+    |           |       \---task-2
+    |           |               index.json
+    |           |               
+    |           +---cs
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---de
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---es
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---fr
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---it
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---ja
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---ko
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---pl
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---pt-BR
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---refs
+    |           |       Microsoft.AspNetCore.Antiforgery.dll
+    |           |       Microsoft.AspNetCore.Authentication.Abstractions.dll
+    |           |       Microsoft.AspNetCore.Authentication.BearerToken.dll
+    |           |       Microsoft.AspNetCore.Authentication.Cookies.dll
+    |           |       Microsoft.AspNetCore.Authentication.Core.dll
+    |           |       Microsoft.AspNetCore.Authentication.dll
+    |           |       Microsoft.AspNetCore.Authentication.OAuth.dll
+    |           |       Microsoft.AspNetCore.Authorization.dll
+    |           |       Microsoft.AspNetCore.Authorization.Policy.dll
+    |           |       Microsoft.AspNetCore.Components.Authorization.dll
+    |           |       Microsoft.AspNetCore.Components.dll
+    |           |       Microsoft.AspNetCore.Components.Endpoints.dll
+    |           |       Microsoft.AspNetCore.Components.Forms.dll
+    |           |       Microsoft.AspNetCore.Components.Server.dll
+    |           |       Microsoft.AspNetCore.Components.Web.dll
+    |           |       Microsoft.AspNetCore.Connections.Abstractions.dll
+    |           |       Microsoft.AspNetCore.CookiePolicy.dll
+    |           |       Microsoft.AspNetCore.Cors.dll
+    |           |       Microsoft.AspNetCore.Cryptography.Internal.dll
+    |           |       Microsoft.AspNetCore.Cryptography.KeyDerivation.dll
+    |           |       Microsoft.AspNetCore.DataProtection.Abstractions.dll
+    |           |       Microsoft.AspNetCore.DataProtection.dll
+    |           |       Microsoft.AspNetCore.DataProtection.Extensions.dll
+    |           |       Microsoft.AspNetCore.Diagnostics.Abstractions.dll
+    |           |       Microsoft.AspNetCore.Diagnostics.dll
+    |           |       Microsoft.AspNetCore.Diagnostics.HealthChecks.dll
+    |           |       Microsoft.AspNetCore.dll
+    |           |       Microsoft.AspNetCore.HostFiltering.dll
+    |           |       Microsoft.AspNetCore.Hosting.Abstractions.dll
+    |           |       Microsoft.AspNetCore.Hosting.dll
+    |           |       Microsoft.AspNetCore.Hosting.Server.Abstractions.dll
+    |           |       Microsoft.AspNetCore.Html.Abstractions.dll
+    |           |       Microsoft.AspNetCore.Http.Abstractions.dll
+    |           |       Microsoft.AspNetCore.Http.Connections.Common.dll
+    |           |       Microsoft.AspNetCore.Http.Connections.dll
+    |           |       Microsoft.AspNetCore.Http.dll
+    |           |       Microsoft.AspNetCore.Http.Extensions.dll
+    |           |       Microsoft.AspNetCore.Http.Features.dll
+    |           |       Microsoft.AspNetCore.Http.Results.dll
+    |           |       Microsoft.AspNetCore.HttpLogging.dll
+    |           |       Microsoft.AspNetCore.HttpOverrides.dll
+    |           |       Microsoft.AspNetCore.HttpsPolicy.dll
+    |           |       Microsoft.AspNetCore.Identity.dll
+    |           |       Microsoft.AspNetCore.Localization.dll
+    |           |       Microsoft.AspNetCore.Localization.Routing.dll
+    |           |       Microsoft.AspNetCore.Metadata.dll
+    |           |       Microsoft.AspNetCore.Mvc.Abstractions.dll
+    |           |       Microsoft.AspNetCore.Mvc.ApiExplorer.dll
+    |           |       Microsoft.AspNetCore.Mvc.Core.dll
+    |           |       Microsoft.AspNetCore.Mvc.Cors.dll
+    |           |       Microsoft.AspNetCore.Mvc.DataAnnotations.dll
+    |           |       Microsoft.AspNetCore.Mvc.dll
+    |           |       Microsoft.AspNetCore.Mvc.Formatters.Json.dll
+    |           |       Microsoft.AspNetCore.Mvc.Formatters.Xml.dll
+    |           |       Microsoft.AspNetCore.Mvc.Localization.dll
+    |           |       Microsoft.AspNetCore.Mvc.Razor.dll
+    |           |       Microsoft.AspNetCore.Mvc.RazorPages.dll
+    |           |       Microsoft.AspNetCore.Mvc.TagHelpers.dll
+    |           |       Microsoft.AspNetCore.Mvc.ViewFeatures.dll
+    |           |       Microsoft.AspNetCore.OutputCaching.dll
+    |           |       Microsoft.AspNetCore.RateLimiting.dll
+    |           |       Microsoft.AspNetCore.Razor.dll
+    |           |       Microsoft.AspNetCore.Razor.Runtime.dll
+    |           |       Microsoft.AspNetCore.RequestDecompression.dll
+    |           |       Microsoft.AspNetCore.ResponseCaching.Abstractions.dll
+    |           |       Microsoft.AspNetCore.ResponseCaching.dll
+    |           |       Microsoft.AspNetCore.ResponseCompression.dll
+    |           |       Microsoft.AspNetCore.Rewrite.dll
+    |           |       Microsoft.AspNetCore.Routing.Abstractions.dll
+    |           |       Microsoft.AspNetCore.Routing.dll
+    |           |       Microsoft.AspNetCore.Server.HttpSys.dll
+    |           |       Microsoft.AspNetCore.Server.IIS.dll
+    |           |       Microsoft.AspNetCore.Server.IISIntegration.dll
+    |           |       Microsoft.AspNetCore.Server.Kestrel.Core.dll
+    |           |       Microsoft.AspNetCore.Server.Kestrel.dll
+    |           |       Microsoft.AspNetCore.Server.Kestrel.Transport.NamedPipes.dll
+    |           |       Microsoft.AspNetCore.Server.Kestrel.Transport.Quic.dll
+    |           |       Microsoft.AspNetCore.Server.Kestrel.Transport.Sockets.dll
+    |           |       Microsoft.AspNetCore.Session.dll
+    |           |       Microsoft.AspNetCore.SignalR.Common.dll
+    |           |       Microsoft.AspNetCore.SignalR.Core.dll
+    |           |       Microsoft.AspNetCore.SignalR.dll
+    |           |       Microsoft.AspNetCore.SignalR.Protocols.Json.dll
+    |           |       Microsoft.AspNetCore.StaticFiles.dll
+    |           |       Microsoft.AspNetCore.WebSockets.dll
+    |           |       Microsoft.AspNetCore.WebUtilities.dll
+    |           |       Microsoft.CSharp.dll
+    |           |       Microsoft.Extensions.Caching.Abstractions.dll
+    |           |       Microsoft.Extensions.Caching.Memory.dll
+    |           |       Microsoft.Extensions.Configuration.Abstractions.dll
+    |           |       Microsoft.Extensions.Configuration.Binder.dll
+    |           |       Microsoft.Extensions.Configuration.CommandLine.dll
+    |           |       Microsoft.Extensions.Configuration.dll
+    |           |       Microsoft.Extensions.Configuration.EnvironmentVariables.dll
+    |           |       Microsoft.Extensions.Configuration.FileExtensions.dll
+    |           |       Microsoft.Extensions.Configuration.Ini.dll
+    |           |       Microsoft.Extensions.Configuration.Json.dll
+    |           |       Microsoft.Extensions.Configuration.KeyPerFile.dll
+    |           |       Microsoft.Extensions.Configuration.UserSecrets.dll
+    |           |       Microsoft.Extensions.Configuration.Xml.dll
+    |           |       Microsoft.Extensions.DependencyInjection.Abstractions.dll
+    |           |       Microsoft.Extensions.DependencyInjection.dll
+    |           |       Microsoft.Extensions.Diagnostics.Abstractions.dll
+    |           |       Microsoft.Extensions.Diagnostics.dll
+    |           |       Microsoft.Extensions.Diagnostics.HealthChecks.Abstractions.dll
+    |           |       Microsoft.Extensions.Diagnostics.HealthChecks.dll
+    |           |       Microsoft.Extensions.Features.dll
+    |           |       Microsoft.Extensions.FileProviders.Abstractions.dll
+    |           |       Microsoft.Extensions.FileProviders.Composite.dll
+    |           |       Microsoft.Extensions.FileProviders.Embedded.dll
+    |           |       Microsoft.Extensions.FileProviders.Physical.dll
+    |           |       Microsoft.Extensions.FileSystemGlobbing.dll
+    |           |       Microsoft.Extensions.Hosting.Abstractions.dll
+    |           |       Microsoft.Extensions.Hosting.dll
+    |           |       Microsoft.Extensions.Http.dll
+    |           |       Microsoft.Extensions.Identity.Core.dll
+    |           |       Microsoft.Extensions.Identity.Stores.dll
+    |           |       Microsoft.Extensions.Localization.Abstractions.dll
+    |           |       Microsoft.Extensions.Localization.dll
+    |           |       Microsoft.Extensions.Logging.Abstractions.dll
+    |           |       Microsoft.Extensions.Logging.Configuration.dll
+    |           |       Microsoft.Extensions.Logging.Console.dll
+    |           |       Microsoft.Extensions.Logging.Debug.dll
+    |           |       Microsoft.Extensions.Logging.dll
+    |           |       Microsoft.Extensions.Logging.EventLog.dll
+    |           |       Microsoft.Extensions.Logging.EventSource.dll
+    |           |       Microsoft.Extensions.Logging.TraceSource.dll
+    |           |       Microsoft.Extensions.ObjectPool.dll
+    |           |       Microsoft.Extensions.Options.ConfigurationExtensions.dll
+    |           |       Microsoft.Extensions.Options.DataAnnotations.dll
+    |           |       Microsoft.Extensions.Options.dll
+    |           |       Microsoft.Extensions.Primitives.dll
+    |           |       Microsoft.Extensions.WebEncoders.dll
+    |           |       Microsoft.JSInterop.dll
+    |           |       Microsoft.Net.Http.Headers.dll
+    |           |       Microsoft.VisualBasic.Core.dll
+    |           |       Microsoft.VisualBasic.dll
+    |           |       Microsoft.Win32.Primitives.dll
+    |           |       Microsoft.Win32.Registry.dll
+    |           |       mscorlib.dll
+    |           |       netstandard.dll
+    |           |       System.AppContext.dll
+    |           |       System.Buffers.dll
+    |           |       System.Collections.Concurrent.dll
+    |           |       System.Collections.dll
+    |           |       System.Collections.Immutable.dll
+    |           |       System.Collections.NonGeneric.dll
+    |           |       System.Collections.Specialized.dll
+    |           |       System.ComponentModel.Annotations.dll
+    |           |       System.ComponentModel.DataAnnotations.dll
+    |           |       System.ComponentModel.dll
+    |           |       System.ComponentModel.EventBasedAsync.dll
+    |           |       System.ComponentModel.Primitives.dll
+    |           |       System.ComponentModel.TypeConverter.dll
+    |           |       System.Configuration.dll
+    |           |       System.Console.dll
+    |           |       System.Core.dll
+    |           |       System.Data.Common.dll
+    |           |       System.Data.DataSetExtensions.dll
+    |           |       System.Data.dll
+    |           |       System.Diagnostics.Contracts.dll
+    |           |       System.Diagnostics.Debug.dll
+    |           |       System.Diagnostics.DiagnosticSource.dll
+    |           |       System.Diagnostics.EventLog.dll
+    |           |       System.Diagnostics.FileVersionInfo.dll
+    |           |       System.Diagnostics.Process.dll
+    |           |       System.Diagnostics.StackTrace.dll
+    |           |       System.Diagnostics.TextWriterTraceListener.dll
+    |           |       System.Diagnostics.Tools.dll
+    |           |       System.Diagnostics.TraceSource.dll
+    |           |       System.Diagnostics.Tracing.dll
+    |           |       System.dll
+    |           |       System.Drawing.dll
+    |           |       System.Drawing.Primitives.dll
+    |           |       System.Dynamic.Runtime.dll
+    |           |       System.Formats.Asn1.dll
+    |           |       System.Formats.Tar.dll
+    |           |       System.Globalization.Calendars.dll
+    |           |       System.Globalization.dll
+    |           |       System.Globalization.Extensions.dll
+    |           |       System.IO.Compression.Brotli.dll
+    |           |       System.IO.Compression.dll
+    |           |       System.IO.Compression.FileSystem.dll
+    |           |       System.IO.Compression.ZipFile.dll
+    |           |       System.IO.dll
+    |           |       System.IO.FileSystem.AccessControl.dll
+    |           |       System.IO.FileSystem.dll
+    |           |       System.IO.FileSystem.DriveInfo.dll
+    |           |       System.IO.FileSystem.Primitives.dll
+    |           |       System.IO.FileSystem.Watcher.dll
+    |           |       System.IO.IsolatedStorage.dll
+    |           |       System.IO.MemoryMappedFiles.dll
+    |           |       System.IO.Pipelines.dll
+    |           |       System.IO.Pipes.AccessControl.dll
+    |           |       System.IO.Pipes.dll
+    |           |       System.IO.UnmanagedMemoryStream.dll
+    |           |       System.Linq.dll
+    |           |       System.Linq.Expressions.dll
+    |           |       System.Linq.Parallel.dll
+    |           |       System.Linq.Queryable.dll
+    |           |       System.Memory.dll
+    |           |       System.Net.dll
+    |           |       System.Net.Http.dll
+    |           |       System.Net.Http.Json.dll
+    |           |       System.Net.HttpListener.dll
+    |           |       System.Net.Mail.dll
+    |           |       System.Net.NameResolution.dll
+    |           |       System.Net.NetworkInformation.dll
+    |           |       System.Net.Ping.dll
+    |           |       System.Net.Primitives.dll
+    |           |       System.Net.Quic.dll
+    |           |       System.Net.Requests.dll
+    |           |       System.Net.Security.dll
+    |           |       System.Net.ServicePoint.dll
+    |           |       System.Net.Sockets.dll
+    |           |       System.Net.WebClient.dll
+    |           |       System.Net.WebHeaderCollection.dll
+    |           |       System.Net.WebProxy.dll
+    |           |       System.Net.WebSockets.Client.dll
+    |           |       System.Net.WebSockets.dll
+    |           |       System.Numerics.dll
+    |           |       System.Numerics.Vectors.dll
+    |           |       System.ObjectModel.dll
+    |           |       System.Reflection.DispatchProxy.dll
+    |           |       System.Reflection.dll
+    |           |       System.Reflection.Emit.dll
+    |           |       System.Reflection.Emit.ILGeneration.dll
+    |           |       System.Reflection.Emit.Lightweight.dll
+    |           |       System.Reflection.Extensions.dll
+    |           |       System.Reflection.Metadata.dll
+    |           |       System.Reflection.Primitives.dll
+    |           |       System.Reflection.TypeExtensions.dll
+    |           |       System.Resources.Reader.dll
+    |           |       System.Resources.ResourceManager.dll
+    |           |       System.Resources.Writer.dll
+    |           |       System.Runtime.CompilerServices.Unsafe.dll
+    |           |       System.Runtime.CompilerServices.VisualC.dll
+    |           |       System.Runtime.dll
+    |           |       System.Runtime.Extensions.dll
+    |           |       System.Runtime.Handles.dll
+    |           |       System.Runtime.InteropServices.dll
+    |           |       System.Runtime.InteropServices.JavaScript.dll
+    |           |       System.Runtime.InteropServices.RuntimeInformation.dll
+    |           |       System.Runtime.Intrinsics.dll
+    |           |       System.Runtime.Loader.dll
+    |           |       System.Runtime.Numerics.dll
+    |           |       System.Runtime.Serialization.dll
+    |           |       System.Runtime.Serialization.Formatters.dll
+    |           |       System.Runtime.Serialization.Json.dll
+    |           |       System.Runtime.Serialization.Primitives.dll
+    |           |       System.Runtime.Serialization.Xml.dll
+    |           |       System.Security.AccessControl.dll
+    |           |       System.Security.Claims.dll
+    |           |       System.Security.Cryptography.Algorithms.dll
+    |           |       System.Security.Cryptography.Cng.dll
+    |           |       System.Security.Cryptography.Csp.dll
+    |           |       System.Security.Cryptography.dll
+    |           |       System.Security.Cryptography.Encoding.dll
+    |           |       System.Security.Cryptography.OpenSsl.dll
+    |           |       System.Security.Cryptography.Primitives.dll
+    |           |       System.Security.Cryptography.X509Certificates.dll
+    |           |       System.Security.Cryptography.Xml.dll
+    |           |       System.Security.dll
+    |           |       System.Security.Principal.dll
+    |           |       System.Security.Principal.Windows.dll
+    |           |       System.Security.SecureString.dll
+    |           |       System.ServiceModel.Web.dll
+    |           |       System.ServiceProcess.dll
+    |           |       System.Text.Encoding.CodePages.dll
+    |           |       System.Text.Encoding.dll
+    |           |       System.Text.Encoding.Extensions.dll
+    |           |       System.Text.Encodings.Web.dll
+    |           |       System.Text.Json.dll
+    |           |       System.Text.RegularExpressions.dll
+    |           |       System.Threading.Channels.dll
+    |           |       System.Threading.dll
+    |           |       System.Threading.Overlapped.dll
+    |           |       System.Threading.RateLimiting.dll
+    |           |       System.Threading.Tasks.Dataflow.dll
+    |           |       System.Threading.Tasks.dll
+    |           |       System.Threading.Tasks.Extensions.dll
+    |           |       System.Threading.Tasks.Parallel.dll
+    |           |       System.Threading.Thread.dll
+    |           |       System.Threading.ThreadPool.dll
+    |           |       System.Threading.Timer.dll
+    |           |       System.Transactions.dll
+    |           |       System.Transactions.Local.dll
+    |           |       System.ValueTuple.dll
+    |           |       System.Web.dll
+    |           |       System.Web.HttpUtility.dll
+    |           |       System.Windows.dll
+    |           |       System.Xml.dll
+    |           |       System.Xml.Linq.dll
+    |           |       System.Xml.ReaderWriter.dll
+    |           |       System.Xml.Serialization.dll
+    |           |       System.Xml.XDocument.dll
+    |           |       System.Xml.XmlDocument.dll
+    |           |       System.Xml.XmlSerializer.dll
+    |           |       System.Xml.XPath.dll
+    |           |       System.Xml.XPath.XDocument.dll
+    |           |       WindowsBase.dll
+    |           |       
+    |           +---ru
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---runtimes
+    |           |   +---browser-wasm
+    |           |   |   \---nativeassets
+    |           |   |       \---net8.0
+    |           |   |               e_sqlite3.a
+    |           |   |               
+    |           |   +---linux-arm
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---linux-arm64
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---linux-armel
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---linux-mips64
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---linux-musl-arm
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---linux-musl-arm64
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---linux-musl-x64
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---linux-ppc64le
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---linux-s390x
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---linux-x64
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---linux-x86
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.so
+    |           |   |           
+    |           |   +---maccatalyst-arm64
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.dylib
+    |           |   |           
+    |           |   +---maccatalyst-x64
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.dylib
+    |           |   |           
+    |           |   +---osx-arm64
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.dylib
+    |           |   |           
+    |           |   +---osx-x64
+    |           |   |   \---native
+    |           |   |           libe_sqlite3.dylib
+    |           |   |           
+    |           |   +---unix
+    |           |   |   \---lib
+    |           |   |       \---net6.0
+    |           |   |               Microsoft.Data.SqlClient.dll
+    |           |   |               System.Drawing.Common.dll
+    |           |   |               
+    |           |   +---win
+    |           |   |   \---lib
+    |           |   |       \---net6.0
+    |           |   |               Microsoft.Data.SqlClient.dll
+    |           |   |               Microsoft.Win32.SystemEvents.dll
+    |           |   |               System.Drawing.Common.dll
+    |           |   |               System.Runtime.Caching.dll
+    |           |   |               System.Security.Cryptography.ProtectedData.dll
+    |           |   |               System.Windows.Extensions.dll
+    |           |   |               
+    |           |   +---win-arm
+    |           |   |   \---native
+    |           |   |           e_sqlite3.dll
+    |           |   |           Microsoft.Data.SqlClient.SNI.dll
+    |           |   |           
+    |           |   +---win-arm64
+    |           |   |   \---native
+    |           |   |           e_sqlite3.dll
+    |           |   |           Microsoft.Data.SqlClient.SNI.dll
+    |           |   |           
+    |           |   +---win-x64
+    |           |   |   \---native
+    |           |   |           e_sqlite3.dll
+    |           |   |           Microsoft.Data.SqlClient.SNI.dll
+    |           |   |           
+    |           |   \---win-x86
+    |           |       \---native
+    |           |               e_sqlite3.dll
+    |           |               Microsoft.Data.SqlClient.SNI.dll
+    |           |               
+    |           +---tr
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           +---zh-Hans
+    |           |       Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |           |       Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |           |       Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |           |       
+    |           \---zh-Hant
+    |                   Microsoft.TestPlatform.CommunicationUtilities.resources.dll
+    |                   Microsoft.TestPlatform.CoreUtilities.resources.dll
+    |                   Microsoft.TestPlatform.CrossPlatEngine.resources.dll
+    |                   Microsoft.VisualStudio.TestPlatform.Common.resources.dll
+    |                   Microsoft.VisualStudio.TestPlatform.ObjectModel.resources.dll
+    |                   
+    +---Helpers
+    |       TestDataFactory.cs
+    |       
+    +---IntegrationTests
+    |       CompatibilityEndpointsTests.cs
+    |       ReportsApiTests.cs
+    |       TasksApiTests.cs
+    |       TestBase.cs
+    |       
+    +---obj
+    |   |   project.assets.json
+    |   |   project.nuget.cache
+    |   |   TaskManager.Tests.csproj.nuget.dgspec.json
+    |   |   TaskManager.Tests.csproj.nuget.g.props
+    |   |   TaskManager.Tests.csproj.nuget.g.targets
+    |   |   
+    |   \---Debug
+    |       \---net8.0
+    |           |   .NETCoreApp,Version=v8.0.AssemblyAttributes.cs
+    |           |   MvcTestingAppManifest.json
+    |           |   TaskMana.9852C988.Up2Date
+    |           |   TaskManager.Tests.AssemblyInfo.cs
+    |           |   TaskManager.Tests.AssemblyInfoInputs.cache
+    |           |   TaskManager.Tests.assets.cache
+    |           |   TaskManager.Tests.csproj.AssemblyReference.cache
+    |           |   TaskManager.Tests.csproj.CoreCompileInputs.cache
+    |           |   TaskManager.Tests.csproj.FileListAbsolute.txt
+    |           |   TaskManager.Tests.dll
+    |           |   TaskManager.Tests.GeneratedMSBuildEditorConfig.editorconfig
+    |           |   TaskManager.Tests.genruntimeconfig.cache
+    |           |   TaskManager.Tests.GlobalUsings.g.cs
+    |           |   TaskManager.Tests.pdb
+    |           |   TaskManager.Tests.sourcelink.json
+    |           |   
+    |           +---ref
+    |           |       TaskManager.Tests.dll
+    |           |       
+    |           \---refint
+    |                   TaskManager.Tests.dll
+    |                   
+    \---UnitTests
+            TaskItemIsOverdueTests.cs
+            

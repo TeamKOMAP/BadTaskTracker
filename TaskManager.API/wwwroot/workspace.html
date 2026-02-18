@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+  <html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GoodTaskTracker - Проект</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/workspace.css?v=perf22">
+</head>
+<body data-theme="dark">
+  <div class="app-shell" id="app-shell">
+    <aside class="user-panel" id="user-panel" aria-hidden="true">
+      <div class="user-panel-inner">
+        <div class="panel-workspace" id="panel-workspace">
+          <div class="panel-workspace-row">
+            <div class="panel-workspace-hero">
+              <div class="panel-workspace-avatar" id="panel-workspace-avatar" role="img" aria-label="Аватар проекта">GT</div>
+              <input id="panel-workspace-avatar-input" type="file" accept="image/*" hidden>
+              <div class="panel-workspace-meta">
+                <span class="panel-workspace-kicker">Проект</span>
+                <div class="panel-workspace-name" id="panel-workspace-name">Проект</div>
+              </div>
+            </div>
+            <button class="icon-btn panel-workspace-edit" id="panel-workspace-edit" type="button" aria-label="Редактировать название проекта" title="Редактировать">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 20h4l10.5-10.5a1.5 1.5 0 0 0 0-2.12l-1.88-1.88a1.5 1.5 0 0 0-2.12 0L4 16v4z" />
+                <path d="M13.5 6.5l4 4" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="user-panel-header">
+          <h3 class="user-panel-title">Участники проекта</h3>
+          <span class="user-panel-sub">Кто работает в этом проекте</span>
+        </div>
+        <label class="user-search">
+          <span class="user-panel-label">Поиск</span>
+          <input id="user-search" type="text" placeholder="Введите имя, id или email">
+        </label>
+        <div class="user-group">
+          <span class="user-group-title">Участники</span>
+          <div class="user-list" id="user-list"></div>
+          <div class="user-empty" id="user-empty" hidden>Ничего не найдено</div>
+        </div>
+        <div class="user-add">
+          <span class="user-panel-label">Добавить участника</span>
+          <div class="user-add-row">
+            <input id="user-add-input" type="text" placeholder="email участника">
+            <button class="user-add-btn" id="user-add-btn" type="button">Добавить</button>
+          </div>
+          <span class="user-add-hint">Участник получит доступ к задачам этого проекта.</span>
+        </div>
+      </div>
+    </aside>
+    <div class="page">
+      <header class="topbar">
+        <div class="brand-stack">
+          <button class="brand-mark" id="workspace-avatar" type="button" aria-label="Аватар проекта">GT</button>
+          <button class="brand brand-toggle" id="brand-toggle" type="button" aria-expanded="false" aria-controls="user-panel">
+            <div class="brand-text">
+              <span class="brand-kicker">Проект</span>
+              <span class="brand-title">Проект</span>
+            </div>
+          </button>
+          <a class="spaces-back-link" id="open-spaces-home" href="index.html" aria-label="Назад к проектам">&lt; Назад</a>
+        </div>
+       <div class="view-toggle" role="group" aria-label="Режим просмотра">
+         <button class="view-btn is-active" data-view="board" aria-pressed="true">Board</button>
+         <button class="view-btn" data-view="list" aria-pressed="false">List</button>
+         <button class="view-btn" data-view="calendar" aria-pressed="false">Calendar</button>
+         <button class="view-btn" data-view="priority" aria-pressed="false">Priority</button>
+       </div>
+      <div class="topbar-right">
+        <div class="user-meta">
+          <span class="user-label">Аккаунт</span>
+          <span class="user-name">elena.volkova@goodtask.com</span>
+        </div>
+        <div class="avatar" role="img" aria-label="Аватар аккаунта">
+          <span>EV</span>
+        </div>
+        <button class="notifications-btn" id="notifications-toggle" type="button" aria-label="Открыть уведомления" title="Уведомления" aria-expanded="false" aria-controls="notifications-panel">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+        </button>
+        <button class="settings-btn" id="settings-toggle" type="button" aria-label="Открыть настройки" title="Настройки" aria-expanded="false" aria-controls="settings-panel">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.094c.55 0 1.02.398 1.11.94l.149.894a1.486 1.486 0 0 0 2.196 1.053l.771-.436a1.125 1.125 0 0 1 1.547.42l.547.94a1.125 1.125 0 0 1-.301 1.504l-.764.591a1.485 1.485 0 0 0-.434 1.618l.343.835a1.5 1.5 0 0 0 1.429.95h.98c.616 0 1.118.49 1.118 1.095v1.094c0 .605-.502 1.095-1.118 1.095h-.98a1.5 1.5 0 0 0-1.429.95l-.343.835a1.485 1.485 0 0 0 .434 1.618l.764.591a1.125 1.125 0 0 1 .301 1.504l-.547.94a1.125 1.125 0 0 1-1.547.42l-.771-.436a1.486 1.486 0 0 0-2.196 1.053l-.149.894c-.09.542-.56.94-1.11.94h-1.094c-.55 0-1.02-.398-1.11-.94l-.149-.894a1.486 1.486 0 0 0-2.196-1.053l-.771.436a1.125 1.125 0 0 1-1.547-.42l-.547-.94a1.125 1.125 0 0 1 .301-1.504l.764-.591a1.485 1.485 0 0 0 .434-1.618l-.343-.835a1.5 1.5 0 0 0-1.429-.95h-.98A1.11 1.11 0 0 1 2 13.905v-1.094c0-.605.502-1.095 1.118-1.095h.98a1.5 1.5 0 0 0 1.429-.95l.343-.835a1.485 1.485 0 0 0-.434-1.618l-.764-.591a1.125 1.125 0 0 1-.301-1.504l.547-.94a1.125 1.125 0 0 1 1.547-.42l.771.436a1.486 1.486 0 0 0 2.196-1.053l.149-.894z"/>
+            <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"/>
+          </svg>
+        </button>
+      </div>
+      </header>
+
+    <main class="board" id="board" data-view="board" data-style="columns">
+        <div class="board-header">
+          <div class="board-header-left">
+          <div class="style-switch" id="style-switch">
+            <span class="style-toggle-title" id="style-toggle-title">Columns Board</span>
+            <div class="style-switch-row">
+              <span class="style-toggle-sub" id="style-toggle-sub">Нажмите, чтобы переключить</span>
+              <button class="style-toggle-btn" id="style-toggle" type="button" aria-pressed="false" aria-label="Переключить на Flow Map" title="Переключить на Flow Map">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 7l-4 5 4 5" />
+                  <path d="M17 7l4 5-4 5" />
+                </svg>
+              </button>
+            </div>
+            <div class="task-trash-zone" id="task-trash-zone" aria-hidden="true">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 7h2v8h-2v-8zm-4 0h2v8H7v-8zm8 0h2v8h-2v-8z" />
+              </svg>
+              <span>Перетащите сюда, чтобы удалить</span>
+            </div>
+          </div>
+          <div class="board-add-column-control" id="add-column-control">
+            <button
+              class="primary-btn board-add-column"
+              id="add-column"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-controls="add-column-menu"
+            >
+              Создать столбец
+            </button>
+            <div class="board-add-column-menu" id="add-column-menu" role="menu" hidden>
+              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="new">Обычный</button>
+              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="inprogress">Inprogress</button>
+              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="done">Done</button>
+              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="overdue">Overdue</button>
+            </div>
+          </div>
+          </div>
+        </div>
+
+      <section class="board-columns" id="board-columns">
+        <section class="column" data-column-id="todo" data-column-type="new">
+          <header class="column-header">
+            <button class="column-handle" type="button" draggable="true" aria-label="Перетащить колонку">
+              <span></span><span></span><span></span>
+            </button>
+            <div class="column-title" contenteditable="true" spellcheck="false">To do</div>
+            <span class="column-count">3</span>
+            <button class="column-delete" type="button" aria-label="Удалить колонку">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 7h2v8h-2v-8zm-4 0h2v8H7v-8zm8 0h2v8h-2v-8z" />
+              </svg>
+            </button>
+          </header>
+          <div class="column-body"></div>
+          <button class="add-task" type="button">Создать задачу</button>
+        </section>
+
+        <section class="column" data-column-id="progress" data-column-type="inprogress">
+          <header class="column-header">
+            <button class="column-handle" type="button" draggable="true" aria-label="Перетащить колонку">
+              <span></span><span></span><span></span>
+            </button>
+            <div class="column-title" contenteditable="true" spellcheck="false">In progress</div>
+            <span class="column-count">3</span>
+            <button class="column-delete" type="button" aria-label="Удалить колонку">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 7h2v8h-2v-8zm-4 0h2v8H7v-8zm8 0h2v8h-2v-8z" />
+              </svg>
+            </button>
+          </header>
+          <div class="column-body"></div>
+          <button class="add-task" type="button">Создать задачу</button>
+        </section>
+
+        <section class="column" data-column-id="done" data-column-type="done">
+          <header class="column-header">
+            <button class="column-handle" type="button" draggable="true" aria-label="Перетащить колонку">
+              <span></span><span></span><span></span>
+            </button>
+            <div class="column-title" contenteditable="true" spellcheck="false">Done</div>
+            <span class="column-count">2</span>
+            <button class="column-delete" type="button" aria-label="Удалить колонку">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 7h2v8h-2v-8zm-4 0h2v8H7v-8zm8 0h2v8h-2v-8z" />
+              </svg>
+            </button>
+          </header>
+          <div class="column-body"></div>
+          <button class="add-task" type="button">Создать задачу</button>
+        </section>
+
+        <section class="column" data-column-id="overdue" data-column-type="overdue">
+          <header class="column-header">
+            <button class="column-handle" type="button" draggable="true" aria-label="Перетащить колонку">
+              <span></span><span></span><span></span>
+            </button>
+            <div class="column-title" contenteditable="true" spellcheck="false">Overdue</div>
+            <span class="column-count">2</span>
+            <button class="column-delete" type="button" aria-label="Удалить колонку">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 7h2v8h-2v-8zm-4 0h2v8H7v-8zm8 0h2v8h-2v-8z" />
+              </svg>
+            </button>
+          </header>
+          <div class="column-body"></div>
+          <button class="add-task" type="button">Создать задачу</button>
+        </section>
+      </section>
+
+      <section class="calendar-layout" id="calendar-layout" aria-hidden="true"></section>
+
+      <section class="flow-layout" id="flow-layout" aria-hidden="true">
+        <aside class="flow-list">
+          <div class="flow-list-header">
+            <div class="flow-list-title">
+              <span class="flow-kicker">Task list</span>
+              <h3 class="flow-title">Drag tasks onto the map</h3>
+            </div>
+            <button class="flow-add" id="flow-add-task" type="button" aria-label="Create task">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+          </div>
+          <div class="flow-list-items"></div>
+            <div class="flow-list-footer">
+              <span>Drop tasks on the right and click two cards to connect them.</span>
+           </div>
+        </aside>
+        <section class="flow-canvas" id="flow-canvas">
+          <div class="flow-grid"></div>
+          <svg class="flow-links" id="flow-links" aria-hidden="true">
+            <defs>
+              <marker id="flow-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+                <path d="M0,0 L0,6 L6,3 z" fill="rgba(68, 210, 199, 0.85)" />
+              </marker>
+            </defs>
+          </svg>
+          <div class="flow-dropzone" id="flow-dropzone">
+            <strong>Drop tasks here</strong>
+            <span>Move cards around and connect them into a flow</span>
+          </div>
+        </section>
+      </section>
+      </main>
+    </div>
+
+    <aside class="settings-panel" id="settings-panel" aria-hidden="true">
+      <div class="settings-panel-inner">
+        <div class="settings-panel-header">
+          <div class="settings-panel-header-row">
+            <h3 class="settings-panel-title">Настройки</h3>
+            <button class="ghost-btn settings-logout-btn" id="logout-btn" type="button">Выйти</button>
+          </div>
+          <span class="settings-panel-sub">Аккаунт и оформление</span>
+        </div>
+
+        <section class="settings-section" aria-label="Настройки аккаунта">
+          <span class="settings-section-title">Аккаунт</span>
+          <label class="settings-field">
+            <span class="settings-label">Никнейм</span>
+            <input id="settings-nickname" type="text" placeholder="Без имени" maxlength="60" autocomplete="nickname">
+          </label>
+
+          <div class="settings-avatar-row">
+            <div class="avatar settings-avatar" id="settings-avatar-preview" role="img" aria-label="Аватар аккаунта">
+              <span>EV</span>
+            </div>
+            <div class="settings-avatar-actions">
+              <button class="ghost-btn" id="settings-avatar-btn" type="button">Изменить</button>
+              <button class="ghost-btn" id="settings-avatar-clear" type="button">Очистить</button>
+            </div>
+            <input id="settings-avatar-input" type="file" accept="image/*" hidden>
+          </div>
+        </section>
+
+        <section class="settings-section" aria-label="Настройки темы">
+          <span class="settings-section-title">Тема</span>
+          <div class="settings-theme-row" role="group" aria-label="Тема">
+            <button class="ghost-btn" id="settings-theme-dark" type="button">Тёмная</button>
+            <button class="ghost-btn" id="settings-theme-light" type="button">Светлая</button>
+          </div>
+        </section>
+      </div>
+    </aside>
+
+    <aside class="notifications-panel" id="notifications-panel" aria-hidden="true">
+      <div class="notifications-panel-inner">
+        <div class="settings-panel-header">
+          <div class="settings-panel-header-row">
+            <h3 class="settings-panel-title">Уведомления</h3>
+            <button class="icon-btn" id="notifications-close" type="button" aria-label="Закрыть уведомления" title="Закрыть">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 7l10 10M17 7L7 17" />
+              </svg>
+            </button>
+          </div>
+          <span class="settings-panel-sub">Последние события</span>
+        </div>
+
+        <section class="settings-section" aria-label="Список уведомлений">
+          <div class="notifications-empty" id="notifications-empty">Пока нет уведомлений.</div>
+        </section>
+      </div>
+    </aside>
+  </div>
+
+  <div class="task-modal" id="task-modal" hidden>
+    <div class="task-modal-backdrop" data-close-modal></div>
+    <div class="task-modal-card" role="dialog" aria-modal="true" aria-labelledby="task-modal-title">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker">Создание задачи</span>
+          <h3 class="task-modal-title" id="task-modal-title">Новая задача</h3>
+        </div>
+        <button class="icon-btn" type="button" data-close-modal aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7l10 10M17 7L7 17" />
+          </svg>
+        </button>
+      </div>
+        <form class="task-form" id="task-form">
+         <label class="task-field">
+           <span class="task-label">Статус</span>
+           <select id="task-status" name="status">
+              <option value="1" selected>Новая</option>
+              <option value="2">В работе</option>
+              <option value="3">Готово</option>
+              <option value="4">Просрочено</option>
+           </select>
+         </label>
+        <label class="task-field">
+           <span class="task-label">Название</span>
+           <input id="task-title" name="title" type="text" required placeholder="Название задачи">
+        </label>
+        <label class="task-field">
+           <span class="task-label">Описание</span>
+           <textarea id="task-description" name="description" rows="4" placeholder="Добавьте детали задачи"></textarea>
+        </label>
+        <div class="task-field task-field-row">
+          <label>
+             <span class="task-label">Срок</span>
+            <input id="task-due" name="dueDate" type="datetime-local" required>
+          </label>
+          <label>
+             <span class="task-label">ID исполнителя</span>
+            <input id="task-assignee" name="assigneeId" type="number" min="1" placeholder="1">
+          </label>
+        </div>
+        <label class="task-field">
+           <span class="task-label">Приоритет</span>
+          <select id="task-priority" name="priority">
+             <option value="1">Низкий</option>
+             <option value="2" selected>Средний</option>
+             <option value="3">Высокий</option>
+          </select>
+        </label>
+        <div class="task-field">
+           <span class="task-label">Теги</span>
+          <div class="tag-options" id="tag-options"></div>
+        </div>
+        <label class="task-field">
+           <span class="task-label">Ввод тегов</span>
+          <input id="task-tags-input" name="tags" type="text" placeholder="#API #UX #Stripe">
+        </label>
+        <div class="tag-preview" id="tag-preview"></div>
+        <div class="task-form-actions">
+           <button class="ghost-btn" type="button" data-close-modal>Отмена</button>
+           <button class="primary-btn" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="task-modal" id="task-detail-modal" hidden>
+    <div class="task-modal-backdrop" data-close-detail></div>
+    <div class="task-modal-card task-detail-card" role="dialog" aria-modal="true" aria-labelledby="task-detail-title">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker">Детали задачи</span>
+          <h3 class="task-modal-title" id="task-detail-title">Задача</h3>
+          <div class="task-detail-badges" id="task-detail-badges">
+            <span class="task-badge" id="task-detail-status-badge"></span>
+            <span class="task-badge" id="task-detail-priority-badge"></span>
+            <span class="task-badge" id="task-detail-due-badge"></span>
+          </div>
+        </div>
+        <div class="task-detail-header-actions">
+          <button class="ghost-btn task-detail-edit" id="task-detail-edit" type="button" hidden>Редактировать</button>
+          <button class="ghost-btn task-detail-photo-btn" id="task-detail-photo-btn" type="button" hidden>Фото</button>
+          <button class="ghost-btn task-detail-photo-clear" id="task-detail-photo-clear-btn" type="button" hidden>Очистить</button>
+          <button class="icon-btn" type="button" data-close-detail aria-label="Закрыть">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 7l10 10M17 7L7 17" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="task-detail-body" id="task-detail-body">
+        <div class="task-detail-photo" id="task-detail-photo" hidden>
+          <img id="task-detail-photo-img" alt="Фото задачи">
+        </div>
+        <div class="task-detail-meta">
+          <div class="task-detail-row">
+            <span class="task-detail-label">ID задачи</span>
+            <span class="task-detail-value" id="task-detail-id">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Статус</span>
+            <span class="task-detail-value" id="task-detail-status">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Приоритет</span>
+            <span class="task-detail-value" id="task-detail-priority">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Исполнитель</span>
+            <span class="task-detail-value" id="task-detail-assignee">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Срок</span>
+            <span class="task-detail-value" id="task-detail-due">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Создано</span>
+            <span class="task-detail-value" id="task-detail-created">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Обновлено</span>
+            <span class="task-detail-value" id="task-detail-updated">-</span>
+          </div>
+          <div class="task-detail-row">
+            <span class="task-detail-label">Завершено</span>
+            <span class="task-detail-value" id="task-detail-completed">-</span>
+          </div>
+          <div class="task-detail-row task-detail-tags">
+            <span class="task-detail-label">Теги</span>
+            <div class="task-detail-taglist" id="task-detail-tags"></div>
+          </div>
+        </div>
+
+        <div class="task-detail-description">
+          <span class="task-detail-label">Описание</span>
+          <p class="task-detail-text" id="task-detail-description">-</p>
+        </div>
+
+        <div class="task-detail-attachments">
+          <div class="task-detail-attachments-head">
+            <span class="task-detail-label">Вложения</span>
+            <button class="ghost-btn" id="task-attach-btn" type="button" hidden>Прикрепить файлы</button>
+          </div>
+          <div class="task-detail-attachments-list" id="task-attachments-list"></div>
+          <div class="task-detail-attachments-empty" id="task-attachments-empty" hidden>Нет вложений</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="task-modal task-confirm-modal" id="confirm-modal" hidden>
+    <div class="task-modal-backdrop" data-close-confirm></div>
+    <div class="task-modal-card task-confirm-card" role="dialog" aria-modal="true" aria-labelledby="confirm-modal-title" aria-describedby="confirm-modal-message">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker" id="confirm-modal-kicker">Подтвердите действие</span>
+          <h3 class="task-modal-title" id="confirm-modal-title">Вы уверены?</h3>
+        </div>
+        <button class="icon-btn" type="button" data-close-confirm aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7l10 10M17 7L7 17" />
+          </svg>
+        </button>
+      </div>
+      <p class="task-confirm-message" id="confirm-modal-message">Это действие нельзя отменить.</p>
+      <div class="task-form-actions task-confirm-actions">
+        <button class="ghost-btn" id="confirm-modal-cancel" type="button">Отмена</button>
+        <button class="danger-btn" id="confirm-modal-accept" type="button">Удалить</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="task-modal" id="profile-modal" hidden>
+    <div class="task-modal-backdrop" data-close-profile></div>
+    <div class="task-modal-card" role="dialog" aria-modal="true" aria-labelledby="profile-modal-title">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker">Профиль</span>
+          <h3 class="task-modal-title" id="profile-modal-title">Профиль</h3>
+        </div>
+        <button class="icon-btn" type="button" data-close-profile aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7l10 10M17 7L7 17" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="profile-hero" aria-label="Профиль пользователя">
+        <button class="profile-avatar" id="profile-avatar" type="button" aria-label="Открыть аватар пользователя">
+          <span id="profile-avatar-text">U</span>
+        </button>
+        <div class="profile-hero-meta">
+          <div class="profile-user-name" id="profile-user-name">Пользователь</div>
+          <div class="profile-user-email" id="profile-user-email">-</div>
+          <span class="profile-role" id="profile-user-role">-</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="task-modal" id="avatar-modal" hidden>
+    <div class="task-modal-backdrop" data-close-avatar></div>
+    <div class="task-modal-card avatar-modal-card" role="dialog" aria-modal="true" aria-labelledby="avatar-modal-title">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker">Аватар</span>
+          <h3 class="task-modal-title" id="avatar-modal-title">Аватар</h3>
+        </div>
+        <button class="icon-btn" type="button" data-close-avatar aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7l10 10M17 7L7 17" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="avatar-modal-body">
+        <div class="avatar-modal-avatar" id="avatar-modal-avatar" role="img" aria-label="Аватар пользователя">
+          <span id="avatar-modal-avatar-text">U</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <input id="task-bg-input" type="file" accept="image/*" hidden>
+  <input id="task-attachments-input" type="file" hidden multiple>
+  <script type="module" src="js/workspace/main.js?v=authflow27"></script>
+</body>
+</html>

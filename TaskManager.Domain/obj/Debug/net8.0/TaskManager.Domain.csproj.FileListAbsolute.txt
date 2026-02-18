@@ -1,0 +1,11 @@
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\bin\Debug\net8.0\TaskManager.Domain.deps.json
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\bin\Debug\net8.0\TaskManager.Domain.dll
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\bin\Debug\net8.0\TaskManager.Domain.pdb
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.AssemblyInfoInputs.cache
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.AssemblyInfo.cs
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.csproj.CoreCompileInputs.cache
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.dll
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\obj\Debug\net8.0\refint\TaskManager.Domain.dll
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\obj\Debug\net8.0\TaskManager.Domain.pdb
+C:\Users\Makvay\Desktop\BadTaskTracker-helpme-auth\TaskManager.Domain\obj\Debug\net8.0\ref\TaskManager.Domain.dll
