@@ -19,5 +19,6 @@ namespace TaskManager.Application.Interfaces
             string attachmentId,
             CancellationToken cancellationToken = default);
         Task<bool> DeleteAsync(int taskId, string attachmentId, CancellationToken cancellationToken = default);
+        Task DeleteAllForTaskAsync(int taskId, CancellationToken cancellationToken = default);
     }
 }

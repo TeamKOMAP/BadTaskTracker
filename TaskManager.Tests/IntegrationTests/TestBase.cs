@@ -1,19 +1,24 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
+using System.IO;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
+using TaskManager.Application.Interfaces;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
 using TaskManager.Infrastructure.Data;
+using TaskManager.Infrastructure.Storage;
 using Xunit;
 
 namespace TaskManager.Tests.IntegrationTests;
 
-public class TestBase : IClassFixture<WebApplicationFactory<Program>>
+public class TestBase : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
     private const string JwtIssuer = "GoodTaskTracker";
     private const string JwtAudience = "GoodTaskTracker.Client";
@@ -21,12 +26,15 @@ public class TestBase : IClassFixture<WebApplicationFactory<Program>>
 
     protected readonly HttpClient _client;
     protected readonly WebApplicationFactory<Program> _factory;
+    protected readonly string AttachmentStorageRootPath;
     protected int TestWorkspaceId { get; private set; }
     protected int TestUserId { get; private set; }
 
     public TestBase(WebApplicationFactory<Program> factory)
     {
         var dbName = $"TestDb_{Guid.NewGuid()}";
+        AttachmentStorageRootPath = Path.Combine(Path.GetTempPath(), "BadTaskTracker.Tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(AttachmentStorageRootPath);
         
         _factory = factory.WithWebHostBuilder(builder =>
         {
@@ -38,9 +46,17 @@ public class TestBase : IClassFixture<WebApplicationFactory<Program>>
                 if (descriptor != null)
                     services.Remove(descriptor);
 
+                services.RemoveAll<IAttachmentStorage>();
+
                 services.AddDbContext<ApplicationDbContext>(options =>
                 {
                     options.UseInMemoryDatabase(dbName);
+                });
+
+                services.AddSingleton<IAttachmentStorage>(sp =>
+                {
+                    var logger = sp.GetRequiredService<ILogger<FileAttachmentStorage>>();
+                    return new FileAttachmentStorage(AttachmentStorageRootPath, logger);
                 });
 
                 var sp = services.BuildServiceProvider();
@@ -58,6 +74,21 @@ public class TestBase : IClassFixture<WebApplicationFactory<Program>>
 
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", CreateAccessToken(TestUserId, TestWorkspaceId));
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            if (Directory.Exists(AttachmentStorageRootPath))
+            {
+                Directory.Delete(AttachmentStorageRootPath, true);
+            }
+        }
+        catch
+        {
+            // ignore best-effort cleanup
+        }
     }
 
     protected string CreateAccessToken(int userId, int? workspaceId = null)

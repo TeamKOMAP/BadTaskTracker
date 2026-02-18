@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using System.IO;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -56,6 +57,85 @@ namespace TaskManager.Tests.IntegrationTests
             var byId = await byIdResponse.Content.ReadFromJsonAsync<TaskDto>();
             byId.Should().NotBeNull();
             byId!.AttachmentCount.Should().BeGreaterThanOrEqualTo(1);
+        }
+
+        [Fact]
+        public async Task CreateTask_WhenStaleAttachmentFolderExists_ReturnsZeroAttachmentCount()
+        {
+            var listResponse = await _client.GetAsync("/api/Tasks");
+            listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var tasks = await listResponse.Content.ReadFromJsonAsync<List<TaskDto>>();
+            tasks.Should().NotBeNull();
+
+            var nextTaskId = tasks!
+                .Select(t => t.Id)
+                .DefaultIfEmpty(0)
+                .Max() + 1;
+
+            var staleFolder = Path.Combine(AttachmentStorageRootPath, "App_Data", "attachments", $"task-{nextTaskId}");
+            Directory.CreateDirectory(staleFolder);
+
+            var staleIndexPath = Path.Combine(staleFolder, "index.json");
+            await File.WriteAllTextAsync(staleIndexPath, $$"""
+            {
+              "Items": {
+                "stale": {
+                  "Id": "stale",
+                  "TaskId": {{nextTaskId}},
+                  "FileName": "ghost.jpg",
+                  "StoredName": "ghost.jpg",
+                  "ContentType": "image/jpeg",
+                  "Size": 256,
+                  "UploadedAtUtc": "2026-01-01T00:00:00Z"
+                }
+              }
+            }
+            """);
+
+            var dto = TestDataFactory.CreateValidTask(TestUserId);
+            dto.Title = "123";
+
+            var createResponse = await _client.PostAsJsonAsync("/api/Tasks", dto);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+            var created = await createResponse.Content.ReadFromJsonAsync<TaskDto>();
+            created.Should().NotBeNull();
+            created!.Id.Should().Be(nextTaskId);
+            created.AttachmentCount.Should().Be(0);
+
+            var getByIdResponse = await _client.GetAsync($"/api/Tasks/{created.Id}");
+            getByIdResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var byId = await getByIdResponse.Content.ReadFromJsonAsync<TaskDto>();
+            byId.Should().NotBeNull();
+            byId!.AttachmentCount.Should().Be(0);
+        }
+
+        [Fact]
+        public async Task DeleteTask_RemovesTaskAttachmentFolder()
+        {
+            var listResponse = await _client.GetAsync("/api/Tasks");
+            listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var tasks = await listResponse.Content.ReadFromJsonAsync<List<TaskDto>>();
+            tasks.Should().NotBeNull();
+            var task = tasks!.First();
+
+            using (var form = new MultipartFormDataContent())
+            {
+                var payload = new ByteArrayContent(Encoding.UTF8.GetBytes("attachment-content"));
+                payload.Headers.ContentType = new MediaTypeHeaderValue("text/plain");
+                form.Add(payload, "files", "note.txt");
+
+                var uploadResponse = await _client.PostAsync($"/api/tasks/{task.Id}/attachments", form);
+                uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            }
+
+            var attachmentFolder = Path.Combine(AttachmentStorageRootPath, "App_Data", "attachments", $"task-{task.Id}");
+            Directory.Exists(attachmentFolder).Should().BeTrue();
+
+            var deleteResponse = await _client.DeleteAsync($"/api/Tasks/{task.Id}");
+            deleteResponse.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+            Directory.Exists(attachmentFolder).Should().BeFalse();
         }
 
         [Fact]

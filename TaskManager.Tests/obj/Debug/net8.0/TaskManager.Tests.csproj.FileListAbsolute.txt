@@ -1479,3 +1479,4 @@ C:\Users\0_offlayt\source\repos\BadTaskTracker\TaskManager.Tests\obj\Debug\net8.
 C:\Users\0_offlayt\source\repos\BadTaskTracker\TaskManager.Tests\obj\Debug\net8.0\TaskManager.Tests.genruntimeconfig.cache
 C:\Users\0_offlayt\source\repos\BadTaskTracker\TaskManager.Tests\obj\Debug\net8.0\ref\TaskManager.Tests.dll
 C:\Users\0_offlayt\source\repos\BadTaskTracker\TaskManager.Tests\bin\Debug\net8.0\App_Data\attachments\task-1\index.json
+C:\Users\0_offlayt\source\repos\BadTaskTracker\TaskManager.Tests\bin\Debug\net8.0\App_Data\attachments\task-7\index.json
