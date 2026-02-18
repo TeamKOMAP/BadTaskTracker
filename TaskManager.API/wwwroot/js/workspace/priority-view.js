@@ -98,8 +98,6 @@ export const createPriorityViewController = (deps) => {
     if (!(card instanceof Element)) {
       return false;
     }
-    card.setAttribute("draggable", "false");
-
     const existingInTarget = Array.from(targetBody.querySelectorAll(".task-card:not(.is-empty)"));
     const insertBefore = existingInTarget.find((item) => {
       const candidate = {
@@ -190,7 +188,6 @@ export const createPriorityViewController = (deps) => {
         list.forEach((task) => {
           const card = createTaskCard(task);
           if (!(card instanceof Element)) return;
-          card.setAttribute("draggable", "false");
           body.appendChild(card);
         });
       }

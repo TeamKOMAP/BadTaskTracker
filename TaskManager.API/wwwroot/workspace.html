@@ -7,9 +7,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/base.css?v=base6">
   <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/workspace.css?v=perf40">
+  <link rel="stylesheet" href="css/workspace.css?v=perf56">
 </head>
 <body data-theme="dark">
   <div class="app-shell" id="app-shell">
@@ -109,99 +109,98 @@
       </header>
 
     <main class="board" id="board" data-view="board" data-style="columns">
-        <div class="board-header">
-          <div class="board-header-left">
+        <div class="board-toolbar" id="board-toolbar" aria-label="Инструменты">
+          <div class="board-toolbar-left">
+            <div class="board-toolbar-left-main">
+              <div class="board-search" role="search">
+                <svg class="board-search-icon" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z" />
+                  <path d="M21 21l-4.4-4.4" />
+                </svg>
+                <input class="board-search-input" id="board-search" type="search" placeholder="Поиск задач" autocomplete="off">
+                <div class="board-search-tags" id="board-search-tags" aria-label="Теги поиска"></div>
+                <button class="icon-btn board-search-clear" id="board-search-clear" type="button" aria-label="Очистить поиск" title="Очистить" hidden>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 7l10 10M17 7L7 17" />
+                  </svg>
+                </button>
+              </div>
+
+              <div class="board-toolbar-popover-anchor" aria-label="Сортировка и фильтры">
+                <button class="icon-btn board-toolbar-btn" id="board-sort-toggle" type="button" aria-label="Сортировка" title="Сортировка" aria-expanded="false" aria-controls="board-sort-menu">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M7 4v16" />
+                    <path d="M4 7l3-3 3 3" />
+                    <path d="M13 7h7" />
+                    <path d="M13 12h5" />
+                    <path d="M13 17h3" />
+                  </svg>
+                </button>
+                <button class="icon-btn board-toolbar-btn" id="board-filter-toggle" type="button" aria-label="Фильтры" title="Фильтры" aria-expanded="false" aria-controls="board-filter-panel">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 6h16" />
+                    <path d="M7 12h10" />
+                    <path d="M10 18h4" />
+                  </svg>
+                </button>
+
+                <div class="board-popover" id="board-sort-menu" role="menu" hidden>
+                  <button class="board-popover-item" type="button" role="menuitem" data-sort="smart">Умная</button>
+                  <button class="board-popover-item" type="button" role="menuitem" data-sort="due">По сроку</button>
+                  <button class="board-popover-item" type="button" role="menuitem" data-sort="priority">По приоритету</button>
+                  <button class="board-popover-item" type="button" role="menuitem" data-sort="title">По названию</button>
+                </div>
+
+                <div class="board-popover board-filter-panel" id="board-filter-panel" hidden>
+                  <div class="board-popover-head">
+                    <span>Фильтры</span>
+                    <button class="ghost-btn board-popover-reset" id="board-filter-reset" type="button">Сбросить</button>
+                  </div>
+
+                  <div class="board-filter-group" aria-label="Фильтр по статусу">
+                    <div class="board-filter-title">Статус</div>
+                    <label class="board-check">
+                      <input type="checkbox" data-filter="status" value="1">
+                      <span>Новая</span>
+                    </label>
+                    <label class="board-check">
+                      <input type="checkbox" data-filter="status" value="2">
+                      <span>В работе</span>
+                    </label>
+                    <label class="board-check">
+                      <input type="checkbox" data-filter="status" value="3">
+                      <span>Готово</span>
+                    </label>
+                    <label class="board-check">
+                      <input type="checkbox" data-filter="status" value="4">
+                      <span>Просрочено</span>
+                    </label>
+                  </div>
+
+                  <div class="board-filter-group" aria-label="Фильтр по приоритету">
+                    <div class="board-filter-title">Приоритет</div>
+                    <label class="board-check">
+                      <input type="checkbox" data-filter="priority" value="3">
+                      <span>Высокий</span>
+                    </label>
+                    <label class="board-check">
+                      <input type="checkbox" data-filter="priority" value="2">
+                      <span>Средний</span>
+                    </label>
+                    <label class="board-check">
+                      <input type="checkbox" data-filter="priority" value="1">
+                      <span>Низкий</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="task-trash-zone" id="task-trash-zone" aria-hidden="true">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 7h2v8h-2v-8zm-4 0h2v8H7v-8zm8 0h2v8h-2v-8z" />
               </svg>
               <span>Перетащите сюда, чтобы удалить</span>
-            </div>
-          </div>
-        </div>
-
-        <div class="board-toolbar" id="board-toolbar" aria-label="Инструменты">
-          <div class="board-toolbar-left">
-            <div class="board-search" role="search">
-              <svg class="board-search-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z" />
-                <path d="M21 21l-4.4-4.4" />
-              </svg>
-              <input class="board-search-input" id="board-search" type="search" placeholder="Поиск задач" autocomplete="off">
-              <div class="board-search-tags" id="board-search-tags" aria-label="Теги поиска"></div>
-              <button class="icon-btn board-search-clear" id="board-search-clear" type="button" aria-label="Очистить поиск" title="Очистить" hidden>
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 7l10 10M17 7L7 17" />
-                </svg>
-              </button>
-            </div>
-            <div class="board-toolbar-popover-anchor" aria-label="Сортировка и фильтры">
-              <button class="icon-btn board-toolbar-btn" id="board-sort-toggle" type="button" aria-label="Сортировка" title="Сортировка" aria-expanded="false" aria-controls="board-sort-menu">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 4v16" />
-                  <path d="M4 7l3-3 3 3" />
-                  <path d="M13 7h7" />
-                  <path d="M13 12h5" />
-                  <path d="M13 17h3" />
-                </svg>
-              </button>
-              <button class="icon-btn board-toolbar-btn" id="board-filter-toggle" type="button" aria-label="Фильтры" title="Фильтры" aria-expanded="false" aria-controls="board-filter-panel">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M4 6h16" />
-                  <path d="M7 12h10" />
-                  <path d="M10 18h4" />
-                </svg>
-              </button>
-
-              <div class="board-popover" id="board-sort-menu" role="menu" hidden>
-                <button class="board-popover-item" type="button" role="menuitem" data-sort="smart">Умная</button>
-                <button class="board-popover-item" type="button" role="menuitem" data-sort="due">По сроку</button>
-                <button class="board-popover-item" type="button" role="menuitem" data-sort="priority">По приоритету</button>
-                <button class="board-popover-item" type="button" role="menuitem" data-sort="title">По названию</button>
-              </div>
-
-              <div class="board-popover board-filter-panel" id="board-filter-panel" hidden>
-                <div class="board-popover-head">
-                  <span>Фильтры</span>
-                  <button class="ghost-btn board-popover-reset" id="board-filter-reset" type="button">Сбросить</button>
-                </div>
-
-                <div class="board-filter-group" aria-label="Фильтр по статусу">
-                  <div class="board-filter-title">Статус</div>
-                  <label class="board-check">
-                    <input type="checkbox" data-filter="status" value="1">
-                    <span>Новая</span>
-                  </label>
-                  <label class="board-check">
-                    <input type="checkbox" data-filter="status" value="2">
-                    <span>В работе</span>
-                  </label>
-                  <label class="board-check">
-                    <input type="checkbox" data-filter="status" value="3">
-                    <span>Готово</span>
-                  </label>
-                  <label class="board-check">
-                    <input type="checkbox" data-filter="status" value="4">
-                    <span>Просрочено</span>
-                  </label>
-                </div>
-
-                <div class="board-filter-group" aria-label="Фильтр по приоритету">
-                  <div class="board-filter-title">Приоритет</div>
-                  <label class="board-check">
-                    <input type="checkbox" data-filter="priority" value="3">
-                    <span>Высокий</span>
-                  </label>
-                  <label class="board-check">
-                    <input type="checkbox" data-filter="priority" value="2">
-                    <span>Средний</span>
-                  </label>
-                  <label class="board-check">
-                    <input type="checkbox" data-filter="priority" value="1">
-                    <span>Низкий</span>
-                  </label>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -419,11 +418,6 @@
           <span class="task-modal-kicker">Создание задачи</span>
           <h3 class="task-modal-title" id="task-modal-title">Новая задача</h3>
         </div>
-        <button class="icon-btn" type="button" data-close-modal aria-label="Закрыть">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M7 7l10 10M17 7L7 17" />
-          </svg>
-        </button>
       </div>
         <form class="task-form" id="task-form">
          <label class="task-field">
@@ -483,37 +477,32 @@
   <div class="task-modal" id="task-detail-modal" hidden>
     <div class="task-modal-backdrop" data-close-detail></div>
     <div class="task-modal-card task-detail-card" role="dialog" aria-modal="true" aria-labelledby="task-detail-title">
-      <div class="task-modal-header">
-        <div>
+      <div class="task-modal-header task-detail-modal-header">
+        <div class="task-detail-header-row">
           <span class="task-modal-kicker">Детали задачи</span>
-          <h3 class="task-modal-title" id="task-detail-title">Задача</h3>
-          <div class="task-detail-badges" id="task-detail-badges">
-            <span class="task-badge" id="task-detail-status-badge"></span>
-            <span class="task-badge" id="task-detail-priority-badge"></span>
-            <span class="task-badge" id="task-detail-due-badge"></span>
+          <div class="task-detail-header-actions">
+            <button class="ghost-btn task-detail-edit" id="task-detail-edit" type="button" hidden>Редактировать</button>
+            <button class="ghost-btn task-detail-photo-btn" id="task-detail-photo-btn" type="button" hidden>Фото</button>
+            <button class="ghost-btn task-detail-photo-clear" id="task-detail-photo-clear-btn" type="button" hidden>Очистить</button>
+            <button class="icon-btn" type="button" data-close-detail aria-label="Закрыть">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M7 7l10 10M17 7L7 17" />
+              </svg>
+            </button>
           </div>
         </div>
-        <div class="task-detail-header-actions">
-          <button class="ghost-btn task-detail-edit" id="task-detail-edit" type="button" hidden>Редактировать</button>
-          <button class="ghost-btn task-detail-photo-btn" id="task-detail-photo-btn" type="button" hidden>Фото</button>
-          <button class="ghost-btn task-detail-photo-clear" id="task-detail-photo-clear-btn" type="button" hidden>Очистить</button>
-          <button class="icon-btn" type="button" data-close-detail aria-label="Закрыть">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M7 7l10 10M17 7L7 17" />
-            </svg>
-          </button>
+
+        <h3 class="task-modal-title task-detail-title" id="task-detail-title">Задача</h3>
+
+        <div class="task-detail-badges" id="task-detail-badges">
+          <span class="task-badge" id="task-detail-status-badge"></span>
+          <span class="task-badge" id="task-detail-priority-badge"></span>
+          <span class="task-badge" id="task-detail-due-badge"></span>
         </div>
       </div>
 
       <div class="task-detail-body" id="task-detail-body">
-        <div class="task-detail-photo" id="task-detail-photo" hidden>
-          <img id="task-detail-photo-img" alt="Фото задачи">
-        </div>
         <div class="task-detail-meta">
-          <div class="task-detail-row">
-            <span class="task-detail-label">ID задачи</span>
-            <span class="task-detail-value" id="task-detail-id">-</span>
-          </div>
           <div class="task-detail-row">
             <span class="task-detail-label">Статус</span>
             <span class="task-detail-value" id="task-detail-status">-</span>
@@ -522,7 +511,7 @@
             <span class="task-detail-label">Приоритет</span>
             <span class="task-detail-value" id="task-detail-priority">-</span>
           </div>
-          <div class="task-detail-row">
+          <div class="task-detail-row task-detail-assignee">
             <span class="task-detail-label">Исполнитель</span>
             <span class="task-detail-value" id="task-detail-assignee">-</span>
           </div>
@@ -560,6 +549,10 @@
           </div>
           <div class="task-detail-attachments-list" id="task-attachments-list"></div>
           <div class="task-detail-attachments-empty" id="task-attachments-empty" hidden>Нет вложений</div>
+        </div>
+
+        <div class="task-detail-photo" id="task-detail-photo" hidden>
+          <img id="task-detail-photo-img" alt="Фото задачи">
         </div>
       </div>
     </div>
@@ -680,6 +673,6 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow54"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow58"></script>
 </body>
 </html>

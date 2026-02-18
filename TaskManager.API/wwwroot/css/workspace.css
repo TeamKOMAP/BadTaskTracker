@@ -415,12 +415,8 @@ body[data-theme="light"] .notifications-panel-inner {
 }
 
 .user-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
-}
-
-body[data-theme="light"] .user-list::-webkit-scrollbar-thumb {
-  background: rgba(15, 20, 28, 0.18);
 }
 
 .user-item {
@@ -985,26 +981,21 @@ body[data-theme="light"] .reports-btn {
 }
 
 .task-trash-zone {
-  position: absolute;
-  top: 12px;
-  bottom: 12px;
-  left: clamp(190px, 24vw, 260px);
-  right: clamp(176px, 22vw, 236px);
-  z-index: 3;
-  width: auto;
-  margin-top: 0;
+  flex: 1 1 auto;
+  min-width: 220px;
+  height: 44px;
   display: none;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 12px 18px;
+  padding: 10px 14px;
   border-radius: 16px;
   border: 1px dashed rgba(255, 255, 255, 0.18);
   background: rgba(14, 19, 26, 0.78);
   color: var(--text-2);
   font-size: 13px;
   font-weight: 700;
-  box-shadow: 0 12px 24px rgba(8, 12, 18, 0.3);
+  box-shadow: 0 12px 24px rgba(8, 12, 18, 0.24);
   pointer-events: auto;
   transition: border 0.2s ease, background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
 }
@@ -1128,8 +1119,7 @@ body[data-theme="light"] .task-grid {
 
 .board[data-overlay="grid"] .board-columns,
 .board[data-overlay="grid"] .calendar-layout,
-.board[data-overlay="grid"] .flow-layout,
-.board[data-overlay="grid"] .task-trash-zone {
+.board[data-overlay="grid"] .flow-layout {
   display: none !important;
 }
 
@@ -1140,6 +1130,14 @@ body[data-theme="light"] .board-toolbar {
 }
 
 .board-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.board-toolbar-left-main {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -1358,7 +1356,6 @@ body[data-theme="light"] .board-search {
   overflow-x: auto;
   overflow-y: hidden;
   padding: 2px 2px;
-  scrollbar-width: thin;
 }
 
 .board-search-tag {
@@ -1861,11 +1858,6 @@ body[data-theme="light"] .style-toggle-btn {
   display: none;
 }
 
-.board[data-style="flow"] .task-trash-zone,
-.board[data-view="calendar"] .task-trash-zone {
-  display: none;
-}
-
 .board[data-style="columns"] .flow-layout {
   display: none;
 }
@@ -1945,21 +1937,13 @@ body[data-theme="light"] .ghost-btn:hover {
 }
 
 .board-columns::-webkit-scrollbar-track {
-  background: rgba(16, 22, 30, 0.6);
+  background: transparent;
   border-radius: 999px;
-}
-
-body[data-theme="light"] .board-columns::-webkit-scrollbar-track {
-  background: rgba(15, 20, 28, 0.08);
 }
 
 .board-columns::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
-}
-
-body[data-theme="light"] .board-columns::-webkit-scrollbar-thumb {
-  background: rgba(15, 20, 28, 0.18);
 }
 
 .column {
@@ -2092,7 +2076,7 @@ body[data-theme="light"] .column-handle span {
 }
 
 .column-body::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
 }
 
@@ -2528,6 +2512,37 @@ body[data-theme="light"] .task-detail-row {
   flex-wrap: nowrap;
   justify-content: flex-end;
   flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.task-detail-modal-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+/* Override generic task-detail header alignment. */
+.task-detail-card .task-modal-header.task-detail-modal-header {
+  align-items: stretch;
+}
+
+.task-detail-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  width: 100%;
+}
+
+.task-detail-header-row .task-modal-kicker {
+  margin-top: 8px;
+}
+
+.task-detail-title {
+  margin: 2px 0 0;
+  padding-right: 0;
 }
 
 .task-detail-card .task-modal-header {
@@ -2535,7 +2550,7 @@ body[data-theme="light"] .task-detail-row {
 }
 
 .task-detail-card .task-modal-header > div:first-child {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
@@ -2784,6 +2799,10 @@ body[data-theme="light"] .task-detail-meta {
 }
 
 .task-detail-tags {
+  grid-column: 1 / -1;
+}
+
+.task-detail-assignee {
   grid-column: 1 / -1;
 }
 
@@ -3046,12 +3065,25 @@ body[data-theme="light"] .add-task:hover {
 .calendar-layout {
   display: none;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(280px, 340px);
-  gap: 16px;
-  padding: 6px 0 8px;
+  grid-auto-columns: minmax(270px, 320px);
+  gap: 18px;
+  padding-bottom: 18px;
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-snap-type: x proximity;
+  scroll-snap-type: x mandatory;
+}
+
+.calendar-layout::-webkit-scrollbar {
+  height: 10px;
+}
+
+.calendar-layout::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.calendar-layout::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
 }
 
 .calendar-group {
@@ -3093,6 +3125,16 @@ body[data-theme="light"] .add-task:hover {
   gap: 12px;
   overflow: auto;
   padding-right: 2px;
+  max-height: clamp(260px, 58vh, 640px);
+}
+
+.calendar-group-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.calendar-group-body::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 999px;
 }
 
 .board[data-view="calendar"] .board-columns {
@@ -3138,13 +3180,7 @@ body[data-theme="light"] .add-task:hover {
   max-height: 160px;
 }
 
-.board[data-view="calendar"] .calendar-group-body .task-card:hover {
-  max-height: 260px;
-}
 
-.board[data-view="priority"] .calendar-group-body .task-card:hover {
-  max-height: 260px;
-}
 
 .board[data-view="calendar"] .calendar-group-body .task-card h3 {
   font-size: 14px;
@@ -3192,9 +3228,9 @@ body[data-theme="light"] .add-task:hover {
   font-size: 11px;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 640px) {
   .calendar-layout {
-    grid-auto-columns: minmax(260px, 88vw);
+    grid-auto-columns: minmax(220px, 1fr);
   }
 }
 
@@ -3291,12 +3327,8 @@ body[data-theme="light"] .flow-add {
 }
 
 .flow-list-items::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--scrollbar-thumb);
   border-radius: 999px;
-}
-
-body[data-theme="light"] .flow-list-items::-webkit-scrollbar-thumb {
-  background: rgba(15, 20, 28, 0.18);
 }
 
 .flow-task {
@@ -4256,6 +4288,11 @@ body[data-theme="light"] .tag-option:hover {
     justify-content: center;
   }
 
+  .board-toolbar .task-trash-zone {
+    margin-top: 0;
+    width: auto;
+  }
+
   .board-columns {
     grid-auto-columns: minmax(220px, 1fr);
   }
@@ -4267,4 +4304,7 @@ body[data-theme="light"] .tag-option:hover {
   .flow-node {
     min-width: 160px;
   }
+}
+.board-toolbar.is-trash-mode .board-toolbar-left-main {
+  display: none;
 }

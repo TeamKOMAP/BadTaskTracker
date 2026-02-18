@@ -394,7 +394,6 @@ const renderTaskGridView = (tasks) => {
   list.forEach((taskData) => {
     const card = createTaskCard(taskData);
     if (!(card instanceof Element)) return;
-    card.setAttribute("draggable", "false");
     fragment.appendChild(card);
   });
   taskGridItems.appendChild(fragment);
@@ -601,6 +600,8 @@ let dragTask = null;
 let dragTaskColumn = null;
 let lastTaskAfter = null;
 let lastTaskContainer = null;
+let dragTrashTaskId = null;
+let dragTrashTaskTitle = "";
 let activeTaskColumn = null;
 let editingTaskId = null;
 let editingTaskCard = null;
@@ -2138,8 +2139,6 @@ const isAdmin = () => MANAGE_ROLES.has(String(currentWorkspaceRole || ""));
 const shouldShowTrashZone = () => {
   if (!taskTrashZone || !board) return false;
   if (!isAdmin()) return false;
-  if (board.dataset.style !== "columns") return false;
-  if (board.dataset.view === "calendar" || board.dataset.view === "priority") return false;
   return true;
 };
 
@@ -2151,6 +2150,9 @@ const setTrashZoneVisible = (visible) => {
   if (styleSwitch) {
     styleSwitch.classList.toggle("has-trash-zone", show);
   }
+  if (boardToolbar) {
+    boardToolbar.classList.toggle("is-trash-mode", show);
+  }
   if (!show) {
     taskTrashZone.classList.remove("is-over");
   }
@@ -2159,6 +2161,32 @@ const setTrashZoneVisible = (visible) => {
 const setTrashZoneOver = (over) => {
   if (!taskTrashZone) return;
   taskTrashZone.classList.toggle("is-over", Boolean(over));
+};
+
+const parseTrashDragInfo = (dataTransfer) => {
+  if (!dataTransfer) return { id: null, title: "" };
+  const raw = String(dataTransfer.getData("text/plain") || "").trim();
+  if (!raw) return { id: null, title: "" };
+
+  try {
+    const payload = JSON.parse(raw);
+    if (payload && typeof payload === "object") {
+      const id = Number.parseInt(String(payload.taskId ?? payload.id ?? ""), 10);
+      const title = normalizeToken(payload.title);
+      return {
+        id: Number.isFinite(id) && id > 0 ? id : null,
+        title
+      };
+    }
+  } catch {
+    // ignore
+  }
+
+  const id = Number.parseInt(raw, 10);
+  return {
+    id: Number.isFinite(id) && id > 0 ? id : null,
+    title: ""
+  };
 };
 
 let confirmResolve = null;
@@ -2515,7 +2543,19 @@ const flowEditorController = createFlowEditorController({
   buildFlowNote,
   getFlowStatusLabel,
   getTasks: () => lastNormalizedTasks,
-  createFlowTaskItem
+  createFlowTaskItem,
+  onFlowTaskDragStart: (payload) => {
+    const id = Number.parseInt(String(payload?.taskId ?? ""), 10);
+    dragTrashTaskId = Number.isFinite(id) && id > 0 ? id : null;
+    dragTrashTaskTitle = normalizeToken(payload?.title) || "";
+    setTrashZoneVisible(true);
+  },
+  onFlowTaskDragEnd: () => {
+    dragTrashTaskId = null;
+    dragTrashTaskTitle = "";
+    setTrashZoneOver(false);
+    setTrashZoneVisible(false);
+  }
 });
 
 const {
@@ -3323,6 +3363,27 @@ const flip = (elements, mutate) => {
   });
 };
 
+const canDragTaskCard = () => {
+  if (!board) return false;
+  const view = board.dataset.view || "board";
+  const style = board.dataset.style || "columns";
+  const overlay = board.dataset.overlay || "";
+
+  if (style !== "columns") {
+    return shouldShowTrashZone();
+  }
+
+  if (overlay === "grid") {
+    return shouldShowTrashZone();
+  }
+
+  if (view === "calendar" || view === "priority") {
+    return shouldShowTrashZone();
+  }
+
+  return true;
+};
+
 const initTaskCard = (card) => {
   if (!card || card.classList.contains("is-empty")) return;
   card.setAttribute("draggable", "true");
@@ -3336,10 +3397,16 @@ const initTaskCard = (card) => {
 };
 
 const onTaskDragStart = (event) => {
+  if (!canDragTaskCard()) {
+    event.preventDefault();
+    return;
+  }
   const card = event.currentTarget;
   if (!(card instanceof Element)) return;
   dragTask = card;
   dragTaskColumn = card.closest(".column");
+  dragTrashTaskId = Number.parseInt(card.dataset.taskId || "", 10);
+  dragTrashTaskTitle = card.querySelector("h3")?.textContent?.trim() || "";
   card.classList.add("is-dragging");
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = "move";
@@ -3365,6 +3432,8 @@ const onTaskDragEnd = () => {
   dragTaskColumn = null;
   lastTaskAfter = null;
   lastTaskContainer = null;
+  dragTrashTaskId = null;
+  dragTrashTaskTitle = "";
   setTrashZoneOver(false);
   setTrashZoneVisible(false);
 };
@@ -3395,9 +3464,18 @@ const getTaskFlipElements = (sourceContainer, targetContainer) => {
   return Array.from(new Set(elements));
 };
 
+const canMoveTasksBetweenColumns = () => {
+  if (!board) return false;
+  if (board.dataset.overlay === "grid") return false;
+  if (board.dataset.style !== "columns") return false;
+  const view = board.dataset.view || "board";
+  return view === "board" || view === "list";
+};
+
 const onTaskDragOver = (event) => {
-  event.preventDefault();
+  if (!canMoveTasksBetweenColumns()) return;
   if (!dragTask) return;
+  event.preventDefault();
   const container = event.currentTarget;
   if (!(container instanceof Element)) return;
   const afterElement = getTaskDragAfterElement(container, event.clientY);
@@ -3424,8 +3502,9 @@ const onTaskDragOver = (event) => {
 };
 
 const onTaskDrop = (event) => {
-  event.preventDefault();
+  if (!canMoveTasksBetweenColumns()) return;
   if (!dragTask) return;
+  event.preventDefault();
   const targetContainer = event.currentTarget instanceof Element ? event.currentTarget : null;
   const targetColumn = targetContainer?.closest(".column") || null;
   if (dragTaskColumn && targetColumn && dragTaskColumn !== targetColumn) {
@@ -3449,7 +3528,10 @@ const onTaskDrop = (event) => {
 
 if (taskTrashZone) {
   taskTrashZone.addEventListener("dragover", (event) => {
-    if (!dragTask || !shouldShowTrashZone()) return;
+    if (!shouldShowTrashZone()) return;
+    const parsed = parseTrashDragInfo(event.dataTransfer);
+    const id = Number.isFinite(dragTrashTaskId) && dragTrashTaskId > 0 ? dragTrashTaskId : parsed.id;
+    if (!id) return;
     event.preventDefault();
     setTrashZoneOver(true);
     if (event.dataTransfer) {
@@ -3462,12 +3544,18 @@ if (taskTrashZone) {
   });
 
   taskTrashZone.addEventListener("drop", async (event) => {
-    if (!dragTask || !shouldShowTrashZone()) return;
+    if (!shouldShowTrashZone()) return;
     event.preventDefault();
     event.stopPropagation();
     setTrashZoneOver(false);
-    const id = Number.parseInt(dragTask.dataset.taskId || "", 10);
-    const title = dragTask.querySelector("h3")?.textContent?.trim();
+    const parsed = parseTrashDragInfo(event.dataTransfer);
+    const id = Number.isFinite(dragTrashTaskId) && dragTrashTaskId > 0 ? dragTrashTaskId : parsed.id;
+    const title = dragTrashTaskTitle || parsed.title || "";
+    if (!Number.isFinite(Number(id)) || Number(id) <= 0) {
+      setTrashZoneVisible(false);
+      syncTaskStateToUi();
+      return;
+    }
     const confirmed = await openConfirmModal({
       kicker: "Удаление задачи",
       title: title ? `Удалить "${title}"?` : "Удалить эту задачу?",
@@ -3476,12 +3564,16 @@ if (taskTrashZone) {
     });
     if (confirmed !== true) {
       setTrashZoneVisible(false);
+      dragTrashTaskId = null;
+      dragTrashTaskTitle = "";
       syncTaskStateToUi();
       return;
     }
     void (async () => {
       const deleted = await deleteTaskViaApi(id);
       setTrashZoneVisible(false);
+      dragTrashTaskId = null;
+      dragTrashTaskTitle = "";
       if (!deleted) {
         syncTaskStateToUi();
         return;
