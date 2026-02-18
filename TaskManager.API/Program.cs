@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Threading.RateLimiting;
 using TaskManager.API.Background;
+using TaskManager.API.Configuration;
 using TaskManager.API.Security;
 using TaskManager.Application.Auth;
 using TaskManager.Application.Interfaces;
@@ -14,6 +15,8 @@ using TaskManager.Infrastructure.Data;
 using TaskManager.Infrastructure.Email;
 using TaskManager.Infrastructure.Repositories;
 using TaskManager.Infrastructure.Storage;
+
+DotEnvLoader.LoadFromDotEnv();
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();

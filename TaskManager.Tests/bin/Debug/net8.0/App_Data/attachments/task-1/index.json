@@ -1,0 +1,40 @@
+{
+  "Items": {
+    "01f80598a0414862bce42bee9caeeb5c": {
+      "Id": "01f80598a0414862bce42bee9caeeb5c",
+      "TaskId": 1,
+      "FileName": "note.txt",
+      "StoredName": "01f80598a0414862bce42bee9caeeb5c.txt",
+      "ContentType": "text/plain",
+      "Size": 18,
+      "UploadedAtUtc": "2026-02-18T08:04:09.282581Z"
+    },
+    "7a52b032ce6b43c5b62fe758f151849b": {
+      "Id": "7a52b032ce6b43c5b62fe758f151849b",
+      "TaskId": 1,
+      "FileName": "compat.txt",
+      "StoredName": "7a52b032ce6b43c5b62fe758f151849b.txt",
+      "ContentType": "text/plain",
+      "Size": 17,
+      "UploadedAtUtc": "2026-02-18T08:04:09.300856Z"
+    },
+    "51902cebe9c64fb4a3417703bb37c110": {
+      "Id": "51902cebe9c64fb4a3417703bb37c110",
+      "TaskId": 1,
+      "FileName": "compat.txt",
+      "StoredName": "51902cebe9c64fb4a3417703bb37c110.txt",
+      "ContentType": "text/plain",
+      "Size": 17,
+      "UploadedAtUtc": "2026-02-18T08:28:28.9466835Z"
+    },
+    "256cd69278384ecfba775a004272986a": {
+      "Id": "256cd69278384ecfba775a004272986a",
+      "TaskId": 1,
+      "FileName": "note.txt",
+      "StoredName": "256cd69278384ecfba775a004272986a.txt",
+      "ContentType": "text/plain",
+      "Size": 18,
+      "UploadedAtUtc": "2026-02-18T08:28:28.9701044Z"
+    }
+  }
+}

@@ -5514,11 +5514,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\0_offlayt\\Source\\Repos\\GoodTaskTracker\\TaskManager.Tests\\TaskManager.Tests.csproj",
+      "projectUniqueName": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Tests\\TaskManager.Tests.csproj",
       "projectName": "TaskManager.Tests",
-      "projectPath": "C:\\Users\\0_offlayt\\Source\\Repos\\GoodTaskTracker\\TaskManager.Tests\\TaskManager.Tests.csproj",
+      "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Tests\\TaskManager.Tests.csproj",
       "packagesPath": "C:\\Users\\0_offlayt\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\0_offlayt\\Source\\Repos\\GoodTaskTracker\\TaskManager.Tests\\obj\\",
+      "outputPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Tests\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -5539,8 +5539,8 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "projectReferences": {
-            "C:\\Users\\0_offlayt\\Source\\Repos\\GoodTaskTracker\\TaskManager.API\\TaskManager.API.csproj": {
-              "projectPath": "C:\\Users\\0_offlayt\\Source\\Repos\\GoodTaskTracker\\TaskManager.API\\TaskManager.API.csproj"
+            "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.API\\TaskManager.API.csproj": {
+              "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.API\\TaskManager.API.csproj"
             }
           }
         }

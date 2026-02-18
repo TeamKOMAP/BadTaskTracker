@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "U7v0vNBZ5AE=",
+  "dgSpecHash": "H52Lnc6XjWA=",
   "success": true,
-  "projectFilePath": "C:\\Users\\0_offlayt\\Source\\Repos\\GoodTaskTracker\\TaskManager.Tests\\TaskManager.Tests.csproj",
+  "projectFilePath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Tests\\TaskManager.Tests.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\0_offlayt\\.nuget\\packages\\azure.core\\1.25.0\\azure.core.1.25.0.nupkg.sha512",
     "C:\\Users\\0_offlayt\\.nuget\\packages\\azure.identity\\1.7.0\\azure.identity.1.7.0.nupkg.sha512",

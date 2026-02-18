@@ -513,6 +513,10 @@ body[data-theme="light"] .space-add-card {
   background: rgba(255, 255, 255, 0.65);
 }
 
+#space-modal .task-form-actions > button {
+  flex: 1 1 0;
+}
+
 @media (max-width: 980px) {
   .spaces-account {
     flex-direction: column;
