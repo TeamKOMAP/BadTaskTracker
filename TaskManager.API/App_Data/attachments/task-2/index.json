@@ -1,13 +1,3 @@
 {
-  "Items": {
-    "610a2c71f2d04bd8b926f1d1225da7ba": {
-      "Id": "610a2c71f2d04bd8b926f1d1225da7ba",
-      "TaskId": 2,
-      "FileName": "photo_2026-01-08_15-01-48.jpg",
-      "StoredName": "610a2c71f2d04bd8b926f1d1225da7ba.jpg",
-      "ContentType": "image/jpeg",
-      "Size": 193534,
-      "UploadedAtUtc": "2026-02-09T11:40:54.0758036Z"
-    }
-  }
+  "Items": {}
 }

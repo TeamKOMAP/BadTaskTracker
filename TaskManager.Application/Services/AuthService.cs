@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Mail;
 using System.Security.Cryptography;
@@ -15,6 +16,7 @@ namespace TaskManager.Application.Services
         private const int HashIterations = 100_000;
         private const int SaltSize = 16;
         private const int HashSize = 32;
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> EmailLocks = new(StringComparer.Ordinal);
 
         private readonly IUserRepository _userRepository;
         private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
@@ -39,9 +41,14 @@ namespace TaskManager.Application.Services
             _settings = settings ?? new EmailAuthSettings();
         }
 
-        public async Task<EmailCodeRequestResultDto> RequestEmailCodeAsync(EmailCodeRequestDto dto)
+        public Task<EmailCodeRequestResultDto> RequestEmailCodeAsync(EmailCodeRequestDto dto)
         {
             var email = NormalizeAndValidateEmail(dto?.Email);
+            return ExecuteWithEmailLockAsync(email, () => RequestEmailCodeCoreAsync(email));
+        }
+
+        private async Task<EmailCodeRequestResultDto> RequestEmailCodeCoreAsync(string email)
+        {
             var now = DateTime.UtcNow;
 
             var active = await _emailAuthCodeRepository.GetLatestActiveByEmailAsync(email);
@@ -101,7 +108,7 @@ namespace TaskManager.Application.Services
                 }
 
                 entity.IsConsumed = true;
-                entity.ConsumedAtUtc = DateTime.UtcNow;
+                entity.ConsumedAtUtc = now;
                 await _emailAuthCodeRepository.UpdateAsync(entity);
                 throw new ValidationException("Unable to send code right now. Try again later.");
             }
@@ -114,10 +121,15 @@ namespace TaskManager.Application.Services
             };
         }
 
-        public async Task<AuthTokenResponseDto> VerifyEmailCodeAsync(EmailCodeVerifyDto dto)
+        public Task<AuthTokenResponseDto> VerifyEmailCodeAsync(EmailCodeVerifyDto dto)
         {
             var email = NormalizeAndValidateEmail(dto?.Email);
             var code = NormalizeCode(dto?.Code);
+            return ExecuteWithEmailLockAsync(email, () => VerifyEmailCodeCoreAsync(email, code));
+        }
+
+        private async Task<AuthTokenResponseDto> VerifyEmailCodeCoreAsync(string email, string code)
+        {
             var now = DateTime.UtcNow;
 
             var active = await _emailAuthCodeRepository.GetLatestActiveByEmailAsync(email);
@@ -161,6 +173,22 @@ namespace TaskManager.Application.Services
 
             var token = _jwtTokenService.CreateAccessToken(user);
             return MapTokenResponse(user, token, null);
+        }
+
+        private static async Task<T> ExecuteWithEmailLockAsync<T>(string email, Func<Task<T>> action)
+        {
+            var key = email ?? string.Empty;
+            var gate = EmailLocks.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+            await gate.WaitAsync();
+
+            try
+            {
+                return await action();
+            }
+            finally
+            {
+                gate.Release();
+            }
         }
 
         public async Task<AuthTokenResponseDto> SwitchWorkspaceAsync(int actorUserId, SwitchWorkspaceRequestDto dto)

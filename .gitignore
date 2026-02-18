@@ -1,16 +1,19 @@
-# Visual Studio
-.vs/
-*.user
-*.suo
+# # Visual Studio
+# .vs/
+# *.user
+# *.suo
 
-# Build outputs
-**/bin/
-**/obj/
+# # Build outputs
+# **/bin/
+# **/obj/
 
-# Logs and local runtime artifacts
-*.log
-TaskManager.API/App_Data/
-TaskManager.API/wwwroot/uploads/
+# # Logs and local runtime artifacts
+# *.log
+# .env
+# .env.*
+# !.env.example
+# TaskManager.API/App_Data/
+# TaskManager.API/wwwroot/uploads/
 
-# Test runtime artifacts
-TaskManager.Tests/App_Data/
+# # Test runtime artifacts
+# TaskManager.Tests/App_Data/

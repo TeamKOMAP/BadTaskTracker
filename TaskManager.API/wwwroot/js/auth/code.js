@@ -22,6 +22,7 @@ if (themeToggleBtn) {
 const params = new URLSearchParams(window.location.search);
 const rawEmail = String(params.get("email") || "").trim().toLowerCase();
 const returnUrl = String(params.get("returnUrl") || "").trim();
+const initialResendAfterSeconds = Number(params.get("resendAfterSeconds") || "");
 
 const emailValidationEl = document.getElementById("email-validation");
 const codeAlertEl = document.getElementById("code-alert");
@@ -195,7 +196,11 @@ const verifyCode = async (code) => {
   }
 };
 
-startTimer(60);
+const initialCooldownSeconds = Number.isFinite(initialResendAfterSeconds) && initialResendAfterSeconds > 0
+  ? initialResendAfterSeconds
+  : 60;
+
+startTimer(initialCooldownSeconds);
 
 if (resendBtn) {
   resendBtn.addEventListener("click", () => {
@@ -205,7 +210,15 @@ if (resendBtn) {
       setCodeAlert("");
       resendBtn.disabled = true;
       const result = await requestCode();
-      const seconds = Number(result?.resendAfterSeconds || 60);
+      if (!result) {
+        resendBtn.disabled = false;
+        return;
+      }
+
+      const nextCooldownSeconds = Number(result?.resendAfterSeconds);
+      const seconds = Number.isFinite(nextCooldownSeconds) && nextCooldownSeconds > 0
+        ? nextCooldownSeconds
+        : 60;
       startTimer(seconds);
     })();
   });

@@ -120,9 +120,27 @@ TaskTracker.API/wwwroot/ # Статические файлы фронтенда
    ```
    Или через F5 в Visual Studio
    
-   Приложение будет доступно по адресам:
-   - API: `https://localhost:5001` или `http://localhost:5000`
-   - Swagger UI: `/swagger`
+    Приложение будет доступно по адресам:
+    - API: `https://localhost:5001` или `http://localhost:5000`
+    - Swagger UI: `/swagger`
+
+## 📧 SMTP и .env
+
+Для отправки кодов входа по email заполните SMTP-секреты в локальном `.env` (файл в корне проекта, в git не коммитится):
+
+```env
+Smtp__Username=your-smtp-username
+Smtp__Password=your-smtp-password
+Smtp__FromEmail=your-from-email
+```
+
+Дополнительно можно настроить таймаут отправки:
+
+```env
+Smtp__TimeoutSeconds=10
+```
+
+Шаблон переменных: `.env.example`.
 
 ## 💯 КАК СДЕЛАТЬ (Swagger)?
 

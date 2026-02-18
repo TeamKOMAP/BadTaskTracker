@@ -115,6 +115,10 @@ if (emailForm) {
       const returnUrl = String(params.get("returnUrl") || "").trim();
       const next = new URL("auth-code.html", window.location.href);
       next.searchParams.set("email", email);
+      const resendAfterSeconds = Number(requestResult?.resendAfterSeconds);
+      if (Number.isFinite(resendAfterSeconds) && resendAfterSeconds > 0) {
+        next.searchParams.set("resendAfterSeconds", String(Math.ceil(resendAfterSeconds)));
+      }
       if (returnUrl) {
         next.searchParams.set("returnUrl", returnUrl);
       }
