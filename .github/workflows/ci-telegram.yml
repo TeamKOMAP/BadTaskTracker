@@ -1,4 +1,4 @@
-name: 🚀 CI/CD with Telegram
+name: CI/CD with Telegram
 
 on:
   push:
@@ -15,10 +15,22 @@ jobs:
       DatabaseStartup__Seed: false
     
     outputs:
-      test_result: ${{ steps.test.outputs.result }}
-      test_passed: ${{ steps.test.outputs.passed }}
-      test_failed: ${{ steps.test.outputs.failed }}
-      failed_tests: ${{ steps.test.outputs.failed_tests }}
+      build_status: ${{ steps.build.outcome }}
+      unit_total: ${{ steps.unit-tests.outputs.total }}
+      unit_passed: ${{ steps.unit-tests.outputs.passed }}
+      unit_failed: ${{ steps.unit-tests.outputs.failed }}
+      auth_total: ${{ steps.auth-tests.outputs.total }}
+      auth_passed: ${{ steps.auth-tests.outputs.passed }}
+      auth_failed: ${{ steps.auth-tests.outputs.failed }}
+      tasks_total: ${{ steps.tasks-tests.outputs.total }}
+      tasks_passed: ${{ steps.tasks-tests.outputs.passed }}
+      tasks_failed: ${{ steps.tasks-tests.outputs.failed }}
+      reports_total: ${{ steps.reports-tests.outputs.total }}
+      reports_passed: ${{ steps.reports-tests.outputs.passed }}
+      reports_failed: ${{ steps.reports-tests.outputs.failed }}
+      other_total: ${{ steps.other-tests.outputs.total }}
+      other_passed: ${{ steps.other-tests.outputs.passed }}
+      other_failed: ${{ steps.other-tests.outputs.failed }}
     
     steps:
     - uses: actions/checkout@v4
@@ -32,51 +44,63 @@ jobs:
       run: dotnet restore
     
     - name: Build
+      id: build
       run: dotnet build --no-restore --configuration Release
     
-    - name: Test
-      id: test
+    - name: Unit Tests
+      id: unit-tests
       run: |
-        dotnet test --no-build --configuration Release --logger "trx;LogFileName=results.trx" --results-directory ./TestResults 2>&1 | tee test-output.txt
-        exit_code=${PIPESTATUS[0]}
-        trx_file=$(find ./TestResults -name "*.trx" | head -1)
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Unit" \
+          --verbosity normal 2>&1 | tee output.txt || true
         
-        if [ -f "$trx_file" ]; then
-          total=$(xmllint --xpath "string(//*[local-name()='Counters']/@total)" "$trx_file" 2>/dev/null || echo "0")
-          passed=$(xmllint --xpath "string(//*[local-name()='Counters']/@passed)" "$trx_file" 2>/dev/null || echo "0")
-          failed=$(xmllint --xpath "string(//*[local-name()='Counters']/@failed)" "$trx_file" 2>/dev/null || echo "0")
-          
-          echo "total=$total" >> $GITHUB_OUTPUT
-          echo "passed=$passed" >> $GITHUB_OUTPUT
-          echo "failed=$failed" >> $GITHUB_OUTPUT
-          
-          if [ "$failed" -gt 0 ]; then
-            failed_names=$(xmllint --xpath "//*[local-name()='UnitTestResult'][@outcome='Failed']//*[local-name()='testName']/text()" "$trx_file" 2>/dev/null | head -10 | tr '\n' '|' | sed 's/|$//')
-            echo "failed_tests=$failed_names" >> $GITHUB_OUTPUT
-            echo "result=failed" >> $GITHUB_OUTPUT
-          else
-            echo "failed_tests=" >> $GITHUB_OUTPUT
-            echo "result=success" >> $GITHUB_OUTPUT
-          fi
-        else
-          echo "total=0" >> $GITHUB_OUTPUT
-          echo "passed=0" >> $GITHUB_OUTPUT
-          echo "failed=0" >> $GITHUB_OUTPUT
-          echo "failed_tests=" >> $GITHUB_OUTPUT
-          echo "result=error" >> $GITHUB_OUTPUT
-        fi
-        
-        exit $exit_code
-      continue-on-error: true
-      shell: bash
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
     
-    - name: Upload test results
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-results
-        path: './TestResults/*.trx'
-        retention-days: 7
+    - name: Auth Tests
+      id: auth-tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Auth" \
+          --verbosity normal 2>&1 | tee output.txt || true
+        
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+    
+    - name: Tasks Tests
+      id: tasks-tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Tasks" \
+          --verbosity normal 2>&1 | tee output.txt || true
+        
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+    
+    - name: Reports Tests
+      id: reports-tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Reports" \
+          --verbosity normal 2>&1 | tee output.txt || true
+        
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+    
+    - name: Other Tests
+      id: other-tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Other" \
+          --verbosity normal 2>&1 | tee output.txt || true
+        
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
 
   notify-telegram:
     needs: build-and-test
@@ -84,62 +108,6 @@ jobs:
     if: always()
     
     steps:
-    - name: Build message
-      id: build_msg
-      env:
-        RESULT: ${{ needs.build-and-test.outputs.test_result }}
-        PASSED: ${{ needs.build-and-test.outputs.test_passed }}
-        FAILED: ${{ needs.build-and-test.outputs.test_failed }}
-        FAILED_TESTS: ${{ needs.build-and-test.outputs.failed_tests }}
-        REPO: ${{ github.repository }}
-        EVENT: ${{ github.event_name }}
-        BRANCH: ${{ github.ref_name }}
-        ACTOR: ${{ github.actor }}
-        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      run: |
-        if [ "$RESULT" = "success" ]; then
-          header="✅ *ВСЕ ТЕСТЫ ПРОЙДЕНЫ*"
-          stats="📊 Тестов: $PASSED"
-        elif [ "$RESULT" = "failed" ]; then
-          header="❌ *ТЕСТЫ ПРОВАЛЕНЫ*"
-          stats="📊 Пройдено: $PASSED | Упало: $FAILED"
-        else
-          header="⚠️ *ОШИБКА СБОРКИ*"
-          stats=""
-        fi
-        
-        event_icon="🔨"
-        [ "$EVENT" = "pull_request" ] && event_icon="🔀"
-        
-        echo "header=$header" >> $GITHUB_OUTPUT
-        echo "stats=$stats" >> $GITHUB_OUTPUT
-        echo "event_icon=$event_icon" >> $GITHUB_OUTPUT
-        echo "repo=$REPO" >> $GITHUB_OUTPUT
-        echo "branch=$BRANCH" >> $GITHUB_OUTPUT
-        echo "actor=$ACTOR" >> $GITHUB_OUTPUT
-        echo "run_url=$RUN_URL" >> $GITHUB_OUTPUT
-        
-        if [ -n "$FAILED_TESTS" ] && [ "$FAILED" -gt 0 ]; then
-          failed_msg="💥 Упавшие тесты:"
-          IFS='|' read -ra TESTS <<< "$FAILED_TESTS"
-          count=0
-          for test in "${TESTS[@]}"; do
-            if [ $count -ge 5 ]; then
-              remaining=$((FAILED - 5))
-              failed_msg="$failed_msg
-        ... и ещё $remaining тестов"
-              break
-            fi
-            short=$(echo "$test" | sed 's/TaskManager\.Tests\.IntegrationTests\.//' | sed 's/TaskManager\.Tests\.UnitTests\.//')
-            failed_msg="$failed_msg
-        • $short"
-            ((count++))
-          done
-          echo "failed_list=$failed_msg" >> $GITHUB_OUTPUT
-        else
-          echo "failed_list=" >> $GITHUB_OUTPUT
-        fi
-    
     - name: Notify Telegram
       uses: appleboy/telegram-action@master
       with:
@@ -147,13 +115,19 @@ jobs:
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         format: markdown
         message: |
-          ${{ steps.build_msg.outputs.header }}
+          ${{ needs.build-and-test.outputs.unit_failed == '0' && needs.build-and-test.outputs.auth_failed == '0' && needs.build-and-test.outputs.tasks_failed == '0' && needs.build-and-test.outputs.reports_failed == '0' && needs.build-and-test.outputs.other_failed == '0' && needs.build-and-test.outputs.build_status == 'success' && '✅ ВСЕ ТЕСТЫ ПРОЙДЕНЫ' || '❌ ЕСТЬ ПРОБЛЕМЫ' }}
           
-          📁 ${{ steps.build_msg.outputs.repo }}
-          ${{ steps.build_msg.outputs.event_icon }} to `${{ steps.build_msg.outputs.branch }}`
+          📁 ${{ github.repository }}
+          ${{ github.event_name == 'pull_request' && '🔀 PR' || '🔨' }} to ${{ github.ref_name }}
           
-          👤 ${{ steps.build_msg.outputs.actor }}
-          ${{ steps.build_msg.outputs.stats }}
-          ${{ steps.build_msg.outputs.failed_list }}
+          👤 ${{ github.actor }}
           
-          [📄 Лог сборки](${{ steps.build_msg.outputs.run_url }})
+          📦 *Unit:* ${{ needs.build-and-test.outputs.unit_passed }}/${{ needs.build-and-test.outputs.unit_total }}${{ needs.build-and-test.outputs.unit_failed != '0' && ' ❌' || '' }}
+          🔐 *Auth:* ${{ needs.build-and-test.outputs.auth_passed }}/${{ needs.build-and-test.outputs.auth_total }}${{ needs.build-and-test.outputs.auth_failed != '0' && ' ❌' || '' }}
+          📝 *Tasks:* ${{ needs.build-and-test.outputs.tasks_passed }}/${{ needs.build-and-test.outputs.tasks_total }}${{ needs.build-and-test.outputs.tasks_failed != '0' && ' ❌' || '' }}
+          📊 *Reports:* ${{ needs.build-and-test.outputs.reports_passed }}/${{ needs.build-and-test.outputs.reports_total }}${{ needs.build-and-test.outputs.reports_failed != '0' && ' ❌' || '' }}
+          🔧 *Other:* ${{ needs.build-and-test.outputs.other_passed }}/${{ needs.build-and-test.outputs.other_total }}${{ needs.build-and-test.outputs.other_failed != '0' && ' ❌' || '' }}
+          
+          📝 ${{ github.event.head_commit.message || github.event.pull_request.title }}
+          
+          📄 [Лог сборки](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})

@@ -16,6 +16,7 @@ using Xunit;
 
 namespace TaskManager.Tests.IntegrationTests
 {
+    [Trait("Category", "Auth")]
     public class EmailApiTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
     {
         private const string JwtIssuer = "GoodTaskTracker";

@@ -9,6 +9,7 @@ using Xunit;
 
 namespace TaskManager.Tests.IntegrationTests
 {
+    [Trait("Category", "Other")]
     public class CompatibilityEndpointsTests : TestBase
     {
         public CompatibilityEndpointsTests(WebApplicationFactory<Program> factory) : base(factory) { }

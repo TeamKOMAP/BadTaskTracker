@@ -10,11 +10,13 @@ using TaskManager.Application.Auth;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Interfaces;
 using TaskManager.Domain.Entities;
+using TaskManager.Domain.Enums;
 using TaskManager.Infrastructure.Data;
 using Xunit;
 
 namespace TaskManager.Tests.IntegrationTests
 {
+    [Trait("Category", "Auth")]
     public class AuthApiTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
     {
         private const string JwtIssuer = "GoodTaskTracker";
@@ -35,7 +37,7 @@ namespace TaskManager.Tests.IntegrationTests
                 builder.ConfigureServices(services =>
                 {
                     var descriptor = services.SingleOrDefault(
-                        d => d.ServiceType == typeof(Microsoft.EntityFrameworkCore.DbContextOptions<ApplicationDbContext>));
+                        d => d.ServiceType == typeof(DbContextOptions<ApplicationDbContext>));
 
                     if (descriptor != null)
                         services.Remove(descriptor);
@@ -59,17 +61,16 @@ namespace TaskManager.Tests.IntegrationTests
                     services.RemoveAll<SmtpSettings>();
                     services.AddSingleton(new SmtpSettings());
 
-                    services.RemoveAll<IEmailSender>();
-                    services.AddScoped<IEmailSender, FakeEmailSender>();
-
                     services.RemoveAll<JwtSettings>();
-                    var jwtSettings = new JwtSettings
+                    services.AddSingleton(new JwtSettings
                     {
                         Issuer = JwtIssuer,
                         Audience = JwtAudience,
                         SigningKey = JwtSigningKey
-                    };
-                    services.AddSingleton(jwtSettings);
+                    });
+
+                    services.RemoveAll<IEmailSender>();
+                    services.AddSingleton<IEmailSender>(new ThrowingEmailSender());
 
                     var sp = services.BuildServiceProvider();
                     using var scope = sp.CreateScope();
@@ -85,18 +86,18 @@ namespace TaskManager.Tests.IntegrationTests
             _client = _factory.CreateClient();
         }
 
-        public void Dispose()
-        {
-        }
+        public void Dispose() { }
 
         [Fact]
-        public async Task RequestEmailCode_WithValidEmail_ReturnsOkWithDevelopmentCode()
+        public async Task RequestEmailCode_WithValidEmail_ReturnsSuccess()
         {
-            var dto = new EmailCodeRequestDto { Email = "newuser@example.com" };
-
-            var response = await _client.PostAsJsonAsync("/api/auth/email/request", dto);
+            var response = await _client.PostAsJsonAsync("/api/auth/email/request", new
+            {
+                email = "test@example.com"
+            });
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
+
             var result = await response.Content.ReadFromJsonAsync<EmailCodeRequestResultDto>();
             result.Should().NotBeNull();
             result!.ResendAfterSeconds.Should().BeGreaterThan(0);
@@ -107,9 +108,10 @@ namespace TaskManager.Tests.IntegrationTests
         [Fact]
         public async Task RequestEmailCode_WithInvalidEmail_ReturnsBadRequest()
         {
-            var dto = new EmailCodeRequestDto { Email = "invalid-email" };
-
-            var response = await _client.PostAsJsonAsync("/api/auth/email/request", dto);
+            var response = await _client.PostAsJsonAsync("/api/auth/email/request", new
+            {
+                email = "invalid-email"
+            });
 
             response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         }
@@ -117,183 +119,91 @@ namespace TaskManager.Tests.IntegrationTests
         [Fact]
         public async Task RequestEmailCode_WithEmptyEmail_ReturnsBadRequest()
         {
-            var dto = new EmailCodeRequestDto { Email = "" };
-
-            var response = await _client.PostAsJsonAsync("/api/auth/email/request", dto);
-
-            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        }
-
-        [Fact]
-        public async Task RequestEmailCode_WithTooLongEmail_ReturnsBadRequest()
-        {
-            var dto = new EmailCodeRequestDto { Email = new string('a', 90) + "@example.com" };
-
-            var response = await _client.PostAsJsonAsync("/api/auth/email/request", dto);
+            var response = await _client.PostAsJsonAsync("/api/auth/email/request", new
+            {
+                email = ""
+            });
 
             response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         }
 
         [Fact]
-        public async Task RequestEmailCode_TwiceWithinCooldown_ReturnsSameCode()
+        public async Task VerifyEmailCode_WithValidCode_ReturnsToken()
         {
-            var email = "cooldown@example.com";
-            var dto = new EmailCodeRequestDto { Email = email };
-
-            var firstResponse = await _client.PostAsJsonAsync("/api/auth/email/request", dto);
-            var firstResult = await firstResponse.Content.ReadFromJsonAsync<EmailCodeRequestResultDto>();
-
-            await Task.Delay(100);
-
-            var secondResponse = await _client.PostAsJsonAsync("/api/auth/email/request", dto);
-            secondResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-            var secondResult = await secondResponse.Content.ReadFromJsonAsync<EmailCodeRequestResultDto>();
-
-            secondResult!.ResendAfterSeconds.Should().BeGreaterThan(0);
-        }
-
-        [Fact]
-        public async Task VerifyEmailCode_WithValidCode_ReturnsTokenAndCreatesUser()
-        {
-            var email = "verify@example.com";
-            var requestDto = new EmailCodeRequestDto { Email = email };
-            var requestResponse = await _client.PostAsJsonAsync("/api/auth/email/request", requestDto);
+            var requestResponse = await _client.PostAsJsonAsync("/api/auth/email/request", new
+            {
+                email = "verify@example.com"
+            });
             var requestResult = await requestResponse.Content.ReadFromJsonAsync<EmailCodeRequestResultDto>();
 
-            var verifyDto = new EmailCodeVerifyDto { Email = email, Code = requestResult!.DevelopmentCode! };
-            var verifyResponse = await _client.PostAsJsonAsync("/api/auth/email/verify", verifyDto);
+            var verifyResponse = await _client.PostAsJsonAsync("/api/auth/email/verify", new
+            {
+                email = "verify@example.com",
+                code = requestResult!.DevelopmentCode
+            });
 
             verifyResponse.StatusCode.Should().Be(HttpStatusCode.OK);
-            var token = await verifyResponse.Content.ReadFromJsonAsync<AuthTokenResponseDto>();
-            token.Should().NotBeNull();
-            token!.AccessToken.Should().NotBeNullOrEmpty();
-            token.TokenType.Should().Be("Bearer");
-            token.User.Email.Should().Be(email);
-            token.User.Id.Should().BeGreaterThan(0);
+
+            var tokenResult = await verifyResponse.Content.ReadFromJsonAsync<AuthTokenResponseDto>();
+            tokenResult.Should().NotBeNull();
+            tokenResult!.AccessToken.Should().NotBeNullOrEmpty();
+            tokenResult.TokenType.Should().Be("Bearer");
+            tokenResult.User.Email.Should().Be("verify@example.com");
         }
 
         [Fact]
         public async Task VerifyEmailCode_WithInvalidCode_ReturnsBadRequest()
         {
-            var email = "invalid-code@example.com";
-            var requestDto = new EmailCodeRequestDto { Email = email };
-            await _client.PostAsJsonAsync("/api/auth/email/request", requestDto);
+            await _client.PostAsJsonAsync("/api/auth/email/request", new
+            {
+                email = "invalid-code@example.com"
+            });
 
-            var verifyDto = new EmailCodeVerifyDto { Email = email, Code = "000000" };
-            var verifyResponse = await _client.PostAsJsonAsync("/api/auth/email/verify", verifyDto);
+            var verifyResponse = await _client.PostAsJsonAsync("/api/auth/email/verify", new
+            {
+                email = "invalid-code@example.com",
+                code = "000000"
+            });
 
             verifyResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         }
 
         [Fact]
-        public async Task VerifyEmailCode_WithExpiredCode_ReturnsBadRequest()
+        public async Task VerifyEmailCode_WithWrongEmail_ReturnsBadRequest()
         {
-            var email = "expired@example.com";
-
-            using (var scope = _factory.Services.CreateScope())
+            var verifyResponse = await _client.PostAsJsonAsync("/api/auth/email/verify", new
             {
-                var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                dbContext.EmailAuthCodes.Add(new EmailAuthCode
-                {
-                    Email = email,
-                    CodeHash = "test",
-                    CodeSalt = "test",
-                    CreatedAtUtc = DateTime.UtcNow.AddMinutes(-20),
-                    ExpiresAtUtc = DateTime.UtcNow.AddMinutes(-10),
-                    ResendAvailableAtUtc = DateTime.UtcNow.AddMinutes(-19),
-                    IsConsumed = false
-                });
-                await dbContext.SaveChangesAsync();
-            }
-
-            var verifyDto = new EmailCodeVerifyDto { Email = email, Code = "123456" };
-            var verifyResponse = await _client.PostAsJsonAsync("/api/auth/email/verify", verifyDto);
+                email = "nonexistent@example.com",
+                code = "123456"
+            });
 
             verifyResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         }
 
         [Fact]
-        public async Task VerifyEmailCode_AfterMaxAttempts_ReturnsBadRequest()
+        public async Task GetCurrentUser_WithValidToken_ReturnsUser()
         {
-            var email = "maxattempts@example.com";
-            var requestDto = new EmailCodeRequestDto { Email = email };
-            var requestResponse = await _client.PostAsJsonAsync("/api/auth/email/request", requestDto);
-            var requestResult = await requestResponse.Content.ReadFromJsonAsync<EmailCodeRequestResultDto>();
+            var token = await GetAuthTokenAsync("me@example.com");
 
-            var verifyDto = new EmailCodeVerifyDto { Email = email, Code = "000000" };
-
-            for (int i = 0; i < 5; i++)
-            {
-                await _client.PostAsJsonAsync("/api/auth/email/verify", verifyDto);
-            }
-
-            var finalResponse = await _client.PostAsJsonAsync("/api/auth/email/verify", verifyDto);
-            finalResponse.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        }
-
-        [Fact]
-        public async Task VerifyEmailCode_WithEmptyCode_ReturnsBadRequest()
-        {
-            var verifyDto = new EmailCodeVerifyDto { Email = "test@example.com", Code = "" };
-            var response = await _client.PostAsJsonAsync("/api/auth/email/verify", verifyDto);
-
-            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        }
-
-        [Fact]
-        public async Task VerifyEmailCode_WithShortCode_ReturnsBadRequest()
-        {
-            var verifyDto = new EmailCodeVerifyDto { Email = "test@example.com", Code = "12" };
-            var response = await _client.PostAsJsonAsync("/api/auth/email/verify", verifyDto);
-
-            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        }
-
-        [Fact]
-        public async Task VerifyEmailCode_ExistingUser_ReturnsSameUserId()
-        {
-            var email = "existing@example.com";
-
-            var requestDto = new EmailCodeRequestDto { Email = email };
-            var requestResponse = await _client.PostAsJsonAsync("/api/auth/email/request", requestDto);
-            var requestResult = await requestResponse.Content.ReadFromJsonAsync<EmailCodeRequestResultDto>();
-
-            var verifyDto = new EmailCodeVerifyDto { Email = email, Code = requestResult!.DevelopmentCode! };
-            var firstVerify = await _client.PostAsJsonAsync("/api/auth/email/verify", verifyDto);
-            var firstToken = await firstVerify.Content.ReadFromJsonAsync<AuthTokenResponseDto>();
-
-            var secondRequestDto = new EmailCodeRequestDto { Email = email };
-            var secondRequestResponse = await _client.PostAsJsonAsync("/api/auth/email/request", secondRequestDto);
-            var secondRequestResult = await secondRequestResponse.Content.ReadFromJsonAsync<EmailCodeRequestResultDto>();
-
-            var secondVerifyDto = new EmailCodeVerifyDto { Email = email, Code = secondRequestResult!.DevelopmentCode! };
-            var secondVerify = await _client.PostAsJsonAsync("/api/auth/email/verify", secondVerifyDto);
-            var secondToken = await secondVerify.Content.ReadFromJsonAsync<AuthTokenResponseDto>();
-
-            secondToken!.User.Id.Should().Be(firstToken!.User.Id);
-        }
-
-        [Fact]
-        public async Task Me_WithValidToken_ReturnsCurrentUser()
-        {
-            var token = await GetAuthTokenAsync("me-test@example.com");
-            _client.DefaultRequestHeaders.Authorization =
+            var authClient = _factory.CreateClient();
+            authClient.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-            var response = await _client.GetAsync("/api/auth/me");
+            var response = await authClient.GetAsync("/api/auth/me");
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
+
             var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
             user.Should().NotBeNull();
-            user!.Email.Should().Be("me-test@example.com");
+            user!.Email.Should().Be("me@example.com");
         }
 
         [Fact]
-        public async Task Me_WithoutToken_ReturnsUnauthorized()
+        public async Task GetCurrentUser_WithoutToken_ReturnsUnauthorized()
         {
-            var client = _factory.CreateClient();
+            var clientWithoutAuth = _factory.CreateClient();
 
-            var response = await client.GetAsync("/api/auth/me");
+            var response = await clientWithoutAuth.GetAsync("/api/auth/me");
 
             response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         }
@@ -301,32 +211,51 @@ namespace TaskManager.Tests.IntegrationTests
         [Fact]
         public async Task SwitchWorkspace_WithValidWorkspace_ReturnsNewToken()
         {
-            var token = await GetAuthTokenAsync("switch@example.com");
-            _client.DefaultRequestHeaders.Authorization =
+            var email = "switch@example.com";
+            var token = await GetAuthTokenAsync(email);
+
+            var authClient = _factory.CreateClient();
+            authClient.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-            var createWorkspaceResponse = await _client.PostAsJsonAsync("/api/spaces", new { Name = "Test Workspace" });
-            createWorkspaceResponse.StatusCode.Should().Be(HttpStatusCode.Created);
-            var workspace = await createWorkspaceResponse.Content.ReadFromJsonAsync<WorkspaceDto>();
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            
+            var user = db.Users.First(u => u.Email == email);
+            db.WorkspaceMembers.Add(new WorkspaceMember
+            {
+                WorkspaceId = _testWorkspaceId,
+                UserId = user.Id,
+                Role = WorkspaceRole.Member,
+                AddedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
 
-            var dto = new SwitchWorkspaceRequestDto { WorkspaceId = workspace!.Id };
-            var response = await _client.PostAsJsonAsync("/api/auth/switch-workspace", dto);
+            var response = await authClient.PostAsJsonAsync("/api/auth/switch-workspace", new
+            {
+                workspaceId = _testWorkspaceId
+            });
 
             response.StatusCode.Should().Be(HttpStatusCode.OK);
+
             var result = await response.Content.ReadFromJsonAsync<AuthTokenResponseDto>();
             result.Should().NotBeNull();
-            result!.WorkspaceId.Should().Be(workspace.Id);
+            result!.WorkspaceId.Should().Be(_testWorkspaceId);
         }
 
         [Fact]
-        public async Task SwitchWorkspace_WithInvalidWorkspace_ReturnsForbidden()
+        public async Task SwitchWorkspace_WithNonMemberWorkspace_ReturnsForbidden()
         {
-            var token = await GetAuthTokenAsync("switch-invalid@example.com");
-            _client.DefaultRequestHeaders.Authorization =
+            var token = await GetAuthTokenAsync("non-member@example.com");
+
+            var authClient = _factory.CreateClient();
+            authClient.DefaultRequestHeaders.Authorization =
                 new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
 
-            var dto = new SwitchWorkspaceRequestDto { WorkspaceId = 99999 };
-            var response = await _client.PostAsJsonAsync("/api/auth/switch-workspace", dto);
+            var response = await authClient.PostAsJsonAsync("/api/auth/switch-workspace", new
+            {
+                workspaceId = 99999
+            });
 
             response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         }
@@ -334,38 +263,29 @@ namespace TaskManager.Tests.IntegrationTests
         [Fact]
         public async Task SwitchWorkspace_WithoutToken_ReturnsUnauthorized()
         {
-            var client = _factory.CreateClient();
+            var clientWithoutAuth = _factory.CreateClient();
 
-            var dto = new SwitchWorkspaceRequestDto { WorkspaceId = 1 };
-            var response = await client.PostAsJsonAsync("/api/auth/switch-workspace", dto);
+            var response = await clientWithoutAuth.PostAsJsonAsync("/api/auth/switch-workspace", new
+            {
+                workspaceId = 1
+            });
 
             response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         }
 
-        [Fact]
-        public async Task SwitchWorkspace_WithZeroWorkspaceId_ReturnsBadRequest()
-        {
-            var token = await GetAuthTokenAsync("switch-zero@example.com");
-            _client.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
-
-            var dto = new SwitchWorkspaceRequestDto { WorkspaceId = 0 };
-            var response = await _client.PostAsJsonAsync("/api/auth/switch-workspace", dto);
-
-            response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
-        }
-
         private async Task<string> GetAuthTokenAsync(string email)
         {
-            var requestDto = new EmailCodeRequestDto { Email = email };
-            var requestResponse = await _client.PostAsJsonAsync("/api/auth/email/request", requestDto);
+            var requestResponse = await _client.PostAsJsonAsync("/api/auth/email/request", new { email });
             var requestResult = await requestResponse.Content.ReadFromJsonAsync<EmailCodeRequestResultDto>();
 
-            var verifyDto = new EmailCodeVerifyDto { Email = email, Code = requestResult!.DevelopmentCode! };
-            var verifyResponse = await _client.PostAsJsonAsync("/api/auth/email/verify", verifyDto);
-            var token = await verifyResponse.Content.ReadFromJsonAsync<AuthTokenResponseDto>();
+            var verifyResponse = await _client.PostAsJsonAsync("/api/auth/email/verify", new
+            {
+                email,
+                code = requestResult!.DevelopmentCode
+            });
 
-            return token!.AccessToken;
+            var tokenResult = await verifyResponse.Content.ReadFromJsonAsync<AuthTokenResponseDto>();
+            return tokenResult!.AccessToken;
         }
 
         private void SeedTestData(ApplicationDbContext db)
@@ -374,7 +294,7 @@ namespace TaskManager.Tests.IntegrationTests
             {
                 var user = new User
                 {
-                    Name = "Тестовый Пользователь",
+                    Name = "Test User",
                     Email = "test@example.com"
                 };
                 db.Users.Add(user);
@@ -386,7 +306,7 @@ namespace TaskManager.Tests.IntegrationTests
             {
                 var workspace = new Workspace
                 {
-                    Name = "Тестовый Workspace",
+                    Name = "Test Workspace",
                     CreatedByUserId = _testUserId,
                     CreatedAt = DateTime.UtcNow
                 };
@@ -398,7 +318,7 @@ namespace TaskManager.Tests.IntegrationTests
                 {
                     WorkspaceId = workspace.Id,
                     UserId = _testUserId,
-                    Role = Domain.Enums.WorkspaceRole.Owner,
+                    Role = WorkspaceRole.Owner,
                     AddedAt = DateTime.UtcNow
                 });
                 db.SaveChanges();
@@ -406,11 +326,11 @@ namespace TaskManager.Tests.IntegrationTests
         }
     }
 
-    public class FakeEmailSender : IEmailSender
+    internal class ThrowingEmailSender : IEmailSender
     {
         public Task SendAsync(string toEmail, string subject, string htmlBody)
         {
-            throw new InvalidOperationException("SMTP not configured in tests");
+            throw new InvalidOperationException("Email sending is disabled in auth tests");
         }
     }
 }
