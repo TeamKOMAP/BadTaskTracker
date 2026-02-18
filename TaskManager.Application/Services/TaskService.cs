@@ -108,6 +108,7 @@ namespace TaskManager.Application.Services
             }
 
             var createdTask = await _taskRepository.AddAsync(task);
+            await _attachmentStorage.DeleteAllForTaskAsync(createdTask.Id, CancellationToken.None);
             return MapToDto(createdTask, 0);
         }
 
@@ -196,6 +197,7 @@ namespace TaskManager.Application.Services
             }
 
             await _taskRepository.DeleteAsync(task);
+            await _attachmentStorage.DeleteAllForTaskAsync(task.Id, CancellationToken.None);
         }
 
         private async Task EnsureMemberAsync(int workspaceId, int actorUserId)

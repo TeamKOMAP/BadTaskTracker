@@ -138,14 +138,15 @@ import {
   getStoredTaskMeta,
   setStoredTaskMeta,
   getStoredTaskBg,
+  clearStoredTaskArtifacts,
   getStoredWorkspaceColumns,
   setStoredWorkspaceColumns
-} from "./storage.js?v=authflow1";
+} from "./storage.js?v=authflow2";
 import { createBoardViewController } from "./board-view.js?v=perf1";
 import { createCalendarViewController } from "./calendar-view.js?v=perf1";
 import { createPriorityViewController } from "./priority-view.js?v=perf2";
 import { createFlowEditorController } from "./flow-editor.js?v=perf1";
-import { createTaskDetailController } from "./task-detail.js?v=perf7";
+import { createTaskDetailController } from "./task-detail.js?v=perf8";
 
 let lastNormalizedTasks = [];
 
@@ -2138,6 +2139,8 @@ const createTaskViaApi = async (uiTaskData) => {
     return;
   }
 
+  clearStoredTaskArtifacts(createdId);
+
   const tags = Array.isArray(uiTaskData.tags) ? uiTaskData.tags.filter((t) => typeof t === "string" && t.trim()) : [];
   if (Number.isFinite(createdId) && createdId > 0) {
     setStoredTaskMeta(createdId, { tags });
@@ -2313,6 +2316,8 @@ const deleteTaskViaApi = async (id) => {
     await handleApiError(response, "Удаление задачи");
     return false;
   }
+
+  clearStoredTaskArtifacts(id);
   return true;
 };
 

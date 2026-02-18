@@ -239,6 +239,38 @@ namespace TaskManager.Infrastructure.Storage
             }
         }
 
+        public async Task DeleteAllForTaskAsync(int taskId, CancellationToken cancellationToken = default)
+        {
+            if (taskId <= 0)
+            {
+                return;
+            }
+
+            var gate = GetTaskGate(taskId);
+            await gate.WaitAsync(cancellationToken);
+            try
+            {
+                var folder = GetTaskFolder(taskId);
+                if (!Directory.Exists(folder))
+                {
+                    return;
+                }
+
+                try
+                {
+                    Directory.Delete(folder, true);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to delete attachment folder for task {TaskId}", taskId);
+                }
+            }
+            finally
+            {
+                gate.Release();
+            }
+        }
+
         private async Task<AttachmentIndex> LoadIndexAsync(int taskId, CancellationToken cancellationToken)
         {
             var folder = GetTaskFolder(taskId);

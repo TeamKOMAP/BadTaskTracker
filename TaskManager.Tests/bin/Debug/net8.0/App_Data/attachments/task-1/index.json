@@ -35,6 +35,24 @@
       "ContentType": "text/plain",
       "Size": 18,
       "UploadedAtUtc": "2026-02-18T08:28:28.9701044Z"
+    },
+    "86ca7743e25b456ca516146e54524f9f": {
+      "Id": "86ca7743e25b456ca516146e54524f9f",
+      "TaskId": 1,
+      "FileName": "compat.txt",
+      "StoredName": "86ca7743e25b456ca516146e54524f9f.txt",
+      "ContentType": "text/plain",
+      "Size": 17,
+      "UploadedAtUtc": "2026-02-18T09:43:36.3114853Z"
+    },
+    "33522bb639e44d70a37c6263925565d3": {
+      "Id": "33522bb639e44d70a37c6263925565d3",
+      "TaskId": 1,
+      "FileName": "note.txt",
+      "StoredName": "33522bb639e44d70a37c6263925565d3.txt",
+      "ContentType": "text/plain",
+      "Size": 18,
+      "UploadedAtUtc": "2026-02-18T09:43:36.3394094Z"
     }
   }
 }

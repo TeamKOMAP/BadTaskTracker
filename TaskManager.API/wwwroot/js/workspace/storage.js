@@ -1,3 +1,5 @@
+import { STORAGE_WORKSPACE_ID } from "../shared/constants.js";
+
 export const getPreferredTheme = () => {
   try {
     const saved = localStorage.getItem("gtt-theme");
@@ -20,9 +22,26 @@ export const setTheme = (theme) => {
   }
 };
 
-const taskBgKey = (id) => `gtt-taskbg:${id}`;
-const taskMetaKey = (id) => `gtt-taskmeta:${id}`;
+const taskBgScopedKey = (workspaceId, taskId) => `gtt-taskbg:${workspaceId}:${taskId}`;
+const taskMetaScopedKey = (workspaceId, taskId) => `gtt-taskmeta:${workspaceId}:${taskId}`;
+const taskBgLegacyKey = (taskId) => `gtt-taskbg:${taskId}`;
+const taskMetaLegacyKey = (taskId) => `gtt-taskmeta:${taskId}`;
 const workspaceColumnsKey = (workspaceId) => `gtt-columns:${workspaceId}`;
+
+const normalizeTaskId = (taskId) => {
+  const parsed = Number.parseInt(String(taskId ?? ""), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+};
+
+const resolveCurrentWorkspaceId = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_WORKSPACE_ID);
+    const parsed = Number.parseInt(String(raw ?? ""), 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  } catch {
+    return null;
+  }
+};
 
 const normalizeWorkspaceId = (workspaceId) => {
   const id = Number(workspaceId);
@@ -38,8 +57,12 @@ const normalizeColumnType = (value) => {
 };
 
 export const getStoredTaskMeta = (id) => {
+  const taskId = normalizeTaskId(id);
+  const workspaceId = resolveCurrentWorkspaceId();
+  if (!taskId || !workspaceId) return null;
+
   try {
-    const raw = localStorage.getItem(taskMetaKey(id));
+    const raw = localStorage.getItem(taskMetaScopedKey(workspaceId, taskId));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return null;
@@ -55,38 +78,84 @@ export const getStoredTaskMeta = (id) => {
 };
 
 export const setStoredTaskMeta = (id, meta) => {
+  const taskId = normalizeTaskId(id);
+  const workspaceId = resolveCurrentWorkspaceId();
+  if (!taskId || !workspaceId) return;
+
   try {
     if (!meta || typeof meta !== "object") return;
     const theme = typeof meta.theme === "string" ? meta.theme.trim() : "";
     const tags = Array.isArray(meta.tags) ? meta.tags.filter((t) => typeof t === "string") : [];
-    localStorage.setItem(taskMetaKey(id), JSON.stringify({ theme, tags }));
+    localStorage.setItem(taskMetaScopedKey(workspaceId, taskId), JSON.stringify({ theme, tags }));
+    localStorage.removeItem(taskMetaLegacyKey(taskId));
+  } catch {
+    // ignore
+  }
+};
+
+export const clearStoredTaskMeta = (id) => {
+  const taskId = normalizeTaskId(id);
+  if (!taskId) return;
+
+  try {
+    const workspaceId = resolveCurrentWorkspaceId();
+    if (workspaceId) {
+      localStorage.removeItem(taskMetaScopedKey(workspaceId, taskId));
+    }
+    localStorage.removeItem(taskMetaLegacyKey(taskId));
   } catch {
     // ignore
   }
 };
 
 export const getStoredTaskBg = (id) => {
+  const taskId = normalizeTaskId(id);
+  const workspaceId = resolveCurrentWorkspaceId();
+  if (!taskId || !workspaceId) return "";
+
   try {
-    return localStorage.getItem(taskBgKey(id)) || "";
+    return localStorage.getItem(taskBgScopedKey(workspaceId, taskId)) || "";
   } catch {
     return "";
   }
 };
 
 export const setStoredTaskBg = (id, dataUrl) => {
+  const taskId = normalizeTaskId(id);
+  const workspaceId = resolveCurrentWorkspaceId();
+  if (!taskId || !workspaceId) return;
+
   try {
-    localStorage.setItem(taskBgKey(id), dataUrl);
+    const value = typeof dataUrl === "string" ? dataUrl : "";
+    if (value) {
+      localStorage.setItem(taskBgScopedKey(workspaceId, taskId), value);
+    } else {
+      localStorage.removeItem(taskBgScopedKey(workspaceId, taskId));
+    }
+    localStorage.removeItem(taskBgLegacyKey(taskId));
   } catch {
     // ignore
   }
 };
 
 export const clearStoredTaskBg = (id) => {
+  const taskId = normalizeTaskId(id);
+  if (!taskId) return;
+
   try {
-    localStorage.removeItem(taskBgKey(id));
+    const workspaceId = resolveCurrentWorkspaceId();
+    if (workspaceId) {
+      localStorage.removeItem(taskBgScopedKey(workspaceId, taskId));
+    }
+    localStorage.removeItem(taskBgLegacyKey(taskId));
   } catch {
     // ignore
   }
+};
+
+export const clearStoredTaskArtifacts = (id) => {
+  clearStoredTaskMeta(id);
+  clearStoredTaskBg(id);
 };
 
 export const getStoredWorkspaceColumns = (workspaceId) => {

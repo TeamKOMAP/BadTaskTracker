@@ -27,7 +27,7 @@ import {
 } from "./dom.js?v=authflow2";
 
 import { normalizeToken } from "../shared/utils.js";
-import { getStoredTaskMeta, getStoredTaskBg, setStoredTaskBg, clearStoredTaskBg } from "./storage.js?v=authflow1";
+import { getStoredTaskMeta, getStoredTaskBg, setStoredTaskBg, clearStoredTaskBg } from "./storage.js?v=authflow2";
 import { optimizeImageForStorage } from "./media-utils.js";
 import { createTaskDetailCache } from "./task-detail-cache.js";
 import {
@@ -222,6 +222,13 @@ export const createTaskDetailController = (deps) => {
     detailTaskCard = null;
     pendingPhotoTaskId = null;
 
+    if (taskAttachmentsInput) {
+      taskAttachmentsInput.value = "";
+    }
+    if (taskBgInput) {
+      taskBgInput.value = "";
+    }
+
     if (taskAttachmentsList) {
       taskAttachmentsList.innerHTML = "";
     }
@@ -242,6 +249,14 @@ export const createTaskDetailController = (deps) => {
 
     detailTaskId = id;
     detailTaskCard = card || null;
+    pendingPhotoTaskId = null;
+
+    if (taskAttachmentsInput) {
+      taskAttachmentsInput.value = "";
+    }
+    if (taskBgInput) {
+      taskBgInput.value = "";
+    }
 
     taskDetailModal.removeAttribute("hidden");
 
