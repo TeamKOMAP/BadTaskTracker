@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/workspace.css?v=perf37">
+  <link rel="stylesheet" href="css/workspace.css?v=perf40">
 </head>
 <body data-theme="dark">
   <div class="app-shell" id="app-shell">
@@ -128,6 +128,12 @@
                 <path d="M21 21l-4.4-4.4" />
               </svg>
               <input class="board-search-input" id="board-search" type="search" placeholder="Поиск задач" autocomplete="off">
+              <div class="board-search-tags" id="board-search-tags" aria-label="Теги поиска"></div>
+              <button class="icon-btn board-search-clear" id="board-search-clear" type="button" aria-label="Очистить поиск" title="Очистить" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 7l10 10M17 7L7 17" />
+                </svg>
+              </button>
             </div>
             <div class="board-toolbar-popover-anchor" aria-label="Сортировка и фильтры">
               <button class="icon-btn board-toolbar-btn" id="board-sort-toggle" type="button" aria-label="Сортировка" title="Сортировка" aria-expanded="false" aria-controls="board-sort-menu">
@@ -227,6 +233,15 @@
             </button>
           </div>
         </div>
+
+        <section class="task-grid" id="task-grid" aria-label="Результаты" hidden>
+          <header class="task-grid-head">
+            <span class="task-grid-title">Результаты</span>
+            <span class="task-grid-sub" id="task-grid-sub">-</span>
+          </header>
+          <div class="task-grid-items" id="task-grid-items"></div>
+          <div class="task-grid-empty" id="task-grid-empty" hidden>Ничего не найдено</div>
+        </section>
 
       <section class="board-columns" id="board-columns">
         <section class="column" data-column-id="todo" data-column-type="new">
@@ -665,6 +680,6 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow50"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow54"></script>
 </body>
 </html>

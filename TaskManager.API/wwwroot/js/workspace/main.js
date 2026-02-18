@@ -17,12 +17,18 @@ import {
   styleToggleSubEl,
   boardToolbar,
   boardSearchInput,
+  boardSearchTags,
+  boardSearchClearBtn,
   boardSortToggleBtn,
   boardFilterToggleBtn,
   boardSortMenu,
   boardFilterPanel,
   boardFilterResetBtn,
   boardTaskCreateBtn,
+  taskGrid,
+  taskGridItems,
+  taskGridEmptyEl,
+  taskGridSubEl,
   taskTrashZone,
   flowLayout,
   flowCanvas,
@@ -88,7 +94,7 @@ import {
   confirmModalMessageEl,
   confirmModalCancelBtn,
   confirmModalAcceptBtn
-} from "./dom.js?v=authflow5";
+} from "./dom.js?v=authflow7";
 
 import {
   buildApiUrl,
@@ -151,7 +157,7 @@ import {
   getStoredWorkspaceColumns,
   setStoredWorkspaceColumns
 } from "./storage.js?v=authflow2";
-import { createBoardViewController } from "./board-view.js?v=perf1";
+import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf1";
@@ -168,6 +174,7 @@ let toolbarQuery = "";
 let toolbarSort = "smart";
 const toolbarStatusFilter = new Set();
 const toolbarPriorityFilter = new Set();
+const toolbarTagFilter = new Set();
 let toolbarSearchDebounceId = null;
 
 let panelWorkspaceEditing = false;
@@ -231,6 +238,22 @@ const getToolbarQueryTokens = () => {
     .filter(Boolean);
 };
 
+const normalizeTag = (value) => {
+  const raw = normalizeToken(value);
+  if (!raw) return "";
+  return raw.replace(/^#+/, "").trim().toLowerCase();
+};
+
+const getTaskNormalizedTags = (taskData) => {
+  const tags = Array.isArray(taskData?.tags) ? taskData.tags : [];
+  const set = new Set();
+  tags.forEach((t) => {
+    const token = normalizeTag(t);
+    if (token) set.add(token);
+  });
+  return set;
+};
+
 const getAssigneeLabelById = (assigneeId) => {
   const id = Number.parseInt(String(assigneeId ?? ""), 10);
   if (!Number.isFinite(id) || id <= 0) return "";
@@ -260,6 +283,15 @@ const isTaskMatchingToolbarFilters = (taskData) => {
     if (!matches) return false;
   }
 
+  if (toolbarTagFilter.size) {
+    const tagSet = getTaskNormalizedTags(taskData);
+    for (const tag of toolbarTagFilter) {
+      if (!tagSet.has(tag)) {
+        return false;
+      }
+    }
+  }
+
   const statusValue = toStatusValue(taskData.statusValue ?? taskData.status);
   if (toolbarStatusFilter.size && !toolbarStatusFilter.has(statusValue)) {
     return false;
@@ -277,7 +309,95 @@ const isToolbarFilteringActive = () => {
   return Boolean(getToolbarQueryTokens().length)
     || toolbarStatusFilter.size > 0
     || toolbarPriorityFilter.size > 0
+    || toolbarTagFilter.size > 0
     || (normalizeToken(toolbarSort) && toolbarSort !== "smart");
+};
+
+const isToolbarSearchOrFilterActive = () => {
+  return Boolean(getToolbarQueryTokens().length)
+    || toolbarStatusFilter.size > 0
+    || toolbarPriorityFilter.size > 0
+    || toolbarTagFilter.size > 0;
+};
+
+const renderToolbarTagFilterUi = () => {
+  if (!boardSearchTags) return;
+  boardSearchTags.innerHTML = "";
+  const tags = Array.from(toolbarTagFilter.values());
+  if (!tags.length) return;
+
+  const fragment = document.createDocumentFragment();
+  tags.forEach((tag) => {
+    const pill = document.createElement("span");
+    pill.className = "board-search-tag";
+    pill.dataset.tag = tag;
+    const label = document.createElement("span");
+    label.textContent = tag;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "board-search-tag-remove";
+    remove.setAttribute("aria-label", `Убрать тег ${tag}`);
+    remove.title = "Убрать";
+    remove.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 7l10 10M17 7L7 17" />
+      </svg>
+    `;
+    remove.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toolbarTagFilter.delete(tag);
+      syncTaskStateToUi();
+    });
+
+    pill.append(label, remove);
+    fragment.appendChild(pill);
+  });
+  boardSearchTags.appendChild(fragment);
+};
+
+const refreshSearchClearUi = () => {
+  if (!boardSearchClearBtn) return;
+  const active = Boolean(normalizeToken(boardSearchInput?.value))
+    || toolbarTagFilter.size > 0;
+  boardSearchClearBtn.toggleAttribute("hidden", !active);
+};
+
+const setGridOverlayActive = (active) => {
+  if (!board) return;
+  const next = Boolean(active);
+  if (next) {
+    board.dataset.overlay = "grid";
+    if (taskGrid) taskGrid.removeAttribute("hidden");
+  } else {
+    delete board.dataset.overlay;
+    if (taskGrid) taskGrid.setAttribute("hidden", "");
+  }
+};
+
+const renderTaskGridView = (tasks) => {
+  if (!taskGridItems || !taskGridEmptyEl) return;
+  taskGridItems.innerHTML = "";
+  taskGridEmptyEl.hidden = true;
+
+  const list = Array.isArray(tasks) ? tasks : [];
+  if (taskGridSubEl) {
+    taskGridSubEl.textContent = `${list.length} задач`;
+  }
+  if (!list.length) {
+    taskGridEmptyEl.hidden = false;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  list.forEach((taskData) => {
+    const card = createTaskCard(taskData);
+    if (!(card instanceof Element)) return;
+    card.setAttribute("draggable", "false");
+    fragment.appendChild(card);
+  });
+  taskGridItems.appendChild(fragment);
 };
 
 const getDueTime = (task) => {
@@ -355,6 +475,8 @@ const closeToolbarPopovers = () => {
 };
 
 const refreshToolbarUiState = () => {
+  renderToolbarTagFilterUi();
+  refreshSearchClearUi();
   if (boardSortMenu) {
     Array.from(boardSortMenu.querySelectorAll(".board-popover-item[data-sort]")).forEach((btn) => {
       const id = normalizeToken(btn.dataset.sort) || "smart";
@@ -2602,6 +2724,14 @@ const syncTaskStateToUi = () => {
   refreshToolbarUiState();
   const visibleTasks = getVisibleSortedTasks(lastNormalizedTasks);
   rebuildFlowPool(visibleTasks);
+
+  if (isToolbarSearchOrFilterActive()) {
+    setGridOverlayActive(true);
+    renderTaskGridView(visibleTasks);
+    return;
+  }
+
+  setGridOverlayActive(false);
   renderCurrentView(visibleTasks);
 };
 
@@ -2627,7 +2757,8 @@ const boardViewController = createBoardViewController({
   toStatusValue,
   toPriorityValue,
   getColumnIdForStatus,
-  getPriorityLabel
+  getPriorityLabel,
+  compareTasks: compareTasksForToolbar
 });
 
 const {
@@ -2986,6 +3117,9 @@ const loadTasksFromApi = async () => {
 const renderCurrentView = (tasks) => {
   const view = board?.dataset.view || "board";
   const list = Array.isArray(tasks) ? tasks : getVisibleSortedTasks(lastNormalizedTasks);
+  if (isToolbarSearchOrFilterActive()) {
+    return;
+  }
   if (view === "flow") {
     return;
   }
@@ -3497,6 +3631,26 @@ if (board) {
   });
 }
 
+document.addEventListener("click", (event) => {
+  const chip = event.target instanceof Element
+    ? event.target.closest(".task-card .task-chip")
+    : null;
+  if (!(chip instanceof Element)) return;
+  if (chip.closest(".task-modal")) return;
+
+  const tag = normalizeTag(chip.textContent);
+  if (!tag) return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  toolbarTagFilter.add(tag);
+  closeToolbarPopovers();
+  if (boardSearchInput instanceof HTMLInputElement) {
+    boardSearchInput.focus();
+  }
+  syncTaskStateToUi();
+});
+
 if (flowAddTaskBtn) {
   flowAddTaskBtn.addEventListener("click", () => {
     openTaskModal(getDefaultColumn());
@@ -3972,6 +4126,17 @@ if (boardSearchInput) {
   });
 }
 
+if (boardSearchClearBtn) {
+  boardSearchClearBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toolbarQuery = "";
+    toolbarTagFilter.clear();
+    if (boardSearchInput) boardSearchInput.value = "";
+    syncTaskStateToUi();
+  });
+}
+
 if (boardSortToggleBtn) {
   boardSortToggleBtn.addEventListener("click", (event) => {
     event.preventDefault();
@@ -4009,6 +4174,7 @@ if (boardFilterResetBtn) {
     event.stopPropagation();
     toolbarStatusFilter.clear();
     toolbarPriorityFilter.clear();
+    toolbarTagFilter.clear();
     refreshToolbarUiState();
     syncTaskStateToUi();
   });

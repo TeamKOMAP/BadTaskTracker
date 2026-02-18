@@ -20,12 +20,19 @@ export const styleToggleSubEl = document.getElementById("style-toggle-sub");
 
 export const boardToolbar = document.getElementById("board-toolbar");
 export const boardSearchInput = document.getElementById("board-search");
+export const boardSearchTags = document.getElementById("board-search-tags");
+export const boardSearchClearBtn = document.getElementById("board-search-clear");
 export const boardSortToggleBtn = document.getElementById("board-sort-toggle");
 export const boardFilterToggleBtn = document.getElementById("board-filter-toggle");
 export const boardSortMenu = document.getElementById("board-sort-menu");
 export const boardFilterPanel = document.getElementById("board-filter-panel");
 export const boardFilterResetBtn = document.getElementById("board-filter-reset");
 export const boardTaskCreateBtn = document.getElementById("board-task-create");
+
+export const taskGrid = document.getElementById("task-grid");
+export const taskGridItems = document.getElementById("task-grid-items");
+export const taskGridEmptyEl = document.getElementById("task-grid-empty");
+export const taskGridSubEl = document.getElementById("task-grid-sub");
 
 export const taskTrashZone = document.getElementById("task-trash-zone");
 
