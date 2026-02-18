@@ -2140,7 +2140,6 @@ const createTaskViaApi = async (uiTaskData) => {
   }
 
   clearStoredTaskArtifacts(createdId);
-
   const tags = Array.isArray(uiTaskData.tags) ? uiTaskData.tags.filter((t) => typeof t === "string" && t.trim()) : [];
   if (Number.isFinite(createdId) && createdId > 0) {
     setStoredTaskMeta(createdId, { tags });
@@ -2316,7 +2315,6 @@ const deleteTaskViaApi = async (id) => {
     await handleApiError(response, "Удаление задачи");
     return false;
   }
-
   clearStoredTaskArtifacts(id);
   return true;
 };

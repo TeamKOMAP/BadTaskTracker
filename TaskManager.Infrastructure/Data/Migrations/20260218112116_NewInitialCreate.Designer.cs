@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TaskManager.Infrastructure.Data;
 
@@ -10,9 +11,11 @@ using TaskManager.Infrastructure.Data;
 namespace TaskManager.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260218112116_NewInitialCreate")]
+    partial class NewInitialCreate
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.0");
@@ -118,6 +121,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
 
                     b.ToTable("Notifications");
                 });
+
             modelBuilder.Entity("TaskManager.Domain.Entities.Tag", b =>
                 {
                     b.Property<int>("Id")
@@ -169,6 +173,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
 
                     b.Property<DateTime?>("DeadlineNotificationSentAt")
                         .HasColumnType("TEXT");
+
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
@@ -339,6 +344,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
 
                     b.Navigation("User");
                 });
+
             modelBuilder.Entity("TaskManager.Domain.Entities.Tag", b =>
                 {
                     b.HasOne("TaskManager.Domain.Entities.Workspace", "Workspace")

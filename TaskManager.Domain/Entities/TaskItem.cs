@@ -28,11 +28,13 @@ namespace TaskManager.Domain.Entities
         public System.DateTime? CompletedAt { get; set; }
 
         [Required]
-        public TaskItemStatus Status { get; set; } = TaskItemStatus.New; 
+        public TaskItemStatus Status { get; set; } = TaskItemStatus.New;
 
         [Required]
         public TaskPriority Priority { get; set; } = TaskPriority.Medium;
 
+        public bool DeadlineNotificationSent { get; set; }
+        public DateTime? DeadlineNotificationSentAt { get; set; }
         public virtual User? Assignee { get; set; }
         public virtual Workspace Workspace { get; set; } = null!;
         public virtual System.Collections.Generic.ICollection<TaskTag> TaskTags { get; set; } = new System.Collections.Generic.List<TaskTag>();

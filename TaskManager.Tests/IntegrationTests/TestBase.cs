@@ -47,7 +47,6 @@ public class TestBase : IClassFixture<WebApplicationFactory<Program>>, IDisposab
                     services.Remove(descriptor);
 
                 services.RemoveAll<IAttachmentStorage>();
-
                 services.AddDbContext<ApplicationDbContext>(options =>
                 {
                     options.UseInMemoryDatabase(dbName);
@@ -58,7 +57,6 @@ public class TestBase : IClassFixture<WebApplicationFactory<Program>>, IDisposab
                     var logger = sp.GetRequiredService<ILogger<FileAttachmentStorage>>();
                     return new FileAttachmentStorage(AttachmentStorageRootPath, logger);
                 });
-
                 var sp = services.BuildServiceProvider();
                 using var scope = sp.CreateScope();
                 var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -90,7 +88,6 @@ public class TestBase : IClassFixture<WebApplicationFactory<Program>>, IDisposab
             // ignore best-effort cleanup
         }
     }
-
     protected string CreateAccessToken(int userId, int? workspaceId = null)
     {
         var claims = new List<Claim>

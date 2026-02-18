@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TaskManager.Infrastructure.Data;
 
@@ -10,9 +11,11 @@ using TaskManager.Infrastructure.Data;
 namespace TaskManager.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260218101356_AddDeadlineNotificationFields")]
+    partial class AddDeadlineNotificationFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.0");
@@ -71,53 +74,6 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.ToTable("EmailAuthCodes");
                 });
 
-            modelBuilder.Entity("TaskManager.Domain.Entities.Notification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int?>("TaskId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("INTEGER");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatedAt");
-
-                    b.HasIndex("TaskId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "IsRead");
-
-                    b.ToTable("Notifications");
-                });
             modelBuilder.Entity("TaskManager.Domain.Entities.Tag", b =>
                 {
                     b.Property<int>("Id")
@@ -164,11 +120,6 @@ namespace TaskManager.Infrastructure.Data.Migrations
                         .HasColumnType("TEXT")
                         .HasDefaultValueSql("datetime('now')");
 
-                    b.Property<bool>("DeadlineNotificationSent")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<DateTime?>("DeadlineNotificationSentAt")
-                        .HasColumnType("TEXT");
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
@@ -322,23 +273,6 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.ToTable("WorkspaceMembers");
                 });
 
-            modelBuilder.Entity("TaskManager.Domain.Entities.Notification", b =>
-                {
-                    b.HasOne("TaskManager.Domain.Entities.TaskItem", "Task")
-                        .WithMany()
-                        .HasForeignKey("TaskId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("TaskManager.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Task");
-
-                    b.Navigation("User");
-                });
             modelBuilder.Entity("TaskManager.Domain.Entities.Tag", b =>
                 {
                     b.HasOne("TaskManager.Domain.Entities.Workspace", "Workspace")
