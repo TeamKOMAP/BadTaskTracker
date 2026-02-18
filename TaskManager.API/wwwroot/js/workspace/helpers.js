@@ -109,6 +109,27 @@ export const formatDueLabel = (dueDate, statusValue) => {
   return `До ${formatShortDate(dueDate)}`;
 };
 
+// For task cards: keep only the numeric/date part.
+export const formatCardDueLabel = (dueDate, statusValue) => {
+  if (!dueDate) return "-";
+  const due = new Date(dueDate);
+  if (Number.isNaN(due.getTime())) return "-";
+
+  const normalizedStatus = toStatusValue(statusValue);
+  if (normalizedStatus === 3) {
+    return formatShortDate(dueDate);
+  }
+
+  const delta = due.getTime() - Date.now();
+  if (delta < 0) {
+    return formatShortDate(dueDate);
+  }
+  if (delta <= 1000 * 60 * 60 * 24) {
+    return formatDurationShort(delta);
+  }
+  return formatShortDate(dueDate);
+};
+
 export const parseTagIds = (raw) => {
   if (!raw) return [];
   return String(raw)

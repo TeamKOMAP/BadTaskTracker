@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/workspace.css?v=perf23">
+  <link rel="stylesheet" href="css/workspace.css?v=perf37">
 </head>
 <body data-theme="dark">
   <div class="app-shell" id="app-shell">
@@ -69,12 +69,13 @@
           </button>
           <a class="spaces-back-link" id="open-spaces-home" href="index.html" aria-label="Назад к проектам">&lt; Назад</a>
         </div>
-       <div class="view-toggle" role="group" aria-label="Режим просмотра">
-         <button class="view-btn is-active" data-view="board" aria-pressed="true">Board</button>
-         <button class="view-btn" data-view="list" aria-pressed="false">List</button>
-         <button class="view-btn" data-view="calendar" aria-pressed="false">Calendar</button>
-         <button class="view-btn" data-view="priority" aria-pressed="false">Priority</button>
-       </div>
+        <div class="view-toggle" role="group" aria-label="Режим просмотра">
+          <button class="view-btn is-active" data-view="board" aria-pressed="true">Board</button>
+          <button class="view-btn" data-view="list" aria-pressed="false">List</button>
+          <button class="view-btn" data-view="calendar" aria-pressed="false">Calendar</button>
+          <button class="view-btn" data-view="priority" aria-pressed="false">Priority</button>
+          <button class="view-btn" data-view="flow" aria-pressed="false">Flow Map</button>
+        </div>
       <div class="topbar-right">
         <div class="user-meta">
           <span class="user-label">Аккаунт</span>
@@ -83,6 +84,15 @@
         <div class="avatar" role="img" aria-label="Аватар аккаунта">
           <span>EV</span>
         </div>
+        <a class="reports-btn" id="open-reports" href="reports.html" aria-label="Открыть отчеты" title="Отчеты">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4 19V5" />
+            <path d="M4 19h16" />
+            <path d="M8 16v-6" />
+            <path d="M12 16v-9" />
+            <path d="M16 16v-4" />
+          </svg>
+        </a>
         <button class="notifications-btn" id="notifications-toggle" type="button" aria-label="Открыть уведомления" title="Уведомления" aria-expanded="false" aria-controls="notifications-panel">
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M18 8a6 6 0 1 0-12 0c0 7-3 7-3 7h18s-3 0-3-7" />
@@ -101,17 +111,6 @@
     <main class="board" id="board" data-view="board" data-style="columns">
         <div class="board-header">
           <div class="board-header-left">
-          <div class="style-switch" id="style-switch">
-            <span class="style-toggle-title" id="style-toggle-title">Columns Board</span>
-            <div class="style-switch-row">
-              <span class="style-toggle-sub" id="style-toggle-sub">Нажмите, чтобы переключить</span>
-              <button class="style-toggle-btn" id="style-toggle" type="button" aria-pressed="false" aria-label="Переключить на Flow Map" title="Переключить на Flow Map">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M7 7l-4 5 4 5" />
-                  <path d="M17 7l4 5-4 5" />
-                </svg>
-              </button>
-            </div>
             <div class="task-trash-zone" id="task-trash-zone" aria-hidden="true">
               <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 7h2v8h-2v-8zm-4 0h2v8H7v-8zm8 0h2v8h-2v-8z" />
@@ -119,24 +118,113 @@
               <span>Перетащите сюда, чтобы удалить</span>
             </div>
           </div>
-          <div class="board-add-column-control" id="add-column-control">
-            <button
-              class="primary-btn board-add-column"
-              id="add-column"
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded="false"
-              aria-controls="add-column-menu"
-            >
-              Создать столбец
-            </button>
-            <div class="board-add-column-menu" id="add-column-menu" role="menu" hidden>
-              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="new">Обычный</button>
-              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="inprogress">Inprogress</button>
-              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="done">Done</button>
-              <button class="board-add-column-option" type="button" role="menuitem" data-column-type="overdue">Overdue</button>
+        </div>
+
+        <div class="board-toolbar" id="board-toolbar" aria-label="Инструменты">
+          <div class="board-toolbar-left">
+            <div class="board-search" role="search">
+              <svg class="board-search-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z" />
+                <path d="M21 21l-4.4-4.4" />
+              </svg>
+              <input class="board-search-input" id="board-search" type="search" placeholder="Поиск задач" autocomplete="off">
+            </div>
+            <div class="board-toolbar-popover-anchor" aria-label="Сортировка и фильтры">
+              <button class="icon-btn board-toolbar-btn" id="board-sort-toggle" type="button" aria-label="Сортировка" title="Сортировка" aria-expanded="false" aria-controls="board-sort-menu">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 4v16" />
+                  <path d="M4 7l3-3 3 3" />
+                  <path d="M13 7h7" />
+                  <path d="M13 12h5" />
+                  <path d="M13 17h3" />
+                </svg>
+              </button>
+              <button class="icon-btn board-toolbar-btn" id="board-filter-toggle" type="button" aria-label="Фильтры" title="Фильтры" aria-expanded="false" aria-controls="board-filter-panel">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 6h16" />
+                  <path d="M7 12h10" />
+                  <path d="M10 18h4" />
+                </svg>
+              </button>
+
+              <div class="board-popover" id="board-sort-menu" role="menu" hidden>
+                <button class="board-popover-item" type="button" role="menuitem" data-sort="smart">Умная</button>
+                <button class="board-popover-item" type="button" role="menuitem" data-sort="due">По сроку</button>
+                <button class="board-popover-item" type="button" role="menuitem" data-sort="priority">По приоритету</button>
+                <button class="board-popover-item" type="button" role="menuitem" data-sort="title">По названию</button>
+              </div>
+
+              <div class="board-popover board-filter-panel" id="board-filter-panel" hidden>
+                <div class="board-popover-head">
+                  <span>Фильтры</span>
+                  <button class="ghost-btn board-popover-reset" id="board-filter-reset" type="button">Сбросить</button>
+                </div>
+
+                <div class="board-filter-group" aria-label="Фильтр по статусу">
+                  <div class="board-filter-title">Статус</div>
+                  <label class="board-check">
+                    <input type="checkbox" data-filter="status" value="1">
+                    <span>Новая</span>
+                  </label>
+                  <label class="board-check">
+                    <input type="checkbox" data-filter="status" value="2">
+                    <span>В работе</span>
+                  </label>
+                  <label class="board-check">
+                    <input type="checkbox" data-filter="status" value="3">
+                    <span>Готово</span>
+                  </label>
+                  <label class="board-check">
+                    <input type="checkbox" data-filter="status" value="4">
+                    <span>Просрочено</span>
+                  </label>
+                </div>
+
+                <div class="board-filter-group" aria-label="Фильтр по приоритету">
+                  <div class="board-filter-title">Приоритет</div>
+                  <label class="board-check">
+                    <input type="checkbox" data-filter="priority" value="3">
+                    <span>Высокий</span>
+                  </label>
+                  <label class="board-check">
+                    <input type="checkbox" data-filter="priority" value="2">
+                    <span>Средний</span>
+                  </label>
+                  <label class="board-check">
+                    <input type="checkbox" data-filter="priority" value="1">
+                    <span>Низкий</span>
+                  </label>
+                </div>
+              </div>
             </div>
           </div>
+
+          <div class="board-toolbar-right" aria-label="Действия">
+            <div class="board-add-column-control" id="add-column-control">
+              <button
+                class="primary-btn board-add-column"
+                id="add-column"
+                type="button"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="add-column-menu"
+              >
+                Создать столбец
+              </button>
+              <div class="board-add-column-menu" id="add-column-menu" role="menu" hidden>
+                <button class="board-add-column-option" type="button" role="menuitem" data-column-type="new">Обычный</button>
+                <button class="board-add-column-option" type="button" role="menuitem" data-column-type="inprogress">Inprogress</button>
+                <button class="board-add-column-option" type="button" role="menuitem" data-column-type="done">Done</button>
+                <button class="board-add-column-option" type="button" role="menuitem" data-column-type="overdue">Overdue</button>
+              </div>
+            </div>
+
+            <button class="icon-btn board-toolbar-btn board-toolbar-plus" id="board-task-create" type="button" aria-label="Создать задачу" title="Создать задачу">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14" />
+                <path d="M5 12h14" />
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -342,14 +430,16 @@
         </label>
         <div class="task-field task-field-row">
           <label>
-             <span class="task-label">Срок</span>
-            <input id="task-due" name="dueDate" type="datetime-local" required>
-          </label>
-          <label>
-             <span class="task-label">ID исполнителя</span>
-            <input id="task-assignee" name="assigneeId" type="number" min="1" placeholder="1">
-          </label>
-        </div>
+              <span class="task-label">Срок</span>
+             <input id="task-due" name="dueDate" type="datetime-local" required>
+           </label>
+           <label>
+              <span class="task-label">Исполнитель</span>
+             <select id="task-assignee" name="assigneeId">
+               <option value="">Все</option>
+             </select>
+            </label>
+         </div>
         <label class="task-field">
            <span class="task-label">Приоритет</span>
           <select id="task-priority" name="priority">
@@ -507,6 +597,46 @@
           <span class="profile-role" id="profile-user-role">-</span>
         </div>
       </div>
+
+      <div class="profile-reports" id="profile-reports" aria-label="Отчеты пользователя">
+        <section class="profile-report" aria-label="Статусы пользователя">
+          <header class="profile-report-head">
+            <span class="profile-report-title">Статусы</span>
+            <span class="profile-report-sub">Задачи пользователя в этом проекте</span>
+          </header>
+          <div class="profile-report-body">
+            <div class="profile-report-chart" id="profile-statuses-chart" aria-label="Диаграмма статусов"></div>
+            <div class="profile-status-grid" id="profile-statuses"></div>
+            <div class="profile-report-empty" id="profile-statuses-empty" hidden>Нет задач.</div>
+          </div>
+        </section>
+
+        <section class="profile-report" aria-label="Просрочки пользователя">
+          <header class="profile-report-head">
+            <span class="profile-report-title">Просрочено</span>
+            <span class="profile-report-sub">Просрочено, задачи</span>
+          </header>
+          <div class="profile-report-body">
+            <div class="profile-report-note" id="profile-overdue-note" hidden></div>
+            <div class="profile-overdue-list" id="profile-overdue"></div>
+            <div class="profile-report-empty" id="profile-overdue-empty" hidden>Нет просроченных задач.</div>
+          </div>
+        </section>
+
+        <section class="profile-report" aria-label="Среднее время выполнения пользователя">
+          <header class="profile-report-head">
+            <span class="profile-report-title">Среднее время выполнения</span>
+            <span class="profile-report-sub">От добавления до выполнения</span>
+          </header>
+          <div class="profile-report-body">
+            <div class="profile-metric">
+              <div class="profile-metric-value" id="profile-avg-value">-</div>
+              <div class="profile-metric-sub" id="profile-avg-sub">-</div>
+            </div>
+            <div class="profile-report-chart" id="profile-avg-chart" aria-label="Диаграмма времени выполнения"></div>
+          </div>
+        </section>
+      </div>
     </div>
   </div>
 
@@ -535,6 +665,6 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow28"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow50"></script>
 </body>
 </html>

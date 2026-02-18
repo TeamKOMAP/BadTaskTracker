@@ -228,6 +228,12 @@ body[data-theme="light"] .task-field textarea::placeholder {
   gap: 12px;
 }
 
+.task-field-row > label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 @media (max-width: 640px) {
   .task-field-row {
     grid-template-columns: 1fr;

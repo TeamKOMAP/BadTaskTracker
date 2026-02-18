@@ -43,7 +43,7 @@ import {
   renderTaskInDetail,
   renderDetailTags,
   renderAttachmentsList
-} from "./task-detail-render.js";
+} from "./task-detail-render.js?v=perf3";
 
 const detailElements = {
   titleEl: taskDetailTitleEl,
@@ -68,6 +68,7 @@ export const createTaskDetailController = (deps) => {
   const isAdmin = typeof deps?.isAdmin === "function" ? deps.isAdmin : () => false;
   const ensureTagsLoaded = typeof deps?.ensureTagsLoaded === "function" ? deps.ensureTagsLoaded : async () => {};
   const getTagNameById = typeof deps?.getTagNameById === "function" ? deps.getTagNameById : () => "";
+  const getAssigneeNameById = typeof deps?.getAssigneeNameById === "function" ? deps.getAssigneeNameById : () => "";
   const openTaskModalForEdit = typeof deps?.openTaskModalForEdit === "function" ? deps.openTaskModalForEdit : () => {};
   const applyTaskBgToCards = typeof deps?.applyTaskBgToCards === "function" ? deps.applyTaskBgToCards : () => {};
   const applyAttachmentCountToCards = typeof deps?.applyAttachmentCountToCards === "function"
@@ -302,6 +303,7 @@ export const createTaskDetailController = (deps) => {
     }
 
     const resolveTagName = (tagId) => getTagNameById(Number(tagId)) || "";
+    const resolveAssigneeName = (assigneeId) => getAssigneeNameById(Number(assigneeId)) || "";
 
     const cachedTask = cache.getTask(id);
     let lastTagIds = [];
@@ -314,6 +316,7 @@ export const createTaskDetailController = (deps) => {
         requestSeq,
         elements: detailElements,
         resolveTagName,
+        resolveAssigneeName,
         getStoredTaskMeta,
         getCachedTaskBg: cache.getTaskBg,
         getCurrentRequestSeq: () => detailRequestSeq,
@@ -371,6 +374,7 @@ export const createTaskDetailController = (deps) => {
       requestSeq,
       elements: detailElements,
       resolveTagName,
+      resolveAssigneeName,
       getStoredTaskMeta,
       getCachedTaskBg: cache.getTaskBg,
       getCurrentRequestSeq: () => detailRequestSeq,

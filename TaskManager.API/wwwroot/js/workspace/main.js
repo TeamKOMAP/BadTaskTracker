@@ -15,6 +15,14 @@ import {
   styleSwitch,
   styleToggleTitleEl,
   styleToggleSubEl,
+  boardToolbar,
+  boardSearchInput,
+  boardSortToggleBtn,
+  boardFilterToggleBtn,
+  boardSortMenu,
+  boardFilterPanel,
+  boardFilterResetBtn,
+  boardTaskCreateBtn,
   taskTrashZone,
   flowLayout,
   flowCanvas,
@@ -80,7 +88,7 @@ import {
   confirmModalMessageEl,
   confirmModalCancelBtn,
   confirmModalAcceptBtn
-} from "./dom.js?v=authflow3";
+} from "./dom.js?v=authflow5";
 
 import {
   buildApiUrl,
@@ -125,13 +133,14 @@ import {
   getUrgency,
   formatDurationShort,
   formatDueLabel,
+  formatCardDueLabel,
   parseTagIds,
   addUniqueToken,
   parseTags,
   buildTaskKey,
   buildFlowNote,
   getCalendarBucketId
-} from "./helpers.js?v=authflow3";
+} from "./helpers.js?v=authflow5";
 import {
   getPreferredTheme,
   setTheme,
@@ -143,10 +152,10 @@ import {
   setStoredWorkspaceColumns
 } from "./storage.js?v=authflow2";
 import { createBoardViewController } from "./board-view.js?v=perf1";
-import { createCalendarViewController } from "./calendar-view.js?v=perf1";
-import { createPriorityViewController } from "./priority-view.js?v=perf2";
+import { createCalendarViewController } from "./calendar-view.js?v=perf2";
+import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf1";
-import { createTaskDetailController } from "./task-detail.js?v=perf8";
+import { createTaskDetailController } from "./task-detail.js?v=perf11";
 
 let lastNormalizedTasks = [];
 
@@ -154,6 +163,12 @@ let currentAssigneeIdFilter = null;
 let currentUserId = null;
 let currentWorkspaceId = null;
 let currentWorkspaceRole = "Member";
+
+let toolbarQuery = "";
+let toolbarSort = "smart";
+const toolbarStatusFilter = new Set();
+const toolbarPriorityFilter = new Set();
+let toolbarSearchDebounceId = null;
 
 let panelWorkspaceEditing = false;
 
@@ -187,6 +202,16 @@ const setWorkspaceEditing = (editing) => {
 };
 let actorUser = null;
 
+let workspaceMembers = [];
+
+const truncateLabel = (value, maxLen) => {
+  const text = String(value || "");
+  const max = Number.isFinite(Number(maxLen)) ? Number(maxLen) : 24;
+  if (text.length <= max) return text;
+  if (max <= 1) return text.slice(0, 1);
+  return `${text.slice(0, Math.max(1, max - 3)).trim()}...`;
+};
+
 let tagsLoaded = false;
 let tagList = [];
 const tagById = new Map();
@@ -196,6 +221,224 @@ const getActorUserId = () => {
   const raw = actorUser?.id;
   const id = Number(raw);
   return Number.isFinite(id) && id > 0 ? id : null;
+};
+
+const getToolbarQueryTokens = () => {
+  return normalizeToken(toolbarQuery)
+    .toLowerCase()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+};
+
+const getAssigneeLabelById = (assigneeId) => {
+  const id = Number.parseInt(String(assigneeId ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return "";
+
+  const storedNickname = normalizeToken(getStoredAccountNickname(id));
+  if (storedNickname) return storedNickname;
+
+  const match = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === id);
+  if (!match) return "";
+  return normalizeToken(match.name) || "";
+};
+
+const isTaskMatchingToolbarFilters = (taskData) => {
+  if (!taskData) return false;
+
+  const tokens = getToolbarQueryTokens();
+  if (tokens.length) {
+    const title = normalizeToken(taskData.title).toLowerCase();
+    const description = normalizeToken(taskData.description).toLowerCase();
+    const tags = (Array.isArray(taskData.tags) ? taskData.tags : [])
+      .map((t) => normalizeToken(t).toLowerCase())
+      .filter(Boolean)
+      .join(" ");
+    const assignee = getAssigneeLabelById(taskData.assigneeId).toLowerCase();
+    const haystack = `${title} ${description} ${tags} ${assignee}`.trim();
+    const matches = tokens.every((token) => haystack.includes(token));
+    if (!matches) return false;
+  }
+
+  const statusValue = toStatusValue(taskData.statusValue ?? taskData.status);
+  if (toolbarStatusFilter.size && !toolbarStatusFilter.has(statusValue)) {
+    return false;
+  }
+
+  const priorityValue = toPriorityValue(taskData.priorityValue ?? taskData.priority);
+  if (toolbarPriorityFilter.size && !toolbarPriorityFilter.has(priorityValue)) {
+    return false;
+  }
+
+  return true;
+};
+
+const isToolbarFilteringActive = () => {
+  return Boolean(getToolbarQueryTokens().length)
+    || toolbarStatusFilter.size > 0
+    || toolbarPriorityFilter.size > 0
+    || (normalizeToken(toolbarSort) && toolbarSort !== "smart");
+};
+
+const getDueTime = (task) => {
+  const due = task?.dueDate ? new Date(task.dueDate) : null;
+  const time = due && !Number.isNaN(due.getTime()) ? due.getTime() : Number.POSITIVE_INFINITY;
+  return time;
+};
+
+const compareTasks = (a, b, sortId) => {
+  const mode = normalizeToken(sortId) || "smart";
+  if (mode === "title") {
+    return String(a?.title || "").localeCompare(String(b?.title || ""));
+  }
+
+  if (mode === "priority") {
+    const ap = toPriorityValue(a?.priorityValue ?? a?.priority);
+    const bp = toPriorityValue(b?.priorityValue ?? b?.priority);
+    if (ap !== bp) return bp - ap;
+    const ad = getDueTime(a);
+    const bd = getDueTime(b);
+    if (ad !== bd) return ad - bd;
+    return String(a?.title || "").localeCompare(String(b?.title || ""));
+  }
+
+  if (mode === "due") {
+    const ad = getDueTime(a);
+    const bd = getDueTime(b);
+    if (ad !== bd) return ad - bd;
+    const ap = toPriorityValue(a?.priorityValue ?? a?.priority);
+    const bp = toPriorityValue(b?.priorityValue ?? b?.priority);
+    if (ap !== bp) return bp - ap;
+    return String(a?.title || "").localeCompare(String(b?.title || ""));
+  }
+
+  // smart
+  const ad = getDueTime(a);
+  const bd = getDueTime(b);
+  if (ad !== bd) return ad - bd;
+  const ap = toPriorityValue(a?.priorityValue ?? a?.priority);
+  const bp = toPriorityValue(b?.priorityValue ?? b?.priority);
+  if (ap !== bp) return bp - ap;
+  return String(a?.title || "").localeCompare(String(b?.title || ""));
+};
+
+const compareTasksForToolbar = (a, b) => compareTasks(a, b, toolbarSort);
+
+const getVisibleSortedTasks = (tasks) => {
+  const source = Array.isArray(tasks) ? tasks : lastNormalizedTasks;
+  const filtered = source
+    .filter((task) => isTaskVisibleWithCurrentFilters(task))
+    .filter((task) => isTaskMatchingToolbarFilters(task));
+  return filtered.slice().sort(compareTasksForToolbar);
+};
+
+const closeToolbarPopovers = () => {
+  let closed = false;
+
+  if (boardSortMenu && !boardSortMenu.hasAttribute("hidden")) {
+    boardSortMenu.setAttribute("hidden", "");
+    closed = true;
+  }
+  if (boardFilterPanel && !boardFilterPanel.hasAttribute("hidden")) {
+    boardFilterPanel.setAttribute("hidden", "");
+    closed = true;
+  }
+
+  if (boardSortToggleBtn) {
+    boardSortToggleBtn.setAttribute("aria-expanded", "false");
+  }
+  if (boardFilterToggleBtn) {
+    boardFilterToggleBtn.setAttribute("aria-expanded", "false");
+  }
+
+  return closed;
+};
+
+const refreshToolbarUiState = () => {
+  if (boardSortMenu) {
+    Array.from(boardSortMenu.querySelectorAll(".board-popover-item[data-sort]")).forEach((btn) => {
+      const id = normalizeToken(btn.dataset.sort) || "smart";
+      btn.classList.toggle("is-selected", id === toolbarSort);
+    });
+  }
+
+  if (boardFilterPanel) {
+    Array.from(boardFilterPanel.querySelectorAll('input[type="checkbox"][data-filter]')).forEach((input) => {
+      if (!(input instanceof HTMLInputElement)) return;
+      const kind = normalizeToken(input.dataset.filter);
+      const value = Number.parseInt(normalizeToken(input.value), 10);
+      if (!Number.isFinite(value)) return;
+      if (kind === "status") {
+        input.checked = toolbarStatusFilter.has(value);
+      } else if (kind === "priority") {
+        input.checked = toolbarPriorityFilter.has(value);
+      }
+    });
+  }
+};
+
+const renderAssigneeOptions = (options) => {
+  if (!taskAssignee) return;
+  if (!(taskAssignee instanceof HTMLSelectElement)) return;
+
+  const selected = normalizeToken(options?.selectedValue ?? taskAssignee.value);
+  const defaultToActor = options?.defaultToActor === true;
+  const actorId = getActorUserId();
+
+  const list = Array.isArray(workspaceMembers) ? workspaceMembers : [];
+  const members = list
+    .filter((item) => Number.isFinite(Number(item?.id)) && Number(item.id) > 0)
+    .map((item) => ({
+      id: Number(item.id),
+      name: normalizeToken(item.name),
+      email: normalizeToken(item.email),
+      role: normalizeToken(item.role)
+    }))
+    .filter((item) => item.email);
+
+  members.sort((a, b) => {
+    if (actorId && a.id === actorId) return -1;
+    if (actorId && b.id === actorId) return 1;
+    const an = a.name || a.email;
+    const bn = b.name || b.email;
+    return String(an).localeCompare(String(bn));
+  });
+
+  const values = new Set([""]);
+  members.forEach((m) => values.add(String(m.id)));
+
+  taskAssignee.innerHTML = "";
+
+  const unassignedOption = document.createElement("option");
+  unassignedOption.value = "";
+  unassignedOption.textContent = "Все";
+  taskAssignee.appendChild(unassignedOption);
+
+  members.forEach((m) => {
+    const storedNickname = normalizeToken(getStoredAccountNickname(m.id));
+    const fullLabel = storedNickname || normalizeToken(m.name) || "Без имени";
+    const label = truncateLabel(fullLabel, 24);
+    const option = document.createElement("option");
+    option.value = String(m.id);
+    option.textContent = label;
+    option.title = fullLabel;
+    taskAssignee.appendChild(option);
+  });
+
+  if (selected && !values.has(selected)) {
+    const unknown = document.createElement("option");
+    unknown.value = selected;
+    unknown.textContent = "Неизвестный участник";
+    taskAssignee.appendChild(unknown);
+    values.add(selected);
+  }
+
+  if (defaultToActor && actorId && values.has(String(actorId))) {
+    taskAssignee.value = String(actorId);
+    return;
+  }
+
+  taskAssignee.value = values.has(selected) ? selected : "";
 };
 
 const COLUMN_CREATE_VARIANTS = {
@@ -521,17 +764,9 @@ const setLayoutStyle = (style) => {
     styleToggleSubEl.textContent = "Нажмите, чтобы переключить";
   }
 
-  if (viewToggle) {
-    viewToggle.toggleAttribute("hidden", nextStyle === "flow");
-  }
-
-  if (nextStyle === "flow") {
-    // Flow and Calendar/List share the same page; force board view so calendar doesn't linger.
-    setBoardView("board");
-    if (calendarLayout) {
-      calendarLayout.setAttribute("aria-hidden", "true");
-      calendarLayout.innerHTML = "";
-    }
+  if (nextStyle === "flow" && calendarLayout) {
+    calendarLayout.setAttribute("aria-hidden", "true");
+    calendarLayout.innerHTML = "";
   }
 
   requestAnimationFrame(() => {
@@ -542,16 +777,26 @@ const setLayoutStyle = (style) => {
 const setBoardView = (view) => {
   if (!board) return;
   closeAddColumnMenu();
+
   const next = view === "calendar"
     ? "calendar"
-    : (view === "priority" ? "priority" : (view === "list" ? "list" : "board"));
-  board.dataset.view = next;
+    : (view === "priority" ? "priority" : (view === "list" ? "list" : (view === "flow" ? "flow" : "board")));
+
+  if (next === "flow") {
+    setLayoutStyle("flow");
+    board.dataset.view = "flow";
+  } else {
+    setLayoutStyle("columns");
+    board.dataset.view = next;
+  }
+
   viewButtons.forEach((btn) => {
     const isActive = (btn.dataset.view || "board") === next;
     btn.classList.toggle("is-active", isActive);
     btn.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
-  renderCurrentView();
+  closeToolbarPopovers();
+  syncTaskStateToUi();
 };
 
 const isPanelOpen = () => appShell?.classList.contains("is-panel-open");
@@ -738,7 +983,7 @@ const loadUsersFromApi = async () => {
   });
   userList.appendChild(allItem);
 
-  users
+  const members = users
     .map((u) => ({
       id: Number(u.userId ?? u.id),
       name: (() => {
@@ -756,26 +1001,36 @@ const loadUsersFromApi = async () => {
       taskCount: Number(u.taskCount || 0)
     }))
     .filter((u) => Number.isFinite(u.id) && u.name && u.email)
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .forEach((u) => {
-      const item = buildUserItemFromApi(u);
-      item.addEventListener("click", () => {
-        setCurrentUser(u);
-        void loadTasksFromApi();
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-        const actorId = getActorUserId();
-        const canManage = isAdmin()
-          && Number.isFinite(Number(actorId))
-          && Number(u.id) !== Number(actorId)
-          && u.role !== "Owner";
+  workspaceMembers = members;
+  renderAssigneeOptions();
 
-        openUserMiniMenu(item, u, {
-          canToggleAdmin: canManage,
-          canRemove: canManage
-        });
+  if (taskModal && !taskModal.hasAttribute("hidden") && !editingTaskId && taskAssignee instanceof HTMLSelectElement) {
+    if (!normalizeToken(taskAssignee.value)) {
+      renderAssigneeOptions({ defaultToActor: true });
+    }
+  }
+
+  members.forEach((u) => {
+    const item = buildUserItemFromApi(u);
+    item.addEventListener("click", () => {
+      setCurrentUser(u);
+      void loadTasksFromApi();
+
+      const actorId = getActorUserId();
+      const canManage = isAdmin()
+        && Number.isFinite(Number(actorId))
+        && Number(u.id) !== Number(actorId)
+        && u.role !== "Owner";
+
+      openUserMiniMenu(item, u, {
+        canToggleAdmin: canManage,
+        canRemove: canManage
       });
-      userList.appendChild(item);
     });
+    userList.appendChild(item);
+  });
 
   refreshUserFilter();
   const preservedId = Number(currentUserId);
@@ -816,6 +1071,20 @@ const updateMyMemberItem = (displayName, email) => {
   const role = item.dataset.userRole || "";
   item.dataset.userKey = `${actorId} ${safeName} ${safeEmail} ${role}`.toLowerCase();
   refreshUserFilter();
+
+  if (Array.isArray(workspaceMembers) && Number.isFinite(Number(actorId))) {
+    const nextMembers = workspaceMembers.map((member) => {
+      const id = Number(member?.id);
+      if (!Number.isFinite(id) || id !== Number(actorId)) return member;
+      return {
+        ...member,
+        name: safeName,
+        email: safeEmail
+      };
+    });
+    workspaceMembers = nextMembers;
+    renderAssigneeOptions();
+  }
 };
 
 const updateActorUi = () => {
@@ -1045,6 +1314,20 @@ const profileAvatarTextEl = document.getElementById("profile-avatar-text");
 const profileUserEmailEl = document.getElementById("profile-user-email");
 const profileUserRoleEl = document.getElementById("profile-user-role");
 
+const profileStatusesChartEl = document.getElementById("profile-statuses-chart");
+const profileStatusesRoot = document.getElementById("profile-statuses");
+const profileStatusesEmptyEl = document.getElementById("profile-statuses-empty");
+
+const profileOverdueRoot = document.getElementById("profile-overdue");
+const profileOverdueEmptyEl = document.getElementById("profile-overdue-empty");
+const profileOverdueNoteEl = document.getElementById("profile-overdue-note");
+
+const profileAvgValueEl = document.getElementById("profile-avg-value");
+const profileAvgSubEl = document.getElementById("profile-avg-sub");
+const profileAvgChartEl = document.getElementById("profile-avg-chart");
+
+let profileReportsRequestSeq = 0;
+
 const avatarModal = document.getElementById("avatar-modal");
 const avatarModalTitleEl = document.getElementById("avatar-modal-title");
 const avatarModalAvatarEl = document.getElementById("avatar-modal-avatar");
@@ -1058,7 +1341,366 @@ const closeProfileModal = () => {
   if (!isProfileModalOpen()) return false;
   profileModal.setAttribute("hidden", "");
   activeProfileMember = null;
+  profileReportsRequestSeq += 1;
   return true;
+};
+
+const formatDurationCompact = (ms) => {
+  const value = Number(ms);
+  if (!Number.isFinite(value) || value <= 0) return "0м";
+  const totalMinutes = Math.floor(value / 60000);
+  const minutes = totalMinutes % 60;
+  const totalHours = Math.floor(totalMinutes / 60);
+  const hours = totalHours % 24;
+  const days = Math.floor(totalHours / 24);
+  const parts = [];
+  if (days > 0) parts.push(`${days}д`);
+  if (hours > 0) parts.push(`${hours}ч`);
+  if (days === 0 && minutes > 0) parts.push(`${minutes}м`);
+  return parts.join(" ") || "0м";
+};
+
+const formatShortDateTimeRu = (iso) => {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return "-";
+  try {
+    return d.toLocaleString("ru-RU", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return d.toISOString();
+  }
+};
+
+const renderProfileStatusChart = (countsByStatus) => {
+  if (!profileStatusesChartEl) return;
+  profileStatusesChartEl.innerHTML = "";
+
+  const entries = Array.from(countsByStatus.entries())
+    .filter(([, count]) => Number(count) > 0)
+    .sort((a, b) => a[0] - b[0]);
+  const total = entries.reduce((acc, [, count]) => acc + Number(count || 0), 0);
+  if (!total) return;
+
+  const width = 520;
+  const height = 22;
+  const pad = 2;
+  const innerWidth = width - pad * 2;
+  const gap = 3;
+  const segCount = entries.length;
+  const available = Math.max(0, innerWidth - (segCount > 1 ? gap * (segCount - 1) : 0));
+  if (!available) return;
+
+  const colors = {
+    1: "rgba(120, 182, 255, 0.92)",
+    2: "rgba(250, 204, 21, 0.92)",
+    3: "rgba(74, 222, 128, 0.92)",
+    4: "rgba(248, 113, 113, 0.92)"
+  };
+
+  const base = entries.map(([statusValue, count]) => {
+    const value = Number(count || 0);
+    const raw = (value / total) * available;
+    return {
+      statusValue,
+      count: value,
+      raw,
+      frac: raw - Math.floor(raw),
+      width: 0,
+      color: colors[statusValue] || "rgba(185, 196, 216, 0.82)"
+    };
+  });
+
+  const minWidth = available >= segCount ? 1 : 0;
+  base.forEach((s) => {
+    s.width = Math.max(minWidth, Math.floor(s.raw));
+  });
+  const sumWidth = base.reduce((acc, s) => acc + s.width, 0);
+  let remainder = available - sumWidth;
+  if (remainder > 0) {
+    base.slice().sort((a, b) => b.frac - a.frac).slice(0, remainder).forEach((s) => { s.width += 1; });
+  } else if (remainder < 0) {
+    let toRemove = -remainder;
+    const ordered = base.slice().sort((a, b) => a.frac - b.frac);
+    for (const s of ordered) {
+      if (toRemove <= 0) break;
+      const canRemove = Math.max(0, s.width - minWidth);
+      const delta = Math.min(canRemove, toRemove);
+      s.width -= delta;
+      toRemove -= delta;
+    }
+  }
+
+  const segments = base.filter((s) => s.width > 0);
+  let cursor = pad;
+  segments.forEach((s, idx) => {
+    s.x = cursor;
+    cursor += s.width;
+    if (idx !== segments.length - 1) cursor += gap;
+  });
+
+  const segRects = segments.map((s) => {
+    const title = `${STATUS_LABELS[s.statusValue] || "Статус"}: ${s.count}`;
+    return `<rect x="${s.x}" y="${pad}" width="${s.width}" height="${height - pad * 2}" rx="10" fill="${s.color}"><title>${title}</title></rect>`;
+  }).join("");
+
+  profileStatusesChartEl.innerHTML = `
+    <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="Диаграмма статусов">
+      <defs>
+        <clipPath id="profile-status-bar-clip">
+          <rect x="${pad}" y="${pad}" width="${innerWidth}" height="${height - pad * 2}" rx="10" />
+        </clipPath>
+      </defs>
+      <rect x="${pad}" y="${pad}" width="${innerWidth}" height="${height - pad * 2}" rx="10" fill="rgba(255, 255, 255, 0.06)" />
+      <g clip-path="url(#profile-status-bar-clip)">
+        ${segRects}
+      </g>
+    </svg>
+  `;
+};
+
+const clearProfileReportsUi = () => {
+  if (profileStatusesChartEl) profileStatusesChartEl.innerHTML = "";
+  if (profileStatusesRoot) profileStatusesRoot.innerHTML = "";
+  if (profileStatusesEmptyEl) profileStatusesEmptyEl.hidden = true;
+
+  if (profileOverdueRoot) profileOverdueRoot.innerHTML = "";
+  if (profileOverdueEmptyEl) profileOverdueEmptyEl.hidden = true;
+  if (profileOverdueNoteEl) {
+    profileOverdueNoteEl.textContent = "";
+    profileOverdueNoteEl.hidden = true;
+  }
+
+  if (profileAvgValueEl) profileAvgValueEl.textContent = "-";
+  if (profileAvgSubEl) profileAvgSubEl.textContent = "-";
+  if (profileAvgChartEl) profileAvgChartEl.innerHTML = "";
+};
+
+const renderProfileReportsLoading = () => {
+  clearProfileReportsUi();
+  if (profileStatusesEmptyEl) {
+    profileStatusesEmptyEl.textContent = "Загрузка...";
+    profileStatusesEmptyEl.hidden = false;
+  }
+  if (profileOverdueEmptyEl) {
+    profileOverdueEmptyEl.textContent = "Загрузка...";
+    profileOverdueEmptyEl.hidden = false;
+  }
+  if (profileAvgValueEl) profileAvgValueEl.textContent = "Загрузка...";
+  if (profileAvgSubEl) profileAvgSubEl.textContent = "";
+};
+
+const fetchTasksForAssignee = async (assigneeId) => {
+  if (!currentWorkspaceId) return null;
+  const id = Number.parseInt(String(assigneeId ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return [];
+
+  const response = await apiFetch(buildApiUrl("/tasks", { assigneeId: id }), {
+    headers: { Accept: "application/json" }
+  });
+  if (!response.ok) {
+    await handleApiError(response, "Загрузка задач пользователя");
+    return null;
+  }
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+};
+
+const renderProfileReports = async (member) => {
+  const memberId = Number(member?.id);
+  if (!Number.isFinite(memberId) || memberId <= 0) return;
+
+  profileReportsRequestSeq += 1;
+  const seq = profileReportsRequestSeq;
+  renderProfileReportsLoading();
+
+  const tasks = await fetchTasksForAssignee(memberId);
+  if (seq !== profileReportsRequestSeq || !isProfileModalOpen()) return;
+  if (!Array.isArray(tasks)) {
+    clearProfileReportsUi();
+    if (profileStatusesEmptyEl) {
+      profileStatusesEmptyEl.textContent = "Не удалось загрузить";
+      profileStatusesEmptyEl.hidden = false;
+    }
+    if (profileOverdueEmptyEl) {
+      profileOverdueEmptyEl.textContent = "Не удалось загрузить";
+      profileOverdueEmptyEl.hidden = false;
+    }
+    if (profileAvgValueEl) profileAvgValueEl.textContent = "Недостаточно данных для расчёта";
+    if (profileAvgSubEl) profileAvgSubEl.textContent = "";
+    return;
+  }
+
+  // Statuses
+  const counts = new Map();
+  tasks.forEach((task) => {
+    const statusValue = toStatusValue(task?.status ?? task?.statusValue);
+    counts.set(statusValue, (counts.get(statusValue) || 0) + 1);
+  });
+
+  if (profileStatusesRoot) {
+    profileStatusesRoot.innerHTML = "";
+    const present = Array.from(counts.entries()).filter(([, c]) => Number(c) > 0).sort((a, b) => a[0] - b[0]);
+    if (!present.length) {
+      if (profileStatusesEmptyEl) {
+        profileStatusesEmptyEl.textContent = "Нет задач.";
+        profileStatusesEmptyEl.hidden = false;
+      }
+    } else {
+      if (profileStatusesEmptyEl) profileStatusesEmptyEl.hidden = true;
+      present.forEach(([statusValue, count]) => {
+        const el = document.createElement("div");
+        el.className = "profile-status-pill";
+        el.dataset.kind = String(statusValue);
+        el.innerHTML = `
+          <div class="profile-status-title">${STATUS_LABELS[statusValue] || "Статус"}</div>
+          <div class="profile-status-value">${Number(count)}</div>
+        `;
+        profileStatusesRoot.appendChild(el);
+      });
+    }
+  }
+  renderProfileStatusChart(counts);
+
+  // Overdue
+  const now = Date.now();
+  const overdueAll = tasks.filter((task) => {
+    const statusValue = toStatusValue(task?.status ?? task?.statusValue);
+    if (statusValue === 3) return false;
+    if (statusValue === 4) return true;
+    if (task?.isOverdue === true) return true;
+    const due = task?.dueDate ? new Date(task.dueDate) : null;
+    if (!due || Number.isNaN(due.getTime())) return false;
+    return due.getTime() < now;
+  });
+
+  let missingDueCount = 0;
+  const overdueWithDue = overdueAll
+    .map((task) => {
+      const due = task?.dueDate ? new Date(task.dueDate) : null;
+      if (!due || Number.isNaN(due.getTime())) {
+        missingDueCount += 1;
+        return null;
+      }
+      const overdueMs = Math.max(0, now - due.getTime());
+      return {
+        id: Number(task?.id),
+        title: normalizeToken(task?.title) || "Задача",
+        dueDate: task?.dueDate,
+        overdueMs
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.overdueMs - a.overdueMs);
+
+  if (profileOverdueRoot) {
+    profileOverdueRoot.innerHTML = "";
+    if (!overdueAll.length) {
+      if (profileOverdueEmptyEl) {
+        profileOverdueEmptyEl.textContent = "Нет просроченных задач.";
+        profileOverdueEmptyEl.hidden = false;
+      }
+    } else if (!overdueWithDue.length) {
+      if (profileOverdueEmptyEl) {
+        profileOverdueEmptyEl.textContent = "Недостаточно данных для расчёта";
+        profileOverdueEmptyEl.hidden = false;
+      }
+      if (profileOverdueNoteEl) {
+        profileOverdueNoteEl.textContent = "Есть просроченные задачи, но у них не указан корректный срок.";
+        profileOverdueNoteEl.hidden = false;
+      }
+    } else {
+      if (profileOverdueEmptyEl) profileOverdueEmptyEl.hidden = true;
+      if (missingDueCount > 0 && profileOverdueNoteEl) {
+        profileOverdueNoteEl.textContent = `Недостаточно данных для расчёта для ${missingDueCount} задач без срока.`;
+        profileOverdueNoteEl.hidden = false;
+      }
+
+      overdueWithDue.slice(0, 8).forEach((task) => {
+        const item = document.createElement("div");
+        item.className = "profile-overdue-item";
+        const safeTitle = task.title;
+        item.innerHTML = `
+          <div class="profile-overdue-title" title="${safeTitle.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}">${safeTitle.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+          <div class="profile-overdue-meta">
+            <span class="profile-overdue-late">${formatDurationCompact(task.overdueMs)}</span>
+            <span>${formatShortDateTimeRu(task.dueDate)}</span>
+          </div>
+        `;
+        profileOverdueRoot.appendChild(item);
+      });
+    }
+  }
+
+  // Avg completion
+  const samples = tasks
+    .map((task) => {
+      const createdAt = task?.createdAt ? new Date(task.createdAt) : null;
+      const completedAt = task?.completedAt ? new Date(task.completedAt) : null;
+      if (!createdAt || !completedAt) return null;
+      if (Number.isNaN(createdAt.getTime()) || Number.isNaN(completedAt.getTime())) return null;
+      const ms = completedAt.getTime() - createdAt.getTime();
+      if (!Number.isFinite(ms) || ms <= 0) return null;
+      return ms;
+    })
+    .filter((ms) => Number.isFinite(ms));
+
+  if (!samples.length) {
+    if (profileAvgValueEl) profileAvgValueEl.textContent = "Недостаточно данных для расчёта";
+    if (profileAvgSubEl) profileAvgSubEl.textContent = "Нет завершённых задач";
+    if (profileAvgChartEl) {
+      profileAvgChartEl.innerHTML = `
+        <svg viewBox="0 0 520 42" width="100%" height="42" role="img" aria-label="Диаграмма времени выполнения">
+          <text x="0" y="28" font-size="13" fill="rgba(127, 139, 161, 0.92)">Недостаточно данных для диаграммы</text>
+        </svg>
+      `;
+    }
+  } else {
+    const avg = samples.reduce((acc, ms) => acc + ms, 0) / samples.length;
+    if (profileAvgValueEl) profileAvgValueEl.textContent = formatDurationCompact(avg);
+    if (profileAvgSubEl) profileAvgSubEl.textContent = `Завершённых задач: ${samples.length}`;
+
+    if (profileAvgChartEl) {
+      const bins = [
+        { title: "<1д", from: 0, to: 24 * 60 * 60 * 1000 },
+        { title: "1-2д", from: 24 * 60 * 60 * 1000, to: 2 * 24 * 60 * 60 * 1000 },
+        { title: "2-3д", from: 2 * 24 * 60 * 60 * 1000, to: 3 * 24 * 60 * 60 * 1000 },
+        { title: "3-5д", from: 3 * 24 * 60 * 60 * 1000, to: 5 * 24 * 60 * 60 * 1000 },
+        { title: "5-7д", from: 5 * 24 * 60 * 60 * 1000, to: 7 * 24 * 60 * 60 * 1000 },
+        { title: "7-14д", from: 7 * 24 * 60 * 60 * 1000, to: 14 * 24 * 60 * 60 * 1000 },
+        { title: ">14д", from: 14 * 24 * 60 * 60 * 1000, to: Number.POSITIVE_INFINITY }
+      ];
+      const counts = bins.map((bin) => samples.filter((ms) => ms >= bin.from && ms < bin.to).length);
+      const maxCount = Math.max(...counts, 1);
+
+      const width = 520;
+      const height = 86;
+      const pad = 8;
+      const chartHeight = 50;
+      const gap = 8;
+      const barWidth = Math.floor((width - pad * 2 - gap * (bins.length - 1)) / bins.length);
+      const baseY = pad + chartHeight;
+
+      const bars = bins.map((bin, idx) => {
+        const count = counts[idx];
+        const h = Math.round((count / maxCount) * chartHeight);
+        const x = pad + idx * (barWidth + gap);
+        const y = baseY - h;
+        const title = `${bin.title}: ${count}`;
+        return `
+          <rect x="${x}" y="${y}" width="${barWidth}" height="${h}" rx="8" fill="rgba(68, 210, 199, 0.92)"><title>${title}</title></rect>
+          <text x="${x + barWidth / 2}" y="${pad + chartHeight + 22}" text-anchor="middle" font-size="11" fill="rgba(127, 139, 161, 0.92)">${bin.title}</text>
+        `;
+      }).join("");
+
+      profileAvgChartEl.innerHTML = `
+        <svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="Диаграмма времени выполнения">
+          ${bars}
+        </svg>
+      `;
+    }
+  }
 };
 
 const isAvatarModalOpen = () => Boolean(avatarModal && !avatarModal.hasAttribute("hidden"));
@@ -1119,6 +1761,7 @@ const openProfileModal = (member) => {
   applyAccountAvatarToElement(profileAvatarEl, profileAvatarTextEl, initials, storedAvatar);
 
   profileModal.removeAttribute("hidden");
+  void renderProfileReports(activeProfileMember);
   window.setTimeout(() => {
     const btn = profileModal.querySelector("button[data-close-profile]");
     if (btn instanceof HTMLElement) {
@@ -1531,10 +2174,7 @@ const openTaskModal = (column) => {
     taskDue.value = getDefaultDueDateLocalValue();
   }
   if (taskAssignee) {
-    const actorId = getActorUserId();
-    taskAssignee.value = currentUserId
-      ? String(currentUserId)
-      : (actorId ? String(actorId) : "");
+    renderAssigneeOptions({ defaultToActor: true });
   }
   setTaskStatusMode("create", 1);
   renderTagOptions();
@@ -1575,7 +2215,7 @@ const openTaskModalForEdit = (card) => {
   if (taskDue) taskDue.value = dueLocal;
 
   if (taskAssignee) {
-    taskAssignee.value = normalizeToken(card.dataset.assigneeId);
+    renderAssigneeOptions({ selectedValue: normalizeToken(card.dataset.assigneeId) });
   }
   if (taskPriority) {
     taskPriority.value = normalizeToken(card.dataset.priorityValue) || `${DEFAULT_PRIORITY_VALUE}`;
@@ -1664,7 +2304,7 @@ const createTaskCard = (taskData) => {
   tag.textContent = STATUS_LABELS[statusValue] || "Новая";
   const time = document.createElement("span");
   time.className = "task-time";
-  time.textContent = formatDueLabel(card.dataset.dueDate || taskData.dueDate, statusValue);
+  time.textContent = formatCardDueLabel(card.dataset.dueDate || taskData.dueDate, statusValue);
 
   const meta = document.createElement("div");
   meta.className = "task-head-meta";
@@ -1818,7 +2458,7 @@ const updateTaskCardStatus = (card, statusValue) => {
   }
   const time = card.querySelector(".task-time");
   if (time) {
-    time.textContent = formatDueLabel(card.dataset.dueDate, statusValue);
+    time.textContent = formatCardDueLabel(card.dataset.dueDate, statusValue);
   }
 
   const urgency = getUrgency(card.dataset.dueDate, statusValue);
@@ -1835,7 +2475,7 @@ const refreshTaskCardTiming = (card) => {
   const dueIso = card.dataset.dueDate;
   const time = card.querySelector(".task-time");
   if (time) {
-    time.textContent = formatDueLabel(dueIso, statusValue);
+    time.textContent = formatCardDueLabel(dueIso, statusValue);
   }
   const urgency = getUrgency(dueIso, statusValue);
   if (urgency && urgency !== URGENCY.none) {
@@ -1959,8 +2599,10 @@ const removeTaskFromState = (taskId) => {
 };
 
 const syncTaskStateToUi = () => {
-  rebuildFlowPool(lastNormalizedTasks);
-  renderCurrentView();
+  refreshToolbarUiState();
+  const visibleTasks = getVisibleSortedTasks(lastNormalizedTasks);
+  rebuildFlowPool(visibleTasks);
+  renderCurrentView(visibleTasks);
 };
 
 const isCalendarViewActive = () => (board?.dataset.view || "board") === "calendar";
@@ -2000,7 +2642,8 @@ const calendarViewController = createCalendarViewController({
   clearBoardTasks,
   createTaskCard,
   getCalendarBucketId,
-  toPriorityValue
+  toPriorityValue,
+  compareTasks: compareTasksForToolbar
 });
 
 const {
@@ -2014,7 +2657,8 @@ const priorityViewController = createPriorityViewController({
   board,
   clearBoardTasks,
   createTaskCard,
-  toPriorityValue
+  toPriorityValue,
+  compareTasks: compareTasksForToolbar
 });
 
 const {
@@ -2051,6 +2695,11 @@ const removeFlowTaskItem = (taskId) => {
 const applyTaskUpsertToUi = (taskData) => {
   if (!taskData) return;
 
+  if (isToolbarFilteringActive()) {
+    syncTaskStateToUi();
+    return;
+  }
+
   upsertFlowTaskItem(taskData);
 
   if (isCalendarViewActive()) {
@@ -2073,6 +2722,11 @@ const applyTaskUpsertToUi = (taskData) => {
 };
 
 const applyTaskRemovalToUi = (taskId) => {
+  if (isToolbarFilteringActive()) {
+    syncTaskStateToUi();
+    return;
+  }
+
   removeFlowTaskItem(taskId);
 
   if (isCalendarViewActive()) {
@@ -2329,17 +2983,21 @@ const loadTasksFromApi = async () => {
   syncTaskStateToUi();
 };
 
-const renderCurrentView = () => {
+const renderCurrentView = (tasks) => {
   const view = board?.dataset.view || "board";
+  const list = Array.isArray(tasks) ? tasks : getVisibleSortedTasks(lastNormalizedTasks);
+  if (view === "flow") {
+    return;
+  }
   if (view === "calendar") {
-    renderCalendarView(lastNormalizedTasks);
+    renderCalendarView(list);
     return;
   }
   if (view === "priority") {
-    renderPriorityView(lastNormalizedTasks);
+    renderPriorityView(list);
     return;
   }
-  renderBoardView(lastNormalizedTasks);
+  renderBoardView(list);
 };
 
 const initColumn = (column) => {
@@ -2845,6 +3503,12 @@ if (flowAddTaskBtn) {
   });
 }
 
+if (boardTaskCreateBtn) {
+  boardTaskCreateBtn.addEventListener("click", () => {
+    openTaskModal(getDefaultColumn());
+  });
+}
+
 document.addEventListener("click", (event) => {
   if (!isAddColumnMenuOpen) return;
   const target = event.target instanceof Element ? event.target : null;
@@ -2950,6 +3614,12 @@ const taskDetailController = createTaskDetailController({
   isAdmin,
   ensureTagsLoaded,
   getTagNameById: (id) => tagById.get(Number(id)) || "",
+  getAssigneeNameById: (id) => {
+    const storedNickname = normalizeToken(getStoredAccountNickname(Number(id)));
+    if (storedNickname) return storedNickname;
+    const match = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === Number(id));
+    return normalizeToken(match?.name);
+  },
   openTaskModalForEdit,
   applyTaskBgToCards,
   applyAttachmentCountToCards,
@@ -2963,6 +3633,9 @@ document.addEventListener("keydown", (event) => {
       return;
     }
     if (closeConfirmModal(false)) {
+      return;
+    }
+    if (closeToolbarPopovers()) {
       return;
     }
     if (closeAvatarModal()) {
@@ -3247,6 +3920,137 @@ viewButtons.forEach((button) => {
   button.addEventListener("click", () => {
     setBoardView(button.dataset.view || "board");
   });
+});
+
+const openBoardSortMenu = () => {
+  if (!boardSortMenu || !boardSortToggleBtn) return;
+  if (boardFilterPanel) boardFilterPanel.setAttribute("hidden", "");
+  if (boardFilterToggleBtn) boardFilterToggleBtn.setAttribute("aria-expanded", "false");
+  refreshToolbarUiState();
+  boardSortMenu.removeAttribute("hidden");
+  boardSortToggleBtn.setAttribute("aria-expanded", "true");
+};
+
+const toggleBoardSortMenu = () => {
+  if (!boardSortMenu || !boardSortToggleBtn) return;
+  const open = !boardSortMenu.hasAttribute("hidden");
+  if (open) {
+    closeToolbarPopovers();
+  } else {
+    openBoardSortMenu();
+  }
+};
+
+const openBoardFilterPanel = () => {
+  if (!boardFilterPanel || !boardFilterToggleBtn) return;
+  if (boardSortMenu) boardSortMenu.setAttribute("hidden", "");
+  if (boardSortToggleBtn) boardSortToggleBtn.setAttribute("aria-expanded", "false");
+  refreshToolbarUiState();
+  boardFilterPanel.removeAttribute("hidden");
+  boardFilterToggleBtn.setAttribute("aria-expanded", "true");
+};
+
+const toggleBoardFilterPanel = () => {
+  if (!boardFilterPanel || !boardFilterToggleBtn) return;
+  const open = !boardFilterPanel.hasAttribute("hidden");
+  if (open) {
+    closeToolbarPopovers();
+  } else {
+    openBoardFilterPanel();
+  }
+};
+
+if (boardSearchInput) {
+  boardSearchInput.addEventListener("input", () => {
+    if (toolbarSearchDebounceId) {
+      window.clearTimeout(toolbarSearchDebounceId);
+    }
+    toolbarSearchDebounceId = window.setTimeout(() => {
+      toolbarQuery = normalizeToken(boardSearchInput.value);
+      syncTaskStateToUi();
+    }, 120);
+  });
+}
+
+if (boardSortToggleBtn) {
+  boardSortToggleBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleBoardSortMenu();
+  });
+}
+
+if (boardSortMenu) {
+  boardSortMenu.addEventListener("click", (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest(".board-popover-item[data-sort]")
+      : null;
+    if (!(target instanceof HTMLButtonElement)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const next = normalizeToken(target.dataset.sort) || "smart";
+    toolbarSort = next;
+    closeToolbarPopovers();
+    syncTaskStateToUi();
+  });
+}
+
+if (boardFilterToggleBtn) {
+  boardFilterToggleBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleBoardFilterPanel();
+  });
+}
+
+if (boardFilterResetBtn) {
+  boardFilterResetBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toolbarStatusFilter.clear();
+    toolbarPriorityFilter.clear();
+    refreshToolbarUiState();
+    syncTaskStateToUi();
+  });
+}
+
+if (boardFilterPanel) {
+  boardFilterPanel.addEventListener("change", (event) => {
+    const input = event.target instanceof Element
+      ? event.target.closest('input[type="checkbox"][data-filter]')
+      : null;
+    if (!(input instanceof HTMLInputElement)) return;
+    const kind = normalizeToken(input.dataset.filter);
+    const value = Number.parseInt(normalizeToken(input.value), 10);
+    if (!Number.isFinite(value)) return;
+
+    const set = kind === "status"
+      ? toolbarStatusFilter
+      : (kind === "priority" ? toolbarPriorityFilter : null);
+    if (!set) return;
+
+    if (input.checked) {
+      set.add(value);
+    } else {
+      set.delete(value);
+    }
+    syncTaskStateToUi();
+  });
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) {
+    closeToolbarPopovers();
+    return;
+  }
+  if (target.closest("#board-sort-menu")
+    || target.closest("#board-filter-panel")
+    || target.closest("#board-sort-toggle")
+    || target.closest("#board-filter-toggle")) {
+    return;
+  }
+  closeToolbarPopovers();
 });
 
 refreshUserFilter();

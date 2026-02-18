@@ -1,23 +1,23 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj": {}
+    "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj": {}
   },
   "projects": {
-    "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj": {
+    "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj",
+        "projectUniqueName": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj",
         "projectName": "TaskManager.Application",
-        "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj",
-        "packagesPath": "C:\\Users\\0_offlayt\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Application\\obj\\",
+        "projectPath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj",
+        "packagesPath": "C:\\Users\\saren\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Application\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\0_offlayt\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\saren\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -32,8 +32,8 @@
           "net8.0": {
             "targetAlias": "net8.0",
             "projectReferences": {
-              "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {
-                "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj"
+              "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {
+                "projectPath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj"
               }
             }
           }
@@ -48,7 +48,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "10.0.100"
       },
       "frameworks": {
         "net8.0": {
@@ -69,24 +69,24 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {
+    "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj",
+        "projectUniqueName": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj",
         "projectName": "TaskManager.Domain",
-        "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj",
-        "packagesPath": "C:\\Users\\0_offlayt\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\obj\\",
+        "projectPath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj",
+        "packagesPath": "C:\\Users\\saren\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\0_offlayt\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\saren\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -113,7 +113,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "10.0.100"
       },
       "frameworks": {
         "net8.0": {
@@ -134,24 +134,24 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json"
         }
       }
     },
-    "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj": {
+    "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj",
+        "projectUniqueName": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj",
         "projectName": "TaskManager.Infrastructure",
-        "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj",
-        "packagesPath": "C:\\Users\\0_offlayt\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Infrastructure\\obj\\",
+        "projectPath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Infrastructure\\TaskManager.Infrastructure.csproj",
+        "packagesPath": "C:\\Users\\saren\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Infrastructure\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
         ],
         "configFilePaths": [
-          "C:\\Users\\0_offlayt\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Users\\saren\\AppData\\Roaming\\NuGet\\NuGet.Config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
           "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
@@ -166,11 +166,11 @@
           "net8.0": {
             "targetAlias": "net8.0",
             "projectReferences": {
-              "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj": {
-                "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj"
+              "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj": {
+                "projectPath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Application\\TaskManager.Application.csproj"
               },
-              "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {
-                "projectPath": "C:\\Users\\0_offlayt\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj"
+              "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj": {
+                "projectPath": "C:\\Users\\saren\\source\\repos\\BadTaskTracker\\TaskManager.Domain\\TaskManager.Domain.csproj"
               }
             }
           }
@@ -185,7 +185,7 @@
           "auditLevel": "low",
           "auditMode": "direct"
         },
-        "SdkAnalysisLevel": "9.0.300"
+        "SdkAnalysisLevel": "10.0.100"
       },
       "frameworks": {
         "net8.0": {
@@ -232,7 +232,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.103/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

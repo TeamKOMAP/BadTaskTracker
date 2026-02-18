@@ -1,6 +1,6 @@
 import { STATUS_LABELS, PRIORITY_LABELS } from "../shared/constants.js";
 import { normalizeToken } from "../shared/utils.js";
-import { toStatusValue, toPriorityValue, formatIso, formatBytes, getUrgency, formatDueLabel } from "./helpers.js?v=authflow3";
+import { toStatusValue, toPriorityValue, formatIso, formatBytes, getUrgency, formatDueLabel } from "./helpers.js?v=authflow5";
 import { runWhenIdle } from "./media-utils.js";
 
 const PRIORITY_DISPLAY_LABELS = {
@@ -64,6 +64,7 @@ export const renderTaskInDetail = (options) => {
   }
 
   const elements = options?.elements || {};
+  const resolveAssigneeName = typeof options?.resolveAssigneeName === "function" ? options.resolveAssigneeName : () => "";
   const getStoredTaskMeta = typeof options?.getStoredTaskMeta === "function" ? options.getStoredTaskMeta : () => null;
   const getCachedTaskBg = typeof options?.getCachedTaskBg === "function" ? options.getCachedTaskBg : () => "";
   const getCurrentRequestSeq = typeof options?.getCurrentRequestSeq === "function" ? options.getCurrentRequestSeq : () => null;
@@ -104,10 +105,19 @@ export const renderTaskInDetail = (options) => {
 
   setDetailField(elements.statusEl, STATUS_LABELS[statusValue]);
   setDetailField(elements.priorityEl, getPriorityDisplayLabel(priorityValue));
-  setDetailField(
-    elements.assigneeEl,
-    task.assigneeName ? `${task.assigneeName} (#${task.assigneeId})` : (task.assigneeId ? `#${task.assigneeId}` : "Не назначено")
-  );
+  const assigneeId = Number.parseInt(String(task.assigneeId ?? ""), 10);
+  const resolvedAssigneeName = Number.isFinite(assigneeId) && assigneeId > 0
+    ? normalizeToken(resolveAssigneeName(assigneeId))
+    : "";
+  const apiAssigneeNameRaw = normalizeToken(task.assigneeName);
+  const apiAssigneeName = apiAssigneeNameRaw.includes("@");
+  const apiAssigneeNameSafe = Number.isFinite(assigneeId) && assigneeId > 0
+    ? (apiAssigneeName ? apiAssigneeNameRaw.split("@")[0] : apiAssigneeNameRaw)
+    : "";
+  const assigneeLabel = resolvedAssigneeName
+    || apiAssigneeNameSafe
+    || (Number.isFinite(assigneeId) && assigneeId > 0 ? "-" : "Все");
+  setDetailField(elements.assigneeEl, assigneeLabel);
   setDetailField(elements.dueEl, `${dueLabel} (${formatIso(task.dueDate)})`);
   setDetailField(elements.createdEl, formatIso(task.createdAt));
   setDetailField(elements.updatedEl, formatIso(task.updatedAt));
