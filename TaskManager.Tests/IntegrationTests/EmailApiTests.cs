@@ -139,7 +139,7 @@ namespace TaskManager.Tests.IntegrationTests
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             var email = _sentEmails.FirstOrDefault(e => e.ToEmail == "lifetime-test@example.com");
             email.Should().NotBeNull();
-            email!.HtmlBody.Should().Contain("10 minute");
+            email!.HtmlBody.Should().Contain("10 мин");
         }
 
         [Fact]

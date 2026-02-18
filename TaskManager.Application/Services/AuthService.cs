@@ -261,7 +261,28 @@ namespace TaskManager.Application.Services
         private static string BuildEmailBody(string code, int minutes)
         {
             var safeMinutes = Math.Max(1, minutes);
-            return $"<p>Your BadTaskTracker code:</p><h2 style=\"letter-spacing: 0.2em;\">{code}</h2><p>This code expires in {safeMinutes} minute(s).</p>";
+            return $@"<!DOCTYPE html>
+<html>
+<head><meta charset=""utf-8""></head>
+<body style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f6f8fa; margin: 0; padding: 20px;"">
+  <div style=""max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"">
+    <div style=""background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px; text-align: center;"">
+      <h1 style=""margin: 0; font-size: 20px; font-weight: 600;"">GoodTaskTracker</h1>
+      <p style=""margin: 8px 0 0; opacity: 0.9; font-size: 14px;"">Код для входа</p>
+    </div>
+    <div style=""padding: 32px 24px; text-align: center;"">
+      <p style=""color: #586069; font-size: 14px; margin: 0 0 16px;"">Введите этот код в приложении:</p>
+      <div style=""background: #f6f8fa; border-radius: 8px; padding: 20px; margin: 0 0 16px;"">
+        <span style=""font-size: 32px; font-weight: 700; letter-spacing: 0.3em; color: #24292e; font-family: monospace;"">{code}</span>
+      </div>
+      <p style=""color: #586069; font-size: 13px; margin: 0;"">Код действителен <strong>{safeMinutes} мин.</strong></p>
+    </div>
+    <div style=""padding: 16px 24px; background: #f6f8fa; color: #586069; font-size: 12px; text-align: center;"">
+      Если вы не запрашивали код, проигнорируйте это письмо
+    </div>
+  </div>
+</body>
+</html>";
         }
 
         private static string NormalizeCode(string? rawCode)
