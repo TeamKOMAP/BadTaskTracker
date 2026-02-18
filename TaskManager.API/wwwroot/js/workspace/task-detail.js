@@ -228,7 +228,6 @@ export const createTaskDetailController = (deps) => {
     if (taskBgInput) {
       taskBgInput.value = "";
     }
-
     if (taskAttachmentsList) {
       taskAttachmentsList.innerHTML = "";
     }

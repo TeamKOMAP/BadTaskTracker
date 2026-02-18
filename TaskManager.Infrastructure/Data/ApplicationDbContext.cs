@@ -17,6 +17,7 @@ namespace TaskManager.Infrastructure.Data
         public DbSet<Tag> Tags { get; set; }
         public DbSet<TaskTag> TaskTags { get; set; }
         public DbSet<EmailAuthCode> EmailAuthCodes { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -155,6 +156,40 @@ namespace TaskManager.Infrastructure.Data
                 entity.HasIndex(x => x.Email);
                 entity.HasIndex(x => new { x.Email, x.IsConsumed, x.ExpiresAtUtc });
                 entity.HasIndex(x => x.CreatedAtUtc);
+            });
+
+            modelBuilder.Entity<Notification>(entity =>
+            {
+                entity.HasKey(n => n.Id);
+
+                entity.Property(n => n.Type)
+                    .IsRequired()
+                    .HasMaxLength(50);
+
+                entity.Property(n => n.Title)
+                    .IsRequired()
+                    .HasMaxLength(200);
+
+                entity.Property(n => n.Message)
+                    .IsRequired()
+                    .HasMaxLength(1000);
+
+                entity.Property(n => n.CreatedAt)
+                    .HasDefaultValueSql("datetime('now')");
+
+                entity.HasOne(n => n.User)
+                    .WithMany()
+                    .HasForeignKey(n => n.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(n => n.Task)
+                    .WithMany()
+                    .HasForeignKey(n => n.TaskId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(n => n.UserId);
+                entity.HasIndex(n => new { n.UserId, n.IsRead });
+                entity.HasIndex(n => n.CreatedAt);
             });
         }
     }

@@ -122,6 +122,7 @@ builder.Services.AddScoped<ITagRepository, TagRepository>();
 builder.Services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();
 builder.Services.AddScoped<IWorkspaceMemberRepository, WorkspaceMemberRepository>();
 builder.Services.AddScoped<IEmailAuthCodeRepository, EmailAuthCodeRepository>();
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>(); 
 
 // Add Services
 builder.Services.AddScoped<ITaskService, TaskService>();
@@ -134,7 +135,7 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddHostedService<OverdueStatusSyncBackgroundService>();
-
+builder.Services.AddHostedService<DeadlineNotificationBackgroundService>();
 builder.Services.AddSingleton<IAttachmentStorage>(sp =>
 {
     var env = sp.GetRequiredService<IWebHostEnvironment>();

@@ -1718,7 +1718,6 @@ body[data-theme="light"] .column-delete:hover {
 .board .column[data-column-type="overdue"] .task-card:not(.is-empty) {
   --urgency-tint: rgba(248, 113, 113, 0.24);
 }
-
 body[data-theme="light"] .task-card {
   background: linear-gradient(140deg, rgba(255, 255, 255, 0.92), rgba(245, 247, 250, 0.86));
   border-color: rgba(15, 20, 28, 0.14);

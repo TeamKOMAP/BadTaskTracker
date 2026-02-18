@@ -1,5 +1,4 @@
 import { STORAGE_WORKSPACE_ID } from "../shared/constants.js";
-
 export const getPreferredTheme = () => {
   try {
     const saved = localStorage.getItem("gtt-theme");
@@ -42,7 +41,6 @@ const resolveCurrentWorkspaceId = () => {
     return null;
   }
 };
-
 const normalizeWorkspaceId = (workspaceId) => {
   const id = Number(workspaceId);
   return Number.isFinite(id) && id > 0 ? id : null;
@@ -81,7 +79,6 @@ export const setStoredTaskMeta = (id, meta) => {
   const taskId = normalizeTaskId(id);
   const workspaceId = resolveCurrentWorkspaceId();
   if (!taskId || !workspaceId) return;
-
   try {
     if (!meta || typeof meta !== "object") return;
     const theme = typeof meta.theme === "string" ? meta.theme.trim() : "";
@@ -157,7 +154,6 @@ export const clearStoredTaskArtifacts = (id) => {
   clearStoredTaskMeta(id);
   clearStoredTaskBg(id);
 };
-
 export const getStoredWorkspaceColumns = (workspaceId) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
   if (!normalizedWorkspaceId) {

@@ -234,6 +234,116 @@ namespace TaskManager.Infrastructure.Repositories
             };
         }
 
+        public async Task<PaginatedResult<TaskItem>> GetPaginatedAsync(
+            int workspaceId,
+            TaskQueryDto query)
+        {
+            var dbQuery = _context.Tasks
+                .AsNoTracking()
+                .Include(t => t.Assignee)
+                .Include(t => t.TaskTags)
+                    .ThenInclude(tt => tt.Tag)
+                .Where(t => t.WorkspaceId == workspaceId);
+
+            // Search
+            if (!string.IsNullOrWhiteSpace(query.Search))
+            {
+                var search = query.Search.ToLower().Trim();
+                dbQuery = dbQuery.Where(t =>
+                    t.Title.ToLower().Contains(search) ||
+                    (t.Description != null && t.Description.ToLower().Contains(search)));
+            }
+
+            // Filters
+            if (query.Status.HasValue)
+                dbQuery = dbQuery.Where(t => t.Status == query.Status.Value);
+
+            if (query.AssigneeId.HasValue)
+                dbQuery = dbQuery.Where(t => t.AssigneeId == query.AssigneeId.Value);
+
+            if (query.Priority.HasValue)
+                dbQuery = dbQuery.Where(t => t.Priority == query.Priority.Value);
+
+            if (query.DueDateFrom.HasValue)
+                dbQuery = dbQuery.Where(t => t.DueDate >= query.DueDateFrom.Value);
+
+            if (query.DueDateTo.HasValue)
+                dbQuery = dbQuery.Where(t => t.DueDate <= query.DueDateTo.Value);
+
+            if (query.TagIds != null && query.TagIds.Any())
+            {
+                dbQuery = dbQuery.Where(t => t.TaskTags.Any(tt => query.TagIds.Contains(tt.TagId)));
+            }
+
+            // Sorting
+            if (!string.IsNullOrWhiteSpace(query.SortBy))
+            {
+                var sortBy = query.SortBy.ToLower();
+                var isDesc = query.SortOrder?.ToLower() == "desc";
+
+                if (sortBy == "title")
+                {
+                    dbQuery = isDesc
+                        ? dbQuery.OrderByDescending(t => t.Title)
+                        : dbQuery.OrderBy(t => t.Title);
+                }
+                else if (sortBy == "duedate")
+                {
+                    dbQuery = isDesc
+                        ? dbQuery.OrderByDescending(t => t.DueDate)
+                        : dbQuery.OrderBy(t => t.DueDate);
+                }
+                else if (sortBy == "priority")
+                {
+                    dbQuery = isDesc
+                        ? dbQuery.OrderByDescending(t => t.Priority)
+                        : dbQuery.OrderBy(t => t.Priority);
+                }
+                else if (sortBy == "status")
+                {
+                    dbQuery = isDesc
+                        ? dbQuery.OrderByDescending(t => t.Status)
+                        : dbQuery.OrderBy(t => t.Status);
+                }
+                else if (sortBy == "createdat")
+                {
+                    dbQuery = isDesc
+                        ? dbQuery.OrderByDescending(t => t.CreatedAt)
+                        : dbQuery.OrderBy(t => t.CreatedAt);
+                }
+                else if (sortBy == "assignee")
+                {
+                    dbQuery = isDesc
+                        ? dbQuery.OrderByDescending(t => t.Assignee != null ? t.Assignee.Name : "")
+                        : dbQuery.OrderBy(t => t.Assignee != null ? t.Assignee.Name : "");
+                }
+                else
+                {
+                    dbQuery = dbQuery.OrderBy(t => t.Id);
+                }
+            }
+            else
+            {
+                dbQuery = dbQuery.OrderBy(t => t.Id);
+            }
+
+            // Pagination
+            var totalCount = await dbQuery.CountAsync();
+
+            var items = await dbQuery
+                .Skip((query.Page - 1) * query.PageSize)
+                .Take(query.PageSize)
+                .ToListAsync();
+
+            return new PaginatedResult<TaskItem>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                Page = query.Page,
+                PageSize = query.PageSize
+            };
+        }
+
         private async Task<double> QueryAverageCompletionHoursInMemoryAsync(
             IQueryable<TaskItem> completedQuery,
             CancellationToken cancellationToken)
