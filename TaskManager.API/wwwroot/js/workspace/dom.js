@@ -62,6 +62,7 @@ export const userList = document.getElementById("user-list");
 export const userEmpty = document.getElementById("user-empty");
 export const userAddInput = document.getElementById("user-add-input");
 export const userAddBtn = document.getElementById("user-add-btn");
+export const userAddSection = document.querySelector(".user-add");
 
 export const panelWorkspace = document.getElementById("panel-workspace");
 export const panelWorkspaceNameEl = document.getElementById("panel-workspace-name");
