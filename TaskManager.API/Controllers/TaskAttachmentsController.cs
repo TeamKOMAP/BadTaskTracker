@@ -9,6 +9,9 @@ using TaskManager.Application.Interfaces;
 
 namespace TaskManager.API.Controllers
 {
+    /// <summary>
+    /// Controller for managing task attachments.
+    /// </summary>
     [ApiController]
     [Route("api/tasks/{taskId:int}/attachments")]
     [Authorize]
@@ -16,6 +19,10 @@ namespace TaskManager.API.Controllers
     {
         private readonly ITaskAttachmentService _attachmentService;
 
+        /// <summary>
+        /// Initializes a new instance of the TaskAttachmentsController.
+        /// </summary>
+        /// <param name="attachmentService">The task attachment service.</param>
         public TaskAttachmentsController(ITaskAttachmentService attachmentService)
         {
             _attachmentService = attachmentService;
@@ -35,6 +42,15 @@ namespace TaskManager.API.Controllers
             };
         }
 
+        /// <summary>
+        /// Gets all attachments for a task.
+        /// </summary>
+        /// <param name="taskId">The task ID.</param>
+        /// <returns>List of attachments.</returns>
+        /// <response code="200">Returns list of attachments</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
+        /// <response code="404">If task is not found</response>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TaskAttachmentDto>>> ListAttachments(int taskId)
         {
@@ -60,6 +76,15 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Checks if a task has attachments and returns the count.
+        /// </summary>
+        /// <param name="taskId">The task ID.</param>
+        /// <returns>Object with hasAttachments flag and count.</returns>
+        /// <response code="200">Returns attachment status</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
+        /// <response code="404">If task is not found</response>
         [HttpGet("exists")]
         public async Task<ActionResult<object>> HasAttachments(int taskId)
         {
@@ -84,6 +109,14 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Gets attachment counts for multiple tasks.
+        /// </summary>
+        /// <param name="dto">Request with list of task IDs.</param>
+        /// <returns>List of task attachment counts.</returns>
+        /// <response code="200">Returns attachment counts</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
         [HttpPost("~/api/tasks/attachments/counts")]
         public async Task<ActionResult<IEnumerable<TaskAttachmentCountDto>>> GetAttachmentCounts([FromBody] TaskAttachmentCountsRequestDto? dto)
         {
@@ -120,6 +153,16 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Uploads attachments to a task.
+        /// </summary>
+        /// <param name="taskId">The task ID.</param>
+        /// <returns>List of uploaded attachments.</returns>
+        /// <response code="200">Attachments uploaded successfully</response>
+        /// <response code="400">If files are invalid</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
+        /// <response code="404">If task is not found</response>
         [HttpPost]
         [RequestSizeLimit(50L * 1024 * 1024)]
         public async Task<ActionResult<IEnumerable<TaskAttachmentDto>>> UploadAttachments(int taskId)
@@ -191,6 +234,16 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Downloads a specific attachment.
+        /// </summary>
+        /// <param name="taskId">The task ID.</param>
+        /// <param name="attachmentId">The attachment ID.</param>
+        /// <returns>The attachment file.</returns>
+        /// <response code="200">Returns the file</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
+        /// <response code="404">If task or attachment is not found</response>
         [HttpGet("{attachmentId}")]
         public async Task<IActionResult> DownloadAttachment(int taskId, string attachmentId)
         {
@@ -215,6 +268,16 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Deletes a specific attachment.
+        /// </summary>
+        /// <param name="taskId">The task ID.</param>
+        /// <param name="attachmentId">The attachment ID.</param>
+        /// <returns>No content if successful.</returns>
+        /// <response code="204">Attachment deleted successfully</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
+        /// <response code="404">If task or attachment is not found</response>
         [HttpDelete("{attachmentId}")]
         public async Task<IActionResult> DeleteAttachment(int taskId, string attachmentId)
         {

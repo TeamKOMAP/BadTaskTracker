@@ -1,17 +1,22 @@
-using Microsoft.EntityFrameworkCore;
 using TaskManager.Application.Interfaces;
 using TaskManager.Domain.Entities;
-using TaskManager.Domain.Enums;
-using TaskManager.Infrastructure.Data;
 using TimeZoneConverter;
 
 namespace TaskManager.API.Background
 {
+    /// <summary>
+    /// Background service for sending deadline notifications to task assignees.
+    /// </summary>
     public class DeadlineNotificationBackgroundService : BackgroundService
     {
         private readonly IServiceProvider _services;
         private readonly ILogger<DeadlineNotificationBackgroundService> _logger;
 
+        /// <summary>
+        /// Initializes a new instance of the DeadlineNotificationBackgroundService.
+        /// </summary>
+        /// <param name="services">The service provider for creating scopes.</param>
+        /// <param name="logger">The logger.</param>
         public DeadlineNotificationBackgroundService(
             IServiceProvider services,
             ILogger<DeadlineNotificationBackgroundService> logger)
@@ -22,7 +27,7 @@ namespace TaskManager.API.Background
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("Сервис уведомлений о дедлайнах запущен");
+            _logger.LogInformation("Deadline notification service started");
 
             DateTime? lastRunDateUtc = null;
 
@@ -37,11 +42,11 @@ namespace TaskManager.API.Background
                     {
                         using (var scope = _services.CreateScope())
                         {
-                            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                            var taskRepository = scope.ServiceProvider.GetRequiredService<ITaskRepository>();
                             var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
                             var notificationRepo = scope.ServiceProvider.GetRequiredService<INotificationRepository>();
 
-                            await CheckDeadlinesAsync(dbContext, emailSender, notificationRepo, stoppingToken);
+                            await CheckDeadlinesAsync(taskRepository, emailSender, notificationRepo, stoppingToken);
                         }
 
                         lastRunDateUtc = nowUtc.Date;
@@ -59,14 +64,14 @@ namespace TaskManager.API.Background
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Ошибка в сервисе уведомлений");
+                    _logger.LogError(ex, "Error in deadline notification service");
                     await Task.Delay(TimeSpan.FromMinutes(30), stoppingToken);
                 }
             }
         }
 
         private async Task CheckDeadlinesAsync(
-            ApplicationDbContext dbContext,
+            ITaskRepository taskRepository,
             IEmailSender emailSender,
             INotificationRepository notificationRepo,
             CancellationToken cancellationToken)
@@ -75,24 +80,22 @@ namespace TaskManager.API.Background
             var rangeStartUtc = nowUtc.Date.AddDays(-1);
             var rangeEndUtc = nowUtc.Date.AddDays(3);
 
-            var tasksDueSoon = await dbContext.Tasks
-                .Include(t => t.Assignee)
-                .Where(t => t.DueDate >= rangeStartUtc
-                    && t.DueDate < rangeEndUtc
-                    && t.Status != TaskItemStatus.Done
-                    && t.Assignee != null
-                    && !t.DeadlineNotificationSent)
-                .ToListAsync(cancellationToken);
+            var tasksDueSoon = await taskRepository.GetTasksForDeadlineNotificationAsync(
+                rangeStartUtc,
+                rangeEndUtc,
+                cancellationToken);
 
-            if (!tasksDueSoon.Any())
+            var taskList = tasksDueSoon.ToList();
+            if (!taskList.Any())
             {
-                _logger.LogInformation("Нет задач для уведомлений");
+                _logger.LogInformation("No tasks for deadline notifications");
                 return;
             }
 
-            var notificationsToCreate = new List<Notification>(tasksDueSoon.Count);
+            var notificationsToCreate = new List<Notification>(taskList.Count);
+            var notifiedTaskIds = new List<int>(taskList.Count);
 
-            foreach (var task in tasksDueSoon)
+            foreach (var task in taskList)
             {
                 var dueUtc = NormalizeUtc(task.DueDate);
                 var userTimeZone = ResolveTimeZone(task.Assignee?.TimeZoneId);
@@ -108,7 +111,7 @@ namespace TaskManager.API.Background
 
                 var hoursLeft = (int)Math.Max(0, Math.Ceiling((dueUtc - nowUtc).TotalHours));
 
-                // 1. Отправляем email
+                // 1. Send email
                 if (task.Assignee?.Email != null)
                 {
                     string subject = isToday
@@ -123,7 +126,7 @@ namespace TaskManager.API.Background
                     await emailSender.SendAsync(task.Assignee.Email, subject, emailBody);
                 }
 
-                // 2. Сохраняем уведомление в БД
+                // 2. Create notification
                 var notification = new Notification
                 {
                     UserId = task.Assignee!.Id,
@@ -137,21 +140,23 @@ namespace TaskManager.API.Background
                 };
 
                 notificationsToCreate.Add(notification);
-
-                // 3. Помечаем, что уведомление отправлено
-                task.DeadlineNotificationSent = true;
-                task.DeadlineNotificationSentAt = DateTime.UtcNow;
+                notifiedTaskIds.Add(task.Id);
             }
 
             if (notificationsToCreate.Count == 0)
             {
-                _logger.LogInformation("Нет задач для уведомлений в локальных таймзонах пользователей");
+                _logger.LogInformation("No tasks for notifications in user timezones");
                 return;
             }
 
+            // 3. Save notifications
             await notificationRepo.AddRangeAsync(notificationsToCreate, cancellationToken, saveChanges: false);
-            await dbContext.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Отправлено {Count} уведомлений о дедлайнах", notificationsToCreate.Count);
+            await notificationRepo.SaveChangesAsync(cancellationToken);
+
+            // 4. Mark tasks as notified
+            await taskRepository.MarkDeadlineNotificationsSentAsync(notifiedTaskIds, cancellationToken);
+
+            _logger.LogInformation("Sent {Count} deadline notifications", notificationsToCreate.Count);
         }
 
         private static DateTime NormalizeUtc(DateTime value)

@@ -6,6 +6,9 @@ using TaskManager.API.Security;
 
 namespace TaskManager.API.Controllers
 {
+    /// <summary>
+    /// Controller for generating workspace reports and statistics.
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
@@ -13,11 +16,22 @@ namespace TaskManager.API.Controllers
     {
         private readonly IReportService _reportService;
 
+        /// <summary>
+        /// Initializes a new instance of the ReportsController.
+        /// </summary>
+        /// <param name="reportService">The report service.</param>
         public ReportsController(IReportService reportService)
         {
             _reportService = reportService;
         }
 
+        /// <summary>
+        /// Gets a summary of task statuses in the current workspace.
+        /// </summary>
+        /// <returns>Task status summary counts.</returns>
+        /// <response code="200">Returns status summary</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
         [HttpGet("status-summary")]
         public async Task<ActionResult<Application.DTOs.StatusSummaryDto>> GetStatusSummary()
         {
@@ -44,6 +58,13 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Gets overdue tasks grouped by assignee.
+        /// </summary>
+        /// <returns>List of overdue tasks grouped by assignee.</returns>
+        /// <response code="200">Returns overdue tasks by assignee</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
         [HttpGet("overdue-by-assignee")]
         public async Task<ActionResult<IEnumerable<Application.DTOs.OverdueByAssigneeDto>>> GetOverdueByAssignee()
         {
@@ -70,6 +91,13 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Gets average task completion time statistics.
+        /// </summary>
+        /// <returns>Average completion time in days and hours.</returns>
+        /// <response code="200">Returns average completion time stats</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
         [HttpGet("avg-completion-time")]
         public async Task<ActionResult<Application.DTOs.AverageCompletionTimeDto>> GetAverageCompletionTime()
         {

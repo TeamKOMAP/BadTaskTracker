@@ -7,6 +7,9 @@ using TaskManager.API.Security;
 
 namespace TaskManager.API.Controllers
 {
+    /// <summary>
+    /// Controller for managing tags within a workspace.
+    /// </summary>
     [Route("api/[controller]")]
     [ApiController]
     [Authorize]
@@ -14,11 +17,23 @@ namespace TaskManager.API.Controllers
     {
         private readonly ITagService _tagService;
 
+        /// <summary>
+        /// Initializes a new instance of the TagsController.
+        /// </summary>
+        /// <param name="tagService">The tag service.</param>
         public TagsController(ITagService tagService)
         {
             _tagService = tagService;
         }
 
+        /// <summary>
+        /// Gets all tags in the current workspace with optional search.
+        /// </summary>
+        /// <param name="q">Optional search query for tag name.</param>
+        /// <returns>List of tags.</returns>
+        /// <response code="200">Returns list of tags</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<TagDto>>> GetTags([FromQuery] string? q = null)
         {
@@ -45,6 +60,15 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Gets a specific tag by ID.
+        /// </summary>
+        /// <param name="id">The tag ID.</param>
+        /// <returns>The tag details.</returns>
+        /// <response code="200">Returns the tag</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
+        /// <response code="404">If tag is not found</response>
         [HttpGet("{id:int}")]
         public async Task<ActionResult<TagDto>> GetTagById(int id)
         {
@@ -75,6 +99,16 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Creates a new tag or returns existing one with the same name.
+        /// </summary>
+        /// <param name="dto">The tag creation data.</param>
+        /// <returns>The created or existing tag.</returns>
+        /// <response code="200">Returns existing tag</response>
+        /// <response code="201">Tag created successfully</response>
+        /// <response code="400">If tag data is invalid</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace member</response>
         [HttpPost]
         public async Task<ActionResult<TagDto>> CreateOrGetTag([FromBody] CreateTagDto dto)
         {

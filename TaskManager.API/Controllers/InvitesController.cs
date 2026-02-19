@@ -7,6 +7,9 @@ using TaskManager.Domain.Enums;
 
 namespace TaskManager.API.Controllers
 {
+    /// <summary>
+    /// Controller for managing workspace invitations.
+    /// </summary>
     [Authorize]
     [Route("api/[controller]")]
     [ApiController]
@@ -14,11 +17,25 @@ namespace TaskManager.API.Controllers
     {
         private readonly IWorkspaceInvitationService _workspaceInvitationService;
 
+        /// <summary>
+        /// Initializes a new instance of the InvitesController.
+        /// </summary>
+        /// <param name="workspaceInvitationService">The workspace invitation service.</param>
         public InvitesController(IWorkspaceInvitationService workspaceInvitationService)
         {
             _workspaceInvitationService = workspaceInvitationService;
         }
 
+        /// <summary>
+        /// Gets invitations for the current user.
+        /// </summary>
+        /// <param name="status">Optional status filter (Pending, Accepted, Declined, Expired).</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>List of invitations.</returns>
+        /// <response code="200">Returns list of invitations</response>
+        /// <response code="400">If status filter is invalid</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="404">If user is not found</response>
         [HttpGet("me")]
         public async Task<IActionResult> GetMyInvites([FromQuery] string? status, CancellationToken cancellationToken)
         {
@@ -56,6 +73,17 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Accepts a workspace invitation.
+        /// </summary>
+        /// <param name="id">The invitation ID.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>The accepted invitation.</returns>
+        /// <response code="200">Invitation accepted successfully</response>
+        /// <response code="400">If invitation cannot be accepted</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not the invite recipient</response>
+        /// <response code="404">If invitation is not found</response>
         [HttpPost("{id:int}/accept")]
         public async Task<IActionResult> AcceptInvite(int id, CancellationToken cancellationToken)
         {
@@ -84,6 +112,17 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Declines a workspace invitation.
+        /// </summary>
+        /// <param name="id">The invitation ID.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>The declined invitation.</returns>
+        /// <response code="200">Invitation declined successfully</response>
+        /// <response code="400">If invitation cannot be declined</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not the invite recipient</response>
+        /// <response code="404">If invitation is not found</response>
         [HttpPost("{id:int}/decline")]
         public async Task<IActionResult> DeclineInvite(int id, CancellationToken cancellationToken)
         {

@@ -411,5 +411,62 @@ WHERE ""WorkspaceId"" = @workspaceId
                 }
             }
         }
+
+        public async Task<IEnumerable<TaskItem>> GetTasksForDeadlineNotificationAsync(
+            DateTime rangeStartUtc,
+            DateTime rangeEndUtc,
+            CancellationToken cancellationToken = default)
+        {
+            return await _context.Tasks
+                .AsNoTracking()
+                .Include(t => t.Assignee)
+                .Where(t => t.DueDate >= rangeStartUtc
+                    && t.DueDate < rangeEndUtc
+                    && t.Status != TaskItemStatus.Done
+                    && t.Assignee != null
+                    && !t.DeadlineNotificationSent)
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task<int> MarkDeadlineNotificationsSentAsync(
+            IEnumerable<int> taskIds,
+            CancellationToken cancellationToken = default)
+        {
+            var ids = taskIds?.Where(id => id > 0).Distinct().ToList();
+            if (ids == null || ids.Count == 0)
+            {
+                return 0;
+            }
+
+            var now = DateTime.UtcNow;
+
+            if (_context.Database.IsRelational())
+            {
+                return await _context.Tasks
+                    .Where(t => ids.Contains(t.Id))
+                    .ExecuteUpdateAsync(setters => setters
+                        .SetProperty(t => t.DeadlineNotificationSent, true)
+                        .SetProperty(t => t.DeadlineNotificationSentAt, now),
+                    cancellationToken);
+            }
+
+            var tasksToUpdate = await _context.Tasks
+                .Where(t => ids.Contains(t.Id))
+                .ToListAsync(cancellationToken);
+
+            if (tasksToUpdate.Count == 0)
+            {
+                return 0;
+            }
+
+            foreach (var task in tasksToUpdate)
+            {
+                task.DeadlineNotificationSent = true;
+                task.DeadlineNotificationSentAt = now;
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            return tasksToUpdate.Count;
+        }
     }
 }
