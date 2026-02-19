@@ -24,6 +24,7 @@ export const setTheme = (theme) => {
 
 const taskBgScopedKey = (workspaceId, taskId) => `gtt-taskbg:${workspaceId}:${taskId}`;
 const taskMetaScopedKey = (workspaceId, taskId) => `gtt-taskmeta:${workspaceId}:${taskId}`;
+const taskHistoryScopedKey = (workspaceId, taskId) => `gtt-taskhistory:${workspaceId}:${taskId}`;
 const taskBgLegacyKey = (taskId) => `gtt-taskbg:${taskId}`;
 const taskMetaLegacyKey = (taskId) => `gtt-taskmeta:${taskId}`;
 const workspaceColumnsKey = (workspaceId) => `gtt-columns:${workspaceId}`;
@@ -156,6 +157,75 @@ export const clearStoredTaskBg = (id) => {
 export const clearStoredTaskArtifacts = (id) => {
   clearStoredTaskMeta(id);
   clearStoredTaskBg(id);
+  clearStoredTaskHistory(id);
+};
+
+const normalizeHistoryEntry = (entry) => {
+  if (!entry || typeof entry !== "object") return null;
+  const at = Number(entry.at);
+  const title = String(entry.title || "").trim().slice(0, 200);
+  const source = String(entry.source || "").trim().slice(0, 120);
+  const lines = Array.isArray(entry.lines)
+    ? entry.lines.map((line) => String(line || "").trim()).filter(Boolean).slice(0, 20)
+    : [];
+  if (!Number.isFinite(at) || at <= 0) return null;
+  if (!title && !lines.length) return null;
+  return {
+    at,
+    title,
+    source,
+    lines
+  };
+};
+
+export const getStoredTaskHistory = (id) => {
+  const taskId = normalizeTaskId(id);
+  const workspaceId = resolveCurrentWorkspaceId();
+  if (!taskId || !workspaceId) return [];
+
+  try {
+    const raw = localStorage.getItem(taskHistoryScopedKey(workspaceId, taskId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(normalizeHistoryEntry)
+      .filter(Boolean)
+      .slice(0, 200);
+  } catch {
+    return [];
+  }
+};
+
+export const appendStoredTaskHistory = (id, entry) => {
+  const taskId = normalizeTaskId(id);
+  const workspaceId = resolveCurrentWorkspaceId();
+  if (!taskId || !workspaceId) return;
+
+  try {
+    const normalized = normalizeHistoryEntry(entry);
+    if (!normalized) return;
+
+    const current = getStoredTaskHistory(taskId);
+    const next = [normalized, ...current].slice(0, 200);
+    localStorage.setItem(taskHistoryScopedKey(workspaceId, taskId), JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+};
+
+export const clearStoredTaskHistory = (id) => {
+  const taskId = normalizeTaskId(id);
+  if (!taskId) return;
+
+  try {
+    const workspaceId = resolveCurrentWorkspaceId();
+    if (workspaceId) {
+      localStorage.removeItem(taskHistoryScopedKey(workspaceId, taskId));
+    }
+  } catch {
+    // ignore
+  }
 };
 
 export const getStoredWorkspaceColumns = (workspaceId) => {

@@ -94,7 +94,7 @@ namespace TaskManager.Application.Services
                 Status = TaskItemStatus.New,
                 WorkspaceId = workspaceId,
                 AssigneeId = createTaskDto.AssigneeId,
-                DueDate = createTaskDto.DueDate,
+                DueDate = NormalizeIncomingUtc(createTaskDto.DueDate),
                 Priority = createTaskDto.Priority,
                 CreatedAt = DateTime.UtcNow
             };
@@ -149,7 +149,7 @@ namespace TaskManager.Application.Services
             task.Description = updateTaskDto.Description;
             task.Status = updateTaskDto.Status;
             task.AssigneeId = updateTaskDto.AssigneeId;
-            task.DueDate = updateTaskDto.DueDate;
+            task.DueDate = NormalizeIncomingUtc(updateTaskDto.DueDate);
             task.Priority = updateTaskDto.Priority;
             task.UpdatedAt = DateTime.UtcNow;
 
@@ -289,14 +289,33 @@ namespace TaskManager.Application.Services
                 Status = task.Status,
                 AssigneeId = task.AssigneeId,
                 AssigneeName = task.Assignee?.Name,
-                DueDate = task.DueDate,
-                CreatedAt = task.CreatedAt,
-                UpdatedAt = task.UpdatedAt,
-                CompletedAt = task.CompletedAt,
+                DueDate = AsUtc(task.DueDate),
+                CreatedAt = AsUtc(task.CreatedAt),
+                UpdatedAt = task.UpdatedAt.HasValue ? AsUtc(task.UpdatedAt.Value) : null,
+                CompletedAt = task.CompletedAt.HasValue ? AsUtc(task.CompletedAt.Value) : null,
                 Priority = task.Priority,
                 TagIds = task.TaskTags.Select(tt => tt.TagId).ToList(),
                 AttachmentCount = Math.Max(0, attachmentCount),
                 IsOverdue = task.Status != TaskItemStatus.Done && task.DueDate < DateTime.UtcNow
+            };
+        }
+
+        private static DateTime AsUtc(DateTime value)
+        {
+            // EF/SQLite often materializes DateTime as Unspecified; we treat stored values as UTC.
+            return value.Kind == DateTimeKind.Utc
+                ? value
+                : DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        }
+
+        private static DateTime NormalizeIncomingUtc(DateTime value)
+        {
+            // UI sends ISO8601 with Z (UTC). If some client sends without offset, treat as UTC to avoid time drift.
+            return value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
             };
         }
     }

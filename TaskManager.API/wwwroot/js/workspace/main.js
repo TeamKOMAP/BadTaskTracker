@@ -85,6 +85,8 @@ import {
   taskDetailEditBtn,
   taskDetailPhotoBtn,
   taskDetailPhotoClearBtn,
+  taskDetailHistoryToggleBtn,
+  taskDetailHistoryClearBtn,
   taskAttachBtn,
   taskAttachmentsInput,
   taskBgInput,
@@ -94,7 +96,7 @@ import {
   confirmModalMessageEl,
   confirmModalCancelBtn,
   confirmModalAcceptBtn
-} from "./dom.js?v=authflow7";
+} from "./dom.js?v=authflow9";
 
 import {
   buildApiUrl,
@@ -146,22 +148,23 @@ import {
   buildTaskKey,
   buildFlowNote,
   getCalendarBucketId
-} from "./helpers.js?v=authflow5";
+} from "./helpers.js?v=authflow6";
 import {
   getPreferredTheme,
   setTheme,
   getStoredTaskMeta,
   setStoredTaskMeta,
   getStoredTaskBg,
+  appendStoredTaskHistory,
   clearStoredTaskArtifacts,
   getStoredWorkspaceColumns,
   setStoredWorkspaceColumns
-} from "./storage.js?v=authflow2";
+} from "./storage.js?v=authflow4";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf1";
-import { createTaskDetailController } from "./task-detail.js?v=perf11";
+import { createTaskDetailController } from "./task-detail.js?v=perf13";
 
 let lastNormalizedTasks = [];
 
@@ -264,6 +267,100 @@ const getAssigneeLabelById = (assigneeId) => {
   const match = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === id);
   if (!match) return "";
   return normalizeToken(match.name) || "";
+};
+
+const PRIORITY_HISTORY_LABELS = {
+  1: "Низкий",
+  2: "Средний",
+  3: "Высокий"
+};
+
+const formatPriorityForHistory = (value) => {
+  const key = toPriorityValue(value);
+  return PRIORITY_HISTORY_LABELS[key] || "Средний";
+};
+
+const formatDueForHistory = (iso) => {
+  const token = normalizeToken(iso);
+  if (!token) return "Без срока";
+  const date = new Date(token);
+  if (Number.isNaN(date.getTime())) return "Без срока";
+  return date.toLocaleString([], {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+};
+
+const buildTaskHistoryLines = (before, after) => {
+  const lines = [];
+  if (!before || !after) return lines;
+
+  const beforeTitle = normalizeToken(before.title);
+  const afterTitle = normalizeToken(after.title);
+  if (beforeTitle !== afterTitle && (beforeTitle || afterTitle)) {
+    lines.push(`Название: ${beforeTitle || "-"} -> ${afterTitle || "-"}`);
+  }
+
+  const beforeDesc = normalizeToken(before.description);
+  const afterDesc = normalizeToken(after.description);
+  if (beforeDesc !== afterDesc) {
+    lines.push("Описание: изменено");
+  }
+
+  const beforeStatus = toStatusValue(before.statusValue ?? before.status);
+  const afterStatus = toStatusValue(after.statusValue ?? after.status);
+  if (beforeStatus !== afterStatus) {
+    lines.push(`Статус: ${(STATUS_LABELS[beforeStatus] || "-")} -> ${(STATUS_LABELS[afterStatus] || "-")}`);
+  }
+
+  const beforePriority = toPriorityValue(before.priorityValue ?? before.priority);
+  const afterPriority = toPriorityValue(after.priorityValue ?? after.priority);
+  if (beforePriority !== afterPriority) {
+    lines.push(`Приоритет: ${formatPriorityForHistory(beforePriority)} -> ${formatPriorityForHistory(afterPriority)}`);
+  }
+
+  const beforeAssigneeId = Number.parseInt(String(before.assigneeId ?? ""), 10);
+  const afterAssigneeId = Number.parseInt(String(after.assigneeId ?? ""), 10);
+  const beforeAssigneeLabel = Number.isFinite(beforeAssigneeId) && beforeAssigneeId > 0 ? getAssigneeLabelById(beforeAssigneeId) : "Все";
+  const afterAssigneeLabel = Number.isFinite(afterAssigneeId) && afterAssigneeId > 0 ? getAssigneeLabelById(afterAssigneeId) : "Все";
+  if (beforeAssigneeId !== afterAssigneeId) {
+    lines.push(`Исполнитель: ${beforeAssigneeLabel || "-"} -> ${afterAssigneeLabel || "-"}`);
+  }
+
+  const beforeDue = normalizeToken(before.dueDate);
+  const afterDue = normalizeToken(after.dueDate);
+  if (beforeDue !== afterDue) {
+    lines.push(`Срок: ${formatDueForHistory(beforeDue)} -> ${formatDueForHistory(afterDue)}`);
+  }
+
+  const beforeTags = new Set((Array.isArray(before.tags) ? before.tags : []).map((t) => normalizeToken(t)).filter(Boolean));
+  const afterTags = new Set((Array.isArray(after.tags) ? after.tags : []).map((t) => normalizeToken(t)).filter(Boolean));
+  const added = Array.from(afterTags).filter((t) => !beforeTags.has(t));
+  const removed = Array.from(beforeTags).filter((t) => !afterTags.has(t));
+  if (added.length || removed.length) {
+    if (added.length) lines.push(`Теги: +${added.join(", ")}`);
+    if (removed.length) lines.push(`Теги: -${removed.join(", ")}`);
+  }
+
+  const beforeAttach = Number(before.attachmentCount) || 0;
+  const afterAttach = Number(after.attachmentCount) || 0;
+  if (beforeAttach !== afterAttach) {
+    lines.push(`Вложения: ${beforeAttach} -> ${afterAttach}`);
+  }
+
+  return lines;
+};
+
+const recordTaskHistory = (taskId, entry) => {
+  const id = Number.parseInt(String(taskId ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return;
+  appendStoredTaskHistory(id, entry);
+  if (typeof taskDetailController?.notifyTaskHistoryChanged === "function") {
+    taskDetailController.notifyTaskHistoryChanged(id);
+  }
 };
 
 const isTaskMatchingToolbarFilters = (taskData) => {
@@ -606,6 +703,7 @@ let activeTaskColumn = null;
 let editingTaskId = null;
 let editingTaskCard = null;
 let isAddColumnMenuOpen = false;
+
 
 const setColumnDelays = () => {
   if (!columnsWrap) return;
@@ -2657,7 +2755,66 @@ const startTaskTimingTicker = () => {
   window.setInterval(() => {
     if (document.hidden) return;
     refreshAllTaskTimings();
+    void sweepAutoOverdueTasks();
   }, 60 * 1000);
+};
+
+const applyAutoOverdueToTask = (task) => {
+  const id = Number.parseInt(String(task?.id ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return;
+
+  const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(id)) || null;
+  const next = {
+    ...task,
+    status: 4,
+    statusValue: 4
+  };
+
+  const historyLines = buildTaskHistoryLines(before, next);
+  recordTaskHistory(id, {
+    at: Date.now(),
+    title: "Задача просрочена",
+    source: "Авто",
+    lines: historyLines.length ? historyLines : ["Статус: Просрочено"]
+  });
+
+  if (isTaskVisibleWithCurrentFilters(next)) {
+    upsertTaskInState(next);
+    applyTaskUpsertToUi(next);
+  } else {
+    removeTaskFromState(id);
+    applyTaskRemovalToUi(id);
+  }
+};
+
+const sweepAutoOverdueTasks = async (maxCount = 10_000) => {
+  const list = Array.isArray(lastNormalizedTasks) ? lastNormalizedTasks : [];
+  if (!list.length) return;
+
+  const now = Date.now();
+  const candidates = [];
+
+  list.forEach((task) => {
+    const id = Number.parseInt(String(task?.id ?? ""), 10);
+    if (!Number.isFinite(id) || id <= 0) return;
+
+    const statusValue = toStatusValue(task?.statusValue ?? task?.status);
+    if (statusValue === 3 || statusValue === 4) return;
+
+    const dueDate = normalizeToken(task?.dueDate);
+    if (!dueDate) return;
+    const due = new Date(dueDate);
+    if (Number.isNaN(due.getTime())) return;
+    if (due.getTime() >= now) return;
+
+    candidates.push(task);
+  });
+
+  // Keep the sweep cheap.
+  const limit = Number.isFinite(Number(maxCount)) && Number(maxCount) > 0 ? Number(maxCount) : 10_000;
+  candidates.slice(0, limit).forEach((task) => {
+    applyAutoOverdueToTask(task);
+  });
 };
 
 const normalizeApiTask = (task) => {
@@ -2974,6 +3131,14 @@ const createTaskViaApi = async (uiTaskData) => {
   const taskData = normalizeApiTask(createdTask);
   if (tags.length) taskData.tags = tags;
 
+  recordTaskHistory(createdId, {
+    at: Date.now(),
+    title: "Создана задача",
+    source: "Создание",
+    lines: [normalizeToken(taskData.title) ? `Название: ${normalizeToken(taskData.title)}` : ""]
+      .filter(Boolean)
+  });
+
   if (isTaskVisibleWithCurrentFilters(taskData)) {
     upsertTaskInState(taskData);
     applyTaskUpsertToUi(taskData);
@@ -3056,6 +3221,17 @@ const updateTaskViaApi = async (id, uiTaskData) => {
     normalizedTask.tags = tags;
   }
 
+  const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(updatedId)) || null;
+  const historyLines = buildTaskHistoryLines(before, normalizedTask);
+  if (historyLines.length) {
+    recordTaskHistory(updatedId, {
+      at: Date.now(),
+      title: "Изменение задачи",
+      source: "Редактирование",
+      lines: historyLines
+    });
+  }
+
   if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
     upsertTaskInState(normalizedTask);
     applyTaskUpsertToUi(normalizedTask);
@@ -3092,6 +3268,7 @@ const buildUpdatePayloadFromCard = (card, statusValue) => {
 const updateTaskStatus = async (card, statusValue) => {
   const id = Number.parseInt(card.dataset.taskId || "", 10);
   if (!Number.isFinite(id)) return;
+  const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(id)) || null;
   const payload = buildUpdatePayloadFromCard(card, statusValue);
   const response = await apiFetch(buildApiUrl(`/tasks/${id}`), {
     method: "PUT",
@@ -3120,6 +3297,17 @@ const updateTaskStatus = async (card, statusValue) => {
   }
 
   const normalizedTask = normalizeApiTask(updatedTask);
+
+  const historyLines = buildTaskHistoryLines(before, normalizedTask);
+  if (historyLines.length) {
+    recordTaskHistory(id, {
+      at: Date.now(),
+      title: "Изменение задачи",
+      source: "Перетаскивание",
+      lines: historyLines
+    });
+  }
+
   if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
     upsertTaskInState(normalizedTask);
     applyTaskUpsertToUi(normalizedTask);
@@ -3152,6 +3340,7 @@ const loadTasksFromApi = async () => {
   if (!Array.isArray(tasks)) return;
   lastNormalizedTasks = tasks.map(normalizeApiTask);
   syncTaskStateToUi();
+  void sweepAutoOverdueTasks();
 };
 
 const renderCurrentView = (tasks) => {
@@ -4142,6 +4331,14 @@ if (taskDetailPhotoBtn) {
 
 if (taskDetailPhotoClearBtn) {
   taskDetailPhotoClearBtn.addEventListener("click", taskDetailController.onDetailPhotoClearClick);
+}
+
+if (taskDetailHistoryToggleBtn) {
+  taskDetailHistoryToggleBtn.addEventListener("click", taskDetailController.onHistoryToggleClick);
+}
+
+if (taskDetailHistoryClearBtn) {
+  taskDetailHistoryClearBtn.addEventListener("click", taskDetailController.onHistoryClearClick);
 }
 
 if (taskAttachBtn) {
