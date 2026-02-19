@@ -65,6 +65,9 @@ import {
   notificationsPanel,
   notificationsToggleBtn,
   notificationsCloseBtn,
+  notificationsList,
+  notificationsEmpty,
+  notificationsMarkAllBtn,
   logoutBtn,
   settingsNicknameInput,
   settingsAvatarPreview,
@@ -96,7 +99,7 @@ import {
   confirmModalMessageEl,
   confirmModalCancelBtn,
   confirmModalAcceptBtn
-} from "./dom.js?v=authflow9";
+} from "./dom.js?v=authflow10";
 
 import {
   buildApiUrl,
@@ -118,8 +121,9 @@ import {
   URGENCY
 } from "../shared/constants.js";
 import { navigateToSpacesPage } from "../shared/navigation.js";
-import { normalizeToken, normalizeEmail, toInitials, toWorkspaceRole, clampValue } from "../shared/utils.js";
+import { normalizeToken, toInitials, toWorkspaceRole, clampValue } from "../shared/utils.js";
 import { getRoleLabel } from "../shared/roles.js?v=auth1";
+import { createNotificationsPanelController } from "../shared/notifications.js?v=notif2";
 import {
   getStoredAccountNickname,
   setStoredAccountNickname,
@@ -173,6 +177,15 @@ let currentUserId = null;
 let currentWorkspaceId = null;
 let currentWorkspaceRole = "Member";
 
+const notificationsController = createNotificationsPanelController({
+  toggleBtn: notificationsToggleBtn,
+  listEl: notificationsList,
+  emptyEl: notificationsEmpty,
+  markAllBtn: notificationsMarkAllBtn,
+  returnTo: "workspace",
+  resolveWorkspaceId: () => currentWorkspaceId
+});
+
 let toolbarQuery = "";
 let toolbarSort = "smart";
 const toolbarStatusFilter = new Set();
@@ -213,6 +226,50 @@ const setWorkspaceEditing = (editing) => {
 let actorUser = null;
 
 let workspaceMembers = [];
+
+const INVITE_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const INVITE_BTN_LABEL_DEFAULT = "Пригласить";
+const INVITE_BTN_LABEL_SENDING = "Отправка...";
+const INVITE_BTN_LABEL_SENT = "✓ Отправлено";
+
+let inviteRequestInFlight = false;
+let inviteMarkedSent = false;
+
+const normalizeInviteEmail = (value) => normalizeToken(value).toLowerCase();
+
+const isValidInviteEmail = (email) => {
+  const value = normalizeInviteEmail(email);
+  if (!value || value.length > 100) return false;
+  return INVITE_EMAIL_PATTERN.test(value);
+};
+
+const refreshInviteControlsState = () => {
+  const canManageInvites = isAdmin() && Number.isFinite(Number(currentWorkspaceId)) && Number(currentWorkspaceId) > 0;
+  const rawEmail = userAddInput ? userAddInput.value : "";
+  const email = normalizeInviteEmail(rawEmail);
+  const hasEmail = email.length > 0;
+  const hasValidEmail = isValidInviteEmail(email);
+
+  if (userAddInput) {
+    userAddInput.disabled = !canManageInvites || inviteRequestInFlight;
+    userAddInput.classList.toggle("is-invalid", canManageInvites && hasEmail && !hasValidEmail);
+  }
+
+  if (!userAddBtn) return;
+
+  userAddBtn.classList.toggle("is-sent", inviteMarkedSent);
+
+  if (inviteRequestInFlight) {
+    userAddBtn.textContent = INVITE_BTN_LABEL_SENDING;
+  } else if (inviteMarkedSent) {
+    userAddBtn.textContent = INVITE_BTN_LABEL_SENT;
+  } else {
+    userAddBtn.textContent = INVITE_BTN_LABEL_DEFAULT;
+  }
+
+  const shouldDisable = !canManageInvites || inviteRequestInFlight || inviteMarkedSent || !hasValidEmail;
+  userAddBtn.disabled = shouldDisable;
+};
 
 const truncateLabel = (value, maxLen) => {
   const text = String(value || "");
@@ -1188,8 +1245,7 @@ const loadUsersFromApi = async () => {
   });
   if (!Array.isArray(users) || !userList) return;
 
-  if (userAddBtn) userAddBtn.disabled = !isAdmin();
-  if (userAddInput) userAddInput.disabled = !isAdmin();
+  refreshInviteControlsState();
 
   userList.innerHTML = "";
   closeUserMiniMenu();
@@ -1397,8 +1453,7 @@ const setWorkspaceContext = (space) => {
     }
   }
 
-  if (userAddBtn) userAddBtn.disabled = !isAdmin();
-  if (userAddInput) userAddInput.disabled = !isAdmin();
+  refreshInviteControlsState();
 
   if (panelWorkspaceEditBtn) {
     panelWorkspaceEditBtn.disabled = !isAdmin();
@@ -3858,28 +3913,39 @@ if (userSearch) {
 
 if (userAddBtn) {
   userAddBtn.addEventListener("click", () => {
+    if (userAddBtn.disabled) return;
     if (!userAddInput) return;
     void (async () => {
       if (!currentWorkspaceId) return;
       if (!isAdmin()) return;
-      const email = normalizeEmail(userAddInput.value);
-      if (!email) return;
-      const name = email.split("@")[0] || "Без имени";
-      const created = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Добавление участника", {
+      const email = normalizeInviteEmail(userAddInput.value);
+      if (!isValidInviteEmail(email)) {
+        refreshInviteControlsState();
+        return;
+      }
+
+      inviteRequestInFlight = true;
+      inviteMarkedSent = false;
+      refreshInviteControlsState();
+
+      const invite = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/invites`), "Отправка приглашения", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json"
         },
-        body: JSON.stringify({ name, email })
+        body: JSON.stringify({ email, role: 1 })
       });
 
-      userAddInput.value = "";
-      await loadUsersFromApi();
-      if (created && created.userId) {
-        setCurrentUser({ id: Number(created.userId), name: created.name, email: created.email });
-        await loadTasksFromApi();
+      inviteRequestInFlight = false;
+      if (invite && Number.isFinite(Number(invite.id))) {
+        inviteMarkedSent = true;
+        await notificationsController.refreshUnreadCount();
+      } else {
+        inviteMarkedSent = false;
       }
+
+      refreshInviteControlsState();
     })();
   });
 }
@@ -3891,6 +3957,11 @@ if (openSpacesHomeBtn) {
 }
 
 if (userAddInput) {
+  userAddInput.addEventListener("input", () => {
+    inviteMarkedSent = false;
+    refreshInviteControlsState();
+  });
+
   userAddInput.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
       event.preventDefault();
@@ -3898,6 +3969,8 @@ if (userAddInput) {
     }
   });
 }
+
+refreshInviteControlsState();
 
 if (board) {
   board.addEventListener("click", (event) => {
@@ -4600,6 +4673,7 @@ const bootstrapWorkspacePage = async () => {
   }
 
   await openWorkspace(workspace);
+  await notificationsController.refreshUnreadCount();
 };
 
 void (async () => {
@@ -4635,6 +4709,7 @@ function setNotificationsOpen(open) {
     // Avoid two panels fighting for width.
     setPanelOpen(false);
     setSettingsOpen(false);
+    void notificationsController.onPanelOpened();
     window.setTimeout(() => notificationsCloseBtn?.focus(), 0);
   }
 }

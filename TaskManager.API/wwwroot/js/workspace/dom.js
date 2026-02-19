@@ -87,6 +87,9 @@ export const settingsToggleBtn = document.getElementById("settings-toggle");
 export const notificationsPanel = document.getElementById("notifications-panel");
 export const notificationsToggleBtn = document.getElementById("notifications-toggle");
 export const notificationsCloseBtn = document.getElementById("notifications-close");
+export const notificationsList = document.getElementById("notifications-list");
+export const notificationsEmpty = document.getElementById("notifications-empty");
+export const notificationsMarkAllBtn = document.getElementById("notifications-mark-all");
 
 export const logoutBtn = document.getElementById("logout-btn");
 export const settingsNicknameInput = document.getElementById("settings-nickname");

@@ -1,5 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
-using TaskManager.Domain.Enums;
+using System.ComponentModel.DataAnnotations;
 
 namespace TaskManager.Domain.Entities
 {
@@ -24,6 +23,11 @@ namespace TaskManager.Domain.Entities
 
         public int? TaskId { get; set; }
 
+        public int? WorkspaceId { get; set; }
+
+        [MaxLength(300)]
+        public string? ActionUrl { get; set; }
+
         public bool IsRead { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
@@ -31,5 +35,6 @@ namespace TaskManager.Domain.Entities
         // Navigation properties
         public virtual User User { get; set; } = null!;
         public virtual TaskItem? Task { get; set; }
+        public virtual Workspace? Workspace { get; set; }
     }
 }

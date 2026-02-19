@@ -48,12 +48,12 @@
           <div class="user-empty" id="user-empty" hidden>Ничего не найдено</div>
         </div>
         <div class="user-add">
-          <span class="user-panel-label">Добавить участника</span>
+          <span class="user-panel-label">Пригласить в проект</span>
           <div class="user-add-row">
             <input id="user-add-input" type="text" placeholder="email участника">
-            <button class="user-add-btn" id="user-add-btn" type="button">Добавить</button>
+            <button class="user-add-btn" id="user-add-btn" type="button">Пригласить</button>
           </div>
-          <span class="user-add-hint">Участник получит доступ к задачам этого проекта.</span>
+          <span class="user-add-hint">Пользователь получит приглашение и сможет принять или отклонить его.</span>
         </div>
       </div>
     </aside>
@@ -404,6 +404,10 @@
         </div>
 
         <section class="settings-section" aria-label="Список уведомлений">
+          <div class="notifications-panel-actions">
+            <button class="ghost-btn notifications-mark-all" id="notifications-mark-all" type="button">Прочитать все</button>
+          </div>
+          <div class="notifications-list" id="notifications-list" hidden></div>
           <div class="notifications-empty" id="notifications-empty">Пока нет уведомлений.</div>
         </section>
       </div>
@@ -715,6 +719,6 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow65"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow67"></script>
 </body>
 </html>

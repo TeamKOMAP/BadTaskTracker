@@ -23,6 +23,7 @@ namespace TaskManager.Application.Services
         private readonly IEmailAuthCodeRepository _emailAuthCodeRepository;
         private readonly IEmailSender _emailSender;
         private readonly IJwtTokenService _jwtTokenService;
+        private readonly IWorkspaceInvitationService _workspaceInvitationService;
         private readonly EmailAuthSettings _settings;
 
         public AuthService(
@@ -31,6 +32,7 @@ namespace TaskManager.Application.Services
             IEmailAuthCodeRepository emailAuthCodeRepository,
             IEmailSender emailSender,
             IJwtTokenService jwtTokenService,
+            IWorkspaceInvitationService workspaceInvitationService,
             EmailAuthSettings settings)
         {
             _userRepository = userRepository;
@@ -38,6 +40,7 @@ namespace TaskManager.Application.Services
             _emailAuthCodeRepository = emailAuthCodeRepository;
             _emailSender = emailSender;
             _jwtTokenService = jwtTokenService;
+            _workspaceInvitationService = workspaceInvitationService;
             _settings = settings ?? new EmailAuthSettings();
         }
 
@@ -169,6 +172,14 @@ namespace TaskManager.Application.Services
                     Email = email,
                     CreatedAt = now
                 });
+            }
+
+            try
+            {
+                await _workspaceInvitationService.SyncPendingInvitesForUserAsync(user.Id);
+            }
+            catch
+            {
             }
 
             var token = _jwtTokenService.CreateAccessToken(user);

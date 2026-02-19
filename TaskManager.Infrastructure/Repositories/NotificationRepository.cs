@@ -14,49 +14,98 @@ namespace TaskManager.Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task AddAsync(Notification notification)
+        public async Task AddAsync(Notification notification, CancellationToken cancellationToken = default)
         {
-            await _context.Notifications.AddAsync(notification);
-            await _context.SaveChangesAsync();
+            await _context.Notifications.AddAsync(notification, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
         }
 
-        public async Task<List<Notification>> GetUserNotificationsAsync(int userId, bool unreadOnly = false)
+        public async Task<List<Notification>> GetUserNotificationsAsync(
+            int userId,
+            bool unreadOnly = false,
+            int take = 50,
+            CancellationToken cancellationToken = default)
         {
+            var safeTake = Math.Clamp(take, 1, 200);
+
             var query = _context.Notifications
+                .AsNoTracking()
                 .Include(n => n.Task)
-                .Where(n => n.UserId == userId)
-                .OrderByDescending(n => n.CreatedAt);
+                .Include(n => n.Workspace)
+                .Where(n => n.UserId == userId);
 
             if (unreadOnly)
             {
-                query = (IOrderedQueryable<Notification>)query.Where(n => !n.IsRead);
+                query = query.Where(n => !n.IsRead);
             }
 
-            return await query.ToListAsync();
+            return await query
+                .OrderByDescending(n => n.CreatedAt)
+                .Take(safeTake)
+                .ToListAsync(cancellationToken);
         }
 
-        public async Task MarkAsReadAsync(int notificationId)
+        public async Task<bool> MarkAsReadAsync(int notificationId, int userId, CancellationToken cancellationToken = default)
         {
-            var notification = await _context.Notifications.FindAsync(notificationId);
-            if (notification != null)
+            var notification = await _context.Notifications
+                .FirstOrDefaultAsync(n => n.Id == notificationId && n.UserId == userId, cancellationToken);
+            if (notification == null)
             {
-                notification.IsRead = true;
-                await _context.SaveChangesAsync();
+                return false;
             }
+
+            if (notification.IsRead)
+            {
+                return true;
+            }
+
+            notification.IsRead = true;
+            await _context.SaveChangesAsync(cancellationToken);
+            return true;
         }
 
-        public async Task MarkAllAsReadAsync(int userId)
+        public async Task<int> MarkAllAsReadAsync(int userId, CancellationToken cancellationToken = default)
         {
             var unread = await _context.Notifications
                 .Where(n => n.UserId == userId && !n.IsRead)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             foreach (var n in unread)
             {
                 n.IsRead = true;
             }
 
-            await _context.SaveChangesAsync();
+            if (unread.Count > 0)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            return unread.Count;
+        }
+
+        public Task<int> GetUnreadCountAsync(int userId, CancellationToken cancellationToken = default)
+        {
+            return _context.Notifications
+                .AsNoTracking()
+                .CountAsync(n => n.UserId == userId && !n.IsRead, cancellationToken);
+        }
+
+        public Task<bool> ExistsByActionUrlAsync(
+            int userId,
+            string type,
+            string actionUrl,
+            CancellationToken cancellationToken = default)
+        {
+            var normalizedType = type.Trim();
+            var normalizedActionUrl = actionUrl.Trim();
+
+            return _context.Notifications
+                .AsNoTracking()
+                .AnyAsync(n =>
+                    n.UserId == userId
+                    && n.Type == normalizedType
+                    && n.ActionUrl == normalizedActionUrl,
+                    cancellationToken);
         }
     }
 }

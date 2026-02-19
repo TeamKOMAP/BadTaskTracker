@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GoodTaskTracker - Приглашения</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css?v=base6">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/workspace.css?v=perf60">
+  <link rel="stylesheet" href="css/invites.css?v=inv1">
+</head>
+
+<body data-theme="dark">
+  <div class="app-shell" id="app-shell">
+    <div class="page">
+      <header class="topbar">
+        <div class="brand-stack">
+          <button class="brand-mark" id="invites-avatar" type="button" aria-label="Иконка приглашений">IN</button>
+          <div class="brand" aria-label="Приглашения">
+            <div class="brand-text">
+              <span class="brand-kicker">Уведомления</span>
+              <span class="brand-title" id="invites-title">Приглашения в проекты</span>
+            </div>
+          </div>
+          <a class="spaces-back-link" id="invites-back" href="index.html" aria-label="Назад">&lt; Назад</a>
+        </div>
+
+        <div class="topbar-right">
+          <div class="reports-meta">
+            <span class="user-label">Аккаунт</span>
+            <span class="user-name" id="invites-account">-</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="invites" aria-label="Список приглашений">
+        <section class="invite-card" aria-label="Входящие приглашения">
+          <header class="invite-head">
+            <h2 class="invite-title">Входящие приглашения</h2>
+            <span class="invite-sub">Примите или отклоните приглашение</span>
+          </header>
+          <div class="invite-body">
+            <div class="invite-list" id="invites-list"></div>
+            <div class="invite-empty" id="invites-empty" hidden>У вас нет активных приглашений.</div>
+          </div>
+        </section>
+      </main>
+
+      <div class="invites-toast" id="invites-toast" hidden></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/invites/main.js?v=inv2"></script>
+</body>
+</html>

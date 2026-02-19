@@ -105,10 +105,12 @@ namespace TaskManager.API.Background
                 var notification = new Notification
                 {
                     UserId = task.Assignee!.Id,
-                    Type = "deadline",
+                    Type = "deadline_soon",
                     Title = isToday ? "⚠️ Дедлайн сегодня" : "⏰ Дедлайн завтра",
                     Message = $"Задача '{task.Title}' истекает {(isToday ? "сегодня" : "завтра")} в {task.DueDate:HH:mm}",
                     TaskId = task.Id,
+                    WorkspaceId = task.WorkspaceId,
+                    ActionUrl = $"workspace.html?workspaceId={task.WorkspaceId}",
                     IsRead = false
                 };
 

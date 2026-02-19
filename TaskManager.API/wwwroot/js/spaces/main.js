@@ -12,6 +12,7 @@ import { MANAGE_ROLES, STORAGE_WORKSPACE_ID } from "../shared/constants.js";
 import { navigateToWorkspacePage } from "../shared/navigation.js";
 import { normalizeToken, toInitials, toWorkspaceRole } from "../shared/utils.js";
 import { getRoleLabel } from "../shared/roles.js?v=auth1";
+import { createNotificationsPanelController } from "../shared/notifications.js?v=notif2";
 import {
   getStoredAccountNickname,
   setStoredAccountNickname,
@@ -47,11 +48,22 @@ const settingsThemeLightBtn = document.getElementById("settings-theme-light");
 const notificationsPanel = document.getElementById("notifications-panel");
 const notificationsToggleBtn = document.getElementById("notifications-toggle");
 const notificationsCloseBtn = document.getElementById("notifications-close");
+const notificationsListEl = document.getElementById("notifications-list");
+const notificationsEmptyEl = document.getElementById("notifications-empty");
+const notificationsMarkAllBtn = document.getElementById("notifications-mark-all");
 
 const logoutBtn = document.getElementById("logout-btn");
 
 let actorUser = null;
 let pendingSpaceAvatarId = null;
+
+const notificationsController = createNotificationsPanelController({
+  toggleBtn: notificationsToggleBtn,
+  listEl: notificationsListEl,
+  emptyEl: notificationsEmptyEl,
+  markAllBtn: notificationsMarkAllBtn,
+  returnTo: "spaces"
+});
 
 const formatMembersLabel = (count) => {
   const n = Number(count) || 0;
@@ -81,6 +93,7 @@ const setNotificationsOpen = (open) => {
   }
 
   if (open) {
+    void notificationsController.onPanelOpened();
     window.setTimeout(() => notificationsCloseBtn?.focus(), 0);
   }
 };
@@ -487,6 +500,7 @@ const bootstrap = async () => {
     return;
   }
 
+  await notificationsController.refreshUnreadCount();
   await loadSpacesFromApi();
 };
 

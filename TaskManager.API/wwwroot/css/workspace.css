@@ -388,6 +388,11 @@ body[data-theme="light"] .notifications-panel-inner {
   box-shadow: 0 0 0 1px rgba(68, 210, 199, 0.25);
 }
 
+.user-add input.is-invalid {
+  border-color: rgba(248, 113, 113, 0.78);
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.24);
+}
+
 .user-group {
   display: flex;
   flex-direction: column;
@@ -606,9 +611,24 @@ body[data-theme="light"] .user-mini-menu {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.user-add-btn:hover {
+.user-add-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 12px 22px rgba(24, 109, 140, 0.4);
+}
+
+.user-add-btn:disabled {
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+  background: rgba(127, 139, 161, 0.28);
+  border-color: rgba(127, 139, 161, 0.34);
+  color: rgba(210, 221, 238, 0.82);
+}
+
+.user-add-btn.is-sent:disabled {
+  background: rgba(120, 132, 146, 0.36);
+  border-color: rgba(142, 156, 173, 0.45);
+  color: rgba(223, 236, 252, 0.92);
 }
 
 .user-add-hint {
@@ -1509,9 +1529,26 @@ body[data-theme="light"] .user-add input {
   border-color: rgba(15, 20, 28, 0.16);
 }
 
+body[data-theme="light"] .user-add input.is-invalid {
+  border-color: rgba(220, 38, 38, 0.52);
+  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.16);
+}
+
 body[data-theme="light"] .user-search input::placeholder,
 body[data-theme="light"] .user-add input::placeholder {
   color: rgba(15, 20, 28, 0.45);
+}
+
+body[data-theme="light"] .user-add-btn:disabled {
+  background: rgba(148, 163, 184, 0.24);
+  border-color: rgba(100, 116, 139, 0.26);
+  color: rgba(15, 20, 28, 0.56);
+}
+
+body[data-theme="light"] .user-add-btn.is-sent:disabled {
+  background: rgba(148, 163, 184, 0.28);
+  border-color: rgba(100, 116, 139, 0.32);
+  color: rgba(15, 20, 28, 0.72);
 }
 
 body[data-theme="light"] .user-panel-inner {

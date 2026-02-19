@@ -1,6 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
+using TaskManager.API.Security;
+using TaskManager.Application.DTOs;
 using TaskManager.Application.Interfaces;
 
 namespace TaskManager.API.Controllers
@@ -18,30 +19,79 @@ namespace TaskManager.API.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetNotifications([FromQuery] bool unreadOnly = false)
+        public async Task<ActionResult<IEnumerable<NotificationDto>>> GetNotifications(
+            [FromQuery] bool unreadOnly = false,
+            [FromQuery] int take = 50,
+            CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            if (userId == 0) return Unauthorized();
+            var userId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!userId.HasValue)
+            {
+                return Unauthorized();
+            }
 
-            var notifications = await _notificationRepo.GetUserNotificationsAsync(userId, unreadOnly);
-            return Ok(notifications);
+            var notifications = await _notificationRepo.GetUserNotificationsAsync(
+                userId.Value,
+                unreadOnly,
+                take,
+                cancellationToken);
+
+            return Ok(notifications.Select(n => new NotificationDto
+            {
+                Id = n.Id,
+                Type = n.Type,
+                Title = n.Title,
+                Message = n.Message,
+                TaskId = n.TaskId,
+                WorkspaceId = n.WorkspaceId,
+                ActionUrl = n.ActionUrl,
+                IsRead = n.IsRead,
+                CreatedAt = n.CreatedAt
+            }));
+        }
+
+        [HttpGet("unread-count")]
+        public async Task<ActionResult<object>> GetUnreadCount(CancellationToken cancellationToken = default)
+        {
+            var userId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!userId.HasValue)
+            {
+                return Unauthorized();
+            }
+
+            var unread = await _notificationRepo.GetUnreadCountAsync(userId.Value, cancellationToken);
+            return Ok(new { unreadCount = unread });
         }
 
         [HttpPost("{id}/read")]
-        public async Task<IActionResult> MarkAsRead(int id)
+        public async Task<IActionResult> MarkAsRead(int id, CancellationToken cancellationToken = default)
         {
-            await _notificationRepo.MarkAsReadAsync(id);
+            var userId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!userId.HasValue)
+            {
+                return Unauthorized();
+            }
+
+            var marked = await _notificationRepo.MarkAsReadAsync(id, userId.Value, cancellationToken);
+            if (!marked)
+            {
+                return NotFound();
+            }
+
             return Ok();
         }
 
         [HttpPost("read-all")]
-        public async Task<IActionResult> MarkAllAsRead()
+        public async Task<IActionResult> MarkAllAsRead(CancellationToken cancellationToken = default)
         {
-            var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
-            if (userId == 0) return Unauthorized();
+            var userId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!userId.HasValue)
+            {
+                return Unauthorized();
+            }
 
-            await _notificationRepo.MarkAllAsReadAsync(userId);
-            return Ok();
+            var updated = await _notificationRepo.MarkAllAsReadAsync(userId.Value, cancellationToken);
+            return Ok(new { updated });
         }
     }
 }

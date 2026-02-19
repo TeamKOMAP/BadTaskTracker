@@ -273,6 +273,34 @@ namespace TaskManager.Tests.IntegrationTests
             response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
         }
 
+        [Fact]
+        public async Task VerifyEmailCode_AfterInviteToNewEmail_CreatesInviteNotification()
+        {
+            var ownerToken = await GetAuthTokenAsync("test@example.com");
+            var ownerClient = _factory.CreateClient();
+            ownerClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ownerToken);
+
+            var createInviteResponse = await ownerClient.PostAsJsonAsync($"/api/spaces/{_testWorkspaceId}/invites", new
+            {
+                email = "late.invited@example.com",
+                role = 1
+            });
+            createInviteResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var invitedToken = await GetAuthTokenAsync("late.invited@example.com");
+            var invitedClient = _factory.CreateClient();
+            invitedClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", invitedToken);
+
+            var notificationsResponse = await invitedClient.GetAsync("/api/notifications?unreadOnly=true");
+            notificationsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var notifications = await notificationsResponse.Content.ReadFromJsonAsync<List<NotificationDto>>();
+            notifications.Should().NotBeNull();
+            notifications!.Should().Contain(n => n.Type == "workspace_invite_received" && n.WorkspaceId == _testWorkspaceId);
+        }
+
         private async Task<string> GetAuthTokenAsync(string email)
         {
             var requestResponse = await _client.PostAsJsonAsync("/api/auth/email/request", new { email });

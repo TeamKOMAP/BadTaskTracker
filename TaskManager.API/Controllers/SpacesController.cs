@@ -22,11 +22,16 @@ namespace TaskManager.API.Controllers
             };
 
         private readonly IWorkspaceService _workspaceService;
+        private readonly IWorkspaceInvitationService _workspaceInvitationService;
         private readonly IWebHostEnvironment _environment;
 
-        public SpacesController(IWorkspaceService workspaceService, IWebHostEnvironment environment)
+        public SpacesController(
+            IWorkspaceService workspaceService,
+            IWorkspaceInvitationService workspaceInvitationService,
+            IWebHostEnvironment environment)
         {
             _workspaceService = workspaceService;
+            _workspaceInvitationService = workspaceInvitationService;
             _environment = environment;
         }
 
@@ -302,6 +307,43 @@ namespace TaskManager.API.Controllers
             catch (ValidationException ex)
             {
                 return BadRequest(new { error = ex.Message });
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+        }
+
+        [HttpPost("{workspaceId:int}/invites")]
+        public async Task<ActionResult<WorkspaceInvitationDto>> CreateInvite(int workspaceId, [FromBody] CreateWorkspaceInvitationDto dto, CancellationToken cancellationToken)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            try
+            {
+                var invite = await _workspaceInvitationService.CreateInvitationAsync(actorUserId.Value, workspaceId, dto, cancellationToken);
+                return Ok(invite);
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (ConflictException ex)
+            {
+                return Conflict(new { error = ex.Message });
             }
             catch (NotFoundException ex)
             {
