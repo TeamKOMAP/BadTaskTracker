@@ -123,6 +123,13 @@ export const taskDetailPhotoImg = document.getElementById("task-detail-photo-img
 export const taskDetailPhotoBtn = document.getElementById("task-detail-photo-btn");
 export const taskDetailPhotoClearBtn = document.getElementById("task-detail-photo-clear-btn");
 
+export const taskDetailHistoryPanel = document.getElementById("task-detail-history-panel");
+export const taskDetailHistoryToggleBtn = document.getElementById("task-detail-history-toggle");
+
+export const taskDetailHistoryList = document.getElementById("task-detail-history");
+export const taskDetailHistoryEmpty = document.getElementById("task-detail-history-empty");
+export const taskDetailHistoryClearBtn = document.getElementById("task-detail-history-clear");
+
 export const taskAttachBtn = document.getElementById("task-attach-btn");
 export const taskAttachmentsList = document.getElementById("task-attachments-list");
 export const taskAttachmentsEmpty = document.getElementById("task-attachments-empty");

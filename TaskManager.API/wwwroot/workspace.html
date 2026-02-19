@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css?v=base6">
   <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/workspace.css?v=perf56">
+  <link rel="stylesheet" href="css/workspace.css?v=perf60">
 </head>
 <body data-theme="dark">
   <div class="app-shell" id="app-shell">
@@ -477,85 +477,127 @@
   <div class="task-modal" id="task-detail-modal" hidden>
     <div class="task-modal-backdrop" data-close-detail></div>
     <div class="task-modal-card task-detail-card" role="dialog" aria-modal="true" aria-labelledby="task-detail-title">
-      <div class="task-modal-header task-detail-modal-header">
-        <div class="task-detail-header-row">
-          <span class="task-modal-kicker">Детали задачи</span>
-          <div class="task-detail-header-actions">
-            <button class="ghost-btn task-detail-edit" id="task-detail-edit" type="button" hidden>Редактировать</button>
-            <button class="ghost-btn task-detail-photo-btn" id="task-detail-photo-btn" type="button" hidden>Фото</button>
-            <button class="ghost-btn task-detail-photo-clear" id="task-detail-photo-clear-btn" type="button" hidden>Очистить</button>
-            <button class="icon-btn" type="button" data-close-detail aria-label="Закрыть">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M7 7l10 10M17 7L7 17" />
-              </svg>
-            </button>
+        <div class="task-modal-header task-detail-modal-header">
+          <div class="task-detail-header-row">
+            <span class="task-modal-kicker">Детали задачи</span>
+            <div class="task-detail-header-actions">
+              <button class="icon-btn task-detail-action" id="task-detail-edit" type="button" aria-label="Редактировать задачу" title="Редактировать" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 20h4l10.5-10.5a2.2 2.2 0 0 0 0-3.1l-1.9-1.9a2.2 2.2 0 0 0-3.1 0L7 11l-3 9z" />
+                  <path d="M13.5 6.5l4 4" />
+                </svg>
+              </button>
+
+              <button class="icon-btn task-detail-action" id="task-detail-photo-btn" type="button" aria-label="Добавить фото" title="Фото" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7z" />
+                  <path d="M8.5 11a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z" />
+                  <path d="M21 16l-5-5-4 4-2-2-5 5" />
+                </svg>
+              </button>
+
+              <button class="icon-btn task-detail-action" id="task-detail-photo-clear-btn" type="button" aria-label="Очистить фото" title="Очистить фото" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M20 20H8l-4-4a2 2 0 0 1 0-3l9-9a2 2 0 0 1 3 0l4 4a2 2 0 0 1 0 3l-7 7" />
+                  <path d="M14 14l-4-4" />
+                </svg>
+              </button>
+
+              <button class="icon-btn task-detail-action" id="task-detail-history-toggle" type="button" aria-label="История изменений" title="История" aria-expanded="false" aria-controls="task-detail-history-panel">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 8v5l3 2" />
+                  <path d="M12 21a9 9 0 1 0-9-9" />
+                  <path d="M3 7v5h5" />
+                </svg>
+              </button>
+
+              <button class="icon-btn" type="button" data-close-detail aria-label="Закрыть">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M7 7l10 10M17 7L7 17" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <h3 class="task-modal-title task-detail-title" id="task-detail-title">Задача</h3>
+
+          <div class="task-detail-badges" id="task-detail-badges">
+            <span class="task-badge" id="task-detail-status-badge"></span>
+            <span class="task-badge" id="task-detail-priority-badge"></span>
+            <span class="task-badge" id="task-detail-due-badge"></span>
           </div>
         </div>
 
-        <h3 class="task-modal-title task-detail-title" id="task-detail-title">Задача</h3>
+        <div class="task-detail-body" id="task-detail-body">
+          <div class="task-detail-meta">
+            <div class="task-detail-row">
+              <span class="task-detail-label">Статус</span>
+              <span class="task-detail-value" id="task-detail-status">-</span>
+            </div>
+            <div class="task-detail-row">
+              <span class="task-detail-label">Приоритет</span>
+              <span class="task-detail-value" id="task-detail-priority">-</span>
+            </div>
+            <div class="task-detail-row task-detail-assignee">
+              <span class="task-detail-label">Исполнитель</span>
+              <span class="task-detail-value" id="task-detail-assignee">-</span>
+            </div>
+            <div class="task-detail-row">
+              <span class="task-detail-label">Срок</span>
+              <span class="task-detail-value" id="task-detail-due">-</span>
+            </div>
+            <div class="task-detail-row">
+              <span class="task-detail-label">Создано</span>
+              <span class="task-detail-value" id="task-detail-created">-</span>
+            </div>
+            <div class="task-detail-row">
+              <span class="task-detail-label">Обновлено</span>
+              <span class="task-detail-value" id="task-detail-updated">-</span>
+            </div>
+            <div class="task-detail-row">
+              <span class="task-detail-label">Завершено</span>
+              <span class="task-detail-value" id="task-detail-completed">-</span>
+            </div>
+            <div class="task-detail-row task-detail-tags">
+              <span class="task-detail-label">Теги</span>
+              <div class="task-detail-taglist" id="task-detail-tags"></div>
+            </div>
+          </div>
 
-        <div class="task-detail-badges" id="task-detail-badges">
-          <span class="task-badge" id="task-detail-status-badge"></span>
-          <span class="task-badge" id="task-detail-priority-badge"></span>
-          <span class="task-badge" id="task-detail-due-badge"></span>
-        </div>
-      </div>
+          <div class="task-detail-description">
+            <span class="task-detail-label">Описание</span>
+            <p class="task-detail-text" id="task-detail-description">-</p>
+          </div>
 
-      <div class="task-detail-body" id="task-detail-body">
-        <div class="task-detail-meta">
-          <div class="task-detail-row">
-            <span class="task-detail-label">Статус</span>
-            <span class="task-detail-value" id="task-detail-status">-</span>
+          <div class="task-detail-attachments">
+            <div class="task-detail-attachments-head">
+              <span class="task-detail-label">Вложения</span>
+              <button class="ghost-btn" id="task-attach-btn" type="button" hidden>Прикрепить файлы</button>
+            </div>
+            <div class="task-detail-attachments-list" id="task-attachments-list"></div>
+            <div class="task-detail-attachments-empty" id="task-attachments-empty" hidden>Нет вложений</div>
           </div>
-          <div class="task-detail-row">
-            <span class="task-detail-label">Приоритет</span>
-            <span class="task-detail-value" id="task-detail-priority">-</span>
-          </div>
-          <div class="task-detail-row task-detail-assignee">
-            <span class="task-detail-label">Исполнитель</span>
-            <span class="task-detail-value" id="task-detail-assignee">-</span>
-          </div>
-          <div class="task-detail-row">
-            <span class="task-detail-label">Срок</span>
-            <span class="task-detail-value" id="task-detail-due">-</span>
-          </div>
-          <div class="task-detail-row">
-            <span class="task-detail-label">Создано</span>
-            <span class="task-detail-value" id="task-detail-created">-</span>
-          </div>
-          <div class="task-detail-row">
-            <span class="task-detail-label">Обновлено</span>
-            <span class="task-detail-value" id="task-detail-updated">-</span>
-          </div>
-          <div class="task-detail-row">
-            <span class="task-detail-label">Завершено</span>
-            <span class="task-detail-value" id="task-detail-completed">-</span>
-          </div>
-          <div class="task-detail-row task-detail-tags">
-            <span class="task-detail-label">Теги</span>
-            <div class="task-detail-taglist" id="task-detail-tags"></div>
-          </div>
-        </div>
 
-        <div class="task-detail-description">
-          <span class="task-detail-label">Описание</span>
-          <p class="task-detail-text" id="task-detail-description">-</p>
-        </div>
-
-        <div class="task-detail-attachments">
-          <div class="task-detail-attachments-head">
-            <span class="task-detail-label">Вложения</span>
-            <button class="ghost-btn" id="task-attach-btn" type="button" hidden>Прикрепить файлы</button>
+          <div class="task-detail-photo" id="task-detail-photo" hidden>
+            <img id="task-detail-photo-img" alt="Фото задачи">
           </div>
-          <div class="task-detail-attachments-list" id="task-attachments-list"></div>
-          <div class="task-detail-attachments-empty" id="task-attachments-empty" hidden>Нет вложений</div>
         </div>
-
-        <div class="task-detail-photo" id="task-detail-photo" hidden>
-          <img id="task-detail-photo-img" alt="Фото задачи">
-        </div>
-      </div>
     </div>
+
+    <aside class="task-detail-history-panel" id="task-detail-history-panel" aria-label="История изменений" hidden>
+      <section class="task-detail-block" aria-label="История изменений задачи">
+        <header class="task-detail-block-head">
+          <span class="task-detail-block-title">История изменений</span>
+          <button class="icon-btn task-detail-history-clear" id="task-detail-history-clear" type="button" aria-label="Очистить историю" title="Очистить">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm2 7h2v8h-2v-8zm-4 0h2v8H7v-8zm8 0h2v8h-2v-8z" />
+            </svg>
+          </button>
+        </header>
+        <div class="task-detail-block-body task-detail-history" id="task-detail-history"></div>
+        <div class="task-detail-block-empty" id="task-detail-history-empty" hidden>Нет изменений.</div>
+      </section>
+    </aside>
   </div>
 
   <div class="task-modal task-confirm-modal" id="confirm-modal" hidden>
@@ -673,6 +715,6 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow58"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow65"></script>
 </body>
 </html>

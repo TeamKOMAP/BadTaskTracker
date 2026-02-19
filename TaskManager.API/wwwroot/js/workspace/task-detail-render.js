@@ -1,6 +1,6 @@
 import { STATUS_LABELS, PRIORITY_LABELS } from "../shared/constants.js";
 import { normalizeToken } from "../shared/utils.js";
-import { toStatusValue, toPriorityValue, formatIso, formatBytes, getUrgency, formatDueLabel } from "./helpers.js?v=authflow5";
+import { toStatusValue, toPriorityValue, formatIso, formatBytes, getUrgency, formatDueLabel } from "./helpers.js?v=authflow6";
 import { runWhenIdle } from "./media-utils.js";
 
 const PRIORITY_DISPLAY_LABELS = {

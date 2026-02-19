@@ -2576,6 +2576,141 @@ body[data-theme="light"] .task-detail-row {
   gap: 14px;
 }
 
+#task-detail-modal .task-modal-card.task-detail-card {
+  width: min(640px, 92vw);
+  max-height: 100%;
+}
+
+.task-detail-history-panel {
+  position: fixed;
+  z-index: 12;
+  width: min(380px, calc(100vw - 32px));
+  height: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.task-detail-history-panel[hidden] {
+  display: none;
+}
+
+.task-detail-history-panel.is-stack {
+  width: min(640px, calc(100vw - 32px));
+}
+
+.task-detail-block {
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  background: var(--panel-solid);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.task-detail-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-detail-block-title {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+.task-detail-block-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding-right: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.task-detail-block-empty {
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.task-history-item {
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(16, 22, 30, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+body[data-theme="light"] .task-history-item {
+  background: rgba(255, 255, 255, 0.70);
+}
+
+.task-history-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-3);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.task-history-source {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 52%;
+}
+
+.task-history-title {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+.task-history-lines {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.task-history-line {
+  border-left: 2px solid rgba(68, 210, 199, 0.35);
+  padding-left: 10px;
+}
+
+body[data-theme="light"] .task-history-line {
+  border-left-color: rgba(44, 115, 255, 0.28);
+}
+
+
+.task-detail-action[aria-pressed="true"] {
+  color: var(--text-1);
+  border-color: var(--stroke-strong);
+}
+
 .profile-hero {
   border: 1px solid var(--stroke);
   border-radius: 20px;
@@ -3065,7 +3200,7 @@ body[data-theme="light"] .add-task:hover {
 .calendar-layout {
   display: none;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(270px, 320px);
+  grid-auto-columns: 320px;
   gap: 18px;
   padding-bottom: 18px;
   overflow-x: auto;
