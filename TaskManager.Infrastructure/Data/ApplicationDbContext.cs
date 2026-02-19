@@ -29,6 +29,7 @@ namespace TaskManager.Infrastructure.Data
                 entity.HasKey(u => u.Id);
                 entity.Property(u => u.Name).IsRequired().HasMaxLength(100);
                 entity.Property(u => u.Email).IsRequired().HasMaxLength(100);
+                entity.Property(u => u.TimeZoneId).IsRequired().HasMaxLength(100).HasDefaultValue("UTC");
                 entity.HasIndex(u => u.Email).IsUnique();
                 entity.Property(u => u.CreatedAt).HasDefaultValueSql("datetime('now')");
             });

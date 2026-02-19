@@ -35,6 +35,15 @@ const STATUS_LABELS = {
   5: "Отозвано"
 };
 
+const escapeHtml = (value) => {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+};
+
 const formatDateTime = (iso) => {
   const date = iso ? new Date(iso) : null;
   if (!date || Number.isNaN(date.getTime())) return "-";
@@ -118,18 +127,21 @@ const replaceInviteInState = (updated) => {
 };
 
 const toInviteActionsMarkup = (invite) => {
+  const inviteId = Number.parseInt(String(invite?.id ?? ""), 10);
+  const safeInviteId = Number.isFinite(inviteId) && inviteId > 0 ? inviteId : 0;
+
   if (invite?.canRespond) {
     return `
-      <button class="invite-action-btn invite-action-btn--accept" type="button" data-action="accept" data-id="${invite.id}" aria-label="Принять приглашение" title="Принять">
+      <button class="invite-action-btn invite-action-btn--accept" type="button" data-action="accept" data-id="${safeInviteId}" aria-label="Принять приглашение" title="Принять">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>
       </button>
-      <button class="invite-action-btn invite-action-btn--decline" type="button" data-action="decline" data-id="${invite.id}" aria-label="Отклонить приглашение" title="Отклонить">
+      <button class="invite-action-btn invite-action-btn--decline" type="button" data-action="decline" data-id="${safeInviteId}" aria-label="Отклонить приглашение" title="Отклонить">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
       </button>
     `;
   }
 
-  const statusLabel = getStatusLabel(invite?.status);
+  const statusLabel = escapeHtml(getStatusLabel(invite?.status));
   const statusClass = getStatusClass(invite?.status);
   const workspaceId = Number(invite?.workspaceId);
   const openBtn = Number(invite?.status) === 2 && Number.isFinite(workspaceId) && workspaceId > 0
@@ -153,11 +165,11 @@ const renderInvites = () => {
   emptyEl.setAttribute("hidden", "");
 
   list.forEach((invite) => {
-    const workspaceName = normalizeToken(invite?.workspaceName) || "Проект";
-    const inviter = normalizeToken(invite?.invitedByName) || normalizeToken(invite?.invitedByEmail) || "Участник";
-    const roleLabel = getRoleLabel(invite?.role);
-    const createdLabel = formatDateTime(invite?.createdAtUtc);
-    const expiresLabel = formatDateTime(invite?.expiresAtUtc);
+    const workspaceName = escapeHtml(normalizeToken(invite?.workspaceName) || "Проект");
+    const inviter = escapeHtml(normalizeToken(invite?.invitedByName) || normalizeToken(invite?.invitedByEmail) || "Участник");
+    const roleLabel = escapeHtml(getRoleLabel(invite?.role));
+    const createdLabel = escapeHtml(formatDateTime(invite?.createdAtUtc));
+    const expiresLabel = escapeHtml(formatDateTime(invite?.expiresAtUtc));
     const canRespond = !!invite?.canRespond;
 
     const item = document.createElement("article");

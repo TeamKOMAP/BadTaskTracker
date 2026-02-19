@@ -29,23 +29,42 @@ namespace TaskManager.Infrastructure.Repositories
                 .ToListAsync();
         }
 
-        public async Task<WorkspaceMember> AddAsync(WorkspaceMember member)
+        public async Task<WorkspaceMember> AddAsync(
+            WorkspaceMember member,
+            CancellationToken cancellationToken = default,
+            bool saveChanges = true)
         {
             _context.WorkspaceMembers.Add(member);
-            await _context.SaveChangesAsync();
+            if (saveChanges)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
             return member;
         }
 
-        public async Task UpdateAsync(WorkspaceMember member)
+        public async Task UpdateAsync(
+            WorkspaceMember member,
+            CancellationToken cancellationToken = default,
+            bool saveChanges = true)
         {
             _context.WorkspaceMembers.Update(member);
-            await _context.SaveChangesAsync();
+            if (saveChanges)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
         }
 
-        public async Task RemoveAsync(WorkspaceMember member)
+        public async Task RemoveAsync(
+            WorkspaceMember member,
+            CancellationToken cancellationToken = default,
+            bool saveChanges = true)
         {
             _context.WorkspaceMembers.Remove(member);
-            await _context.SaveChangesAsync();
+            if (saveChanges)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
         }
 
         public Task<bool> IsMemberAsync(int workspaceId, int userId)

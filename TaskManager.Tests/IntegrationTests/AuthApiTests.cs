@@ -196,6 +196,54 @@ namespace TaskManager.Tests.IntegrationTests
             var user = await response.Content.ReadFromJsonAsync<AuthUserDto>();
             user.Should().NotBeNull();
             user!.Email.Should().Be("me@example.com");
+            user.TimeZoneId.Should().Be("UTC");
+        }
+
+        [Fact]
+        public async Task UpdateTimeZone_WithValidZone_StoresUserTimeZone()
+        {
+            var token = await GetAuthTokenAsync("timezone.valid@example.com");
+
+            var authClient = _factory.CreateClient();
+            authClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var updateResponse = await authClient.PostAsJsonAsync("/api/auth/timezone", new
+            {
+                timeZoneId = "Europe/Moscow"
+            });
+
+            updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var updated = await updateResponse.Content.ReadFromJsonAsync<AuthUserDto>();
+            updated.Should().NotBeNull();
+            updated!.TimeZoneId.Should().Be("Europe/Moscow");
+
+            var meResponse = await authClient.GetAsync("/api/auth/me");
+            meResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var me = await meResponse.Content.ReadFromJsonAsync<AuthUserDto>();
+            me.Should().NotBeNull();
+            me!.TimeZoneId.Should().Be("Europe/Moscow");
+        }
+
+        [Fact]
+        public async Task UpdateTimeZone_WithInvalidZone_FallsBackToUtc()
+        {
+            var token = await GetAuthTokenAsync("timezone.invalid@example.com");
+
+            var authClient = _factory.CreateClient();
+            authClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var updateResponse = await authClient.PostAsJsonAsync("/api/auth/timezone", new
+            {
+                timeZoneId = "Invalid/Zone"
+            });
+
+            updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var updated = await updateResponse.Content.ReadFromJsonAsync<AuthUserDto>();
+            updated.Should().NotBeNull();
+            updated!.TimeZoneId.Should().Be("UTC");
         }
 
         [Fact]
