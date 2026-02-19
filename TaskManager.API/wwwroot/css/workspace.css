@@ -3200,7 +3200,7 @@ body[data-theme="light"] .add-task:hover {
 .calendar-layout {
   display: none;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(270px, 320px);
+  grid-auto-columns: 320px;
   gap: 18px;
   padding-bottom: 18px;
   overflow-x: auto;
