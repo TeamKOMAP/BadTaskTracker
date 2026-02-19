@@ -1,4 +1,5 @@
 using System.Net.Mail;
+using Microsoft.Extensions.Logging;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
@@ -18,6 +19,7 @@ namespace TaskManager.Application.Services
         private readonly IWorkspaceInvitationRepository _workspaceInvitationRepository;
         private readonly INotificationRepository _notificationRepository;
         private readonly IEmailSender _emailSender;
+        private readonly ILogger<WorkspaceInvitationService> _logger;
 
         public WorkspaceInvitationService(
             IWorkspaceRepository workspaceRepository,
@@ -25,7 +27,8 @@ namespace TaskManager.Application.Services
             IUserRepository userRepository,
             IWorkspaceInvitationRepository workspaceInvitationRepository,
             INotificationRepository notificationRepository,
-            IEmailSender emailSender)
+            IEmailSender emailSender,
+            ILogger<WorkspaceInvitationService> logger)
         {
             _workspaceRepository = workspaceRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
@@ -33,6 +36,7 @@ namespace TaskManager.Application.Services
             _workspaceInvitationRepository = workspaceInvitationRepository;
             _notificationRepository = notificationRepository;
             _emailSender = emailSender;
+            _logger = logger;
         }
 
         public async Task<WorkspaceInvitationDto> CreateInvitationAsync(
@@ -126,7 +130,12 @@ namespace TaskManager.Application.Services
             }
             catch (Exception ex)
             {
-                _ = ex;
+                _logger.LogWarning(
+                    ex,
+                    "Failed to send workspace invitation email to {Email} for workspace {WorkspaceId} (invite {InvitationId}).",
+                    normalizedEmail,
+                    workspaceId,
+                    invitation.Id);
             }
 
             return MapToDto(full, now);

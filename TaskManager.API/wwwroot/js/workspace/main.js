@@ -123,7 +123,7 @@ import {
 import { navigateToSpacesPage } from "../shared/navigation.js";
 import { normalizeToken, toInitials, toWorkspaceRole, clampValue } from "../shared/utils.js";
 import { getRoleLabel } from "../shared/roles.js?v=auth1";
-import { createNotificationsPanelController } from "../shared/notifications.js?v=notif2";
+import { createNotificationsPanelController } from "../shared/notifications.js?v=notif3";
 import {
   getStoredAccountNickname,
   setStoredAccountNickname,

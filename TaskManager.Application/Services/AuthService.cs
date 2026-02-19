@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using TaskManager.Application.Auth;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Exceptions;
@@ -24,6 +25,7 @@ namespace TaskManager.Application.Services
         private readonly IEmailSender _emailSender;
         private readonly IJwtTokenService _jwtTokenService;
         private readonly IWorkspaceInvitationService _workspaceInvitationService;
+        private readonly ILogger<AuthService> _logger;
         private readonly EmailAuthSettings _settings;
 
         public AuthService(
@@ -33,6 +35,7 @@ namespace TaskManager.Application.Services
             IEmailSender emailSender,
             IJwtTokenService jwtTokenService,
             IWorkspaceInvitationService workspaceInvitationService,
+            ILogger<AuthService> logger,
             EmailAuthSettings settings)
         {
             _userRepository = userRepository;
@@ -41,6 +44,7 @@ namespace TaskManager.Application.Services
             _emailSender = emailSender;
             _jwtTokenService = jwtTokenService;
             _workspaceInvitationService = workspaceInvitationService;
+            _logger = logger;
             _settings = settings ?? new EmailAuthSettings();
         }
 
@@ -178,8 +182,13 @@ namespace TaskManager.Application.Services
             {
                 await _workspaceInvitationService.SyncPendingInvitesForUserAsync(user.Id);
             }
-            catch
+            catch (Exception ex)
             {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to sync pending workspace invitations for user {UserId} ({Email}) after email verification.",
+                    user.Id,
+                    user.Email);
             }
 
             var token = _jwtTokenService.CreateAccessToken(user);

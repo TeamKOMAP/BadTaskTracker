@@ -171,6 +171,11 @@ namespace TaskManager.Application.Services
 
         public async Task<WorkspaceMemberDto> AddMemberAsync(int actorUserId, int workspaceId, AddWorkspaceMemberDto dto)
         {
+            if (dto == null)
+            {
+                throw new ValidationException("Request payload is required");
+            }
+
             var actorMember = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId)
                 ?? throw new ForbiddenException("You are not a member of this workspace");
 
@@ -184,59 +189,35 @@ namespace TaskManager.Application.Services
                 throw new ForbiddenException("Only owner can assign owner role");
             }
 
-            User user;
-            if (dto.UserId.HasValue)
+            if (!dto.UserId.HasValue || dto.UserId.Value <= 0)
             {
-                user = await _userRepository.GetByIdAsync(dto.UserId.Value)
-                    ?? throw new NotFoundException($"User with id {dto.UserId.Value} not found");
+                throw new ValidationException("Direct member addition is disabled. Use workspace invitations.");
             }
-            else
-            {
-                var email = dto.Email?.Trim();
-                if (string.IsNullOrWhiteSpace(email))
-                {
-                    throw new ValidationException("UserId or Email is required");
-                }
 
-                user = await _userRepository.GetByEmailAsync(email)
-                    ?? await _userRepository.AddAsync(new User
-                    {
-                        Email = email,
-                        Name = string.IsNullOrWhiteSpace(dto.Name) ? email.Split('@')[0] : dto.Name.Trim(),
-                        CreatedAt = DateTime.UtcNow
-                    });
+            if (!string.IsNullOrWhiteSpace(dto.Email) || !string.IsNullOrWhiteSpace(dto.Name))
+            {
+                throw new ValidationException("Email/name based member addition is disabled. Use workspace invitations.");
             }
+
+            var user = await _userRepository.GetByIdAsync(dto.UserId.Value)
+                ?? throw new NotFoundException($"User with id {dto.UserId.Value} not found");
 
             var existing = await _workspaceMemberRepository.GetMemberAsync(workspaceId, user.Id);
-            if (existing != null)
+            if (existing == null)
             {
-                existing.Role = dto.Role;
-                await _workspaceMemberRepository.UpdateAsync(existing);
-                return new WorkspaceMemberDto
-                {
-                    UserId = user.Id,
-                    Name = user.Name,
-                    Email = user.Email,
-                    Role = existing.Role,
-                    AddedAt = existing.AddedAt
-                };
+                throw new ValidationException("Member does not belong to workspace. Invite user first.");
             }
 
-            var member = await _workspaceMemberRepository.AddAsync(new WorkspaceMember
-            {
-                WorkspaceId = workspaceId,
-                UserId = user.Id,
-                Role = dto.Role,
-                AddedAt = DateTime.UtcNow
-            });
+            existing.Role = dto.Role;
+            await _workspaceMemberRepository.UpdateAsync(existing);
 
             return new WorkspaceMemberDto
             {
                 UserId = user.Id,
                 Name = user.Name,
                 Email = user.Email,
-                Role = member.Role,
-                AddedAt = member.AddedAt
+                Role = existing.Role,
+                AddedAt = existing.AddedAt
             };
         }
 

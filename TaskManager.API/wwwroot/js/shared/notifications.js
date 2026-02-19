@@ -250,8 +250,7 @@ export const createNotificationsPanelController = ({
 
     notifications = Array.isArray(data) ? data.map((item) => ({ ...item })) : [];
     renderNotifications();
-    const unreadCount = notifications.filter((item) => item && !item.isRead).length;
-    setUnreadBadge(unreadCount);
+    await refreshUnreadCount();
     return notifications;
   };
 

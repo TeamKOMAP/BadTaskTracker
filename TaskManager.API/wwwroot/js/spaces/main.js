@@ -12,7 +12,7 @@ import { MANAGE_ROLES, STORAGE_WORKSPACE_ID } from "../shared/constants.js";
 import { navigateToWorkspacePage } from "../shared/navigation.js";
 import { normalizeToken, toInitials, toWorkspaceRole } from "../shared/utils.js";
 import { getRoleLabel } from "../shared/roles.js?v=auth1";
-import { createNotificationsPanelController } from "../shared/notifications.js?v=notif2";
+import { createNotificationsPanelController } from "../shared/notifications.js?v=notif3";
 import {
   getStoredAccountNickname,
   setStoredAccountNickname,

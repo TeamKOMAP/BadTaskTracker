@@ -31,14 +31,10 @@ namespace TaskManager.API.Controllers
             WorkspaceInvitationStatus? statusFilter = null;
             if (!string.IsNullOrWhiteSpace(status))
             {
-                if (Enum.TryParse<WorkspaceInvitationStatus>(status, true, out var parsedByName))
+                if (Enum.TryParse<WorkspaceInvitationStatus>(status, true, out var parsed)
+                    && Enum.IsDefined(typeof(WorkspaceInvitationStatus), parsed))
                 {
-                    statusFilter = parsedByName;
-                }
-                else if (int.TryParse(status, out var numeric)
-                    && Enum.IsDefined(typeof(WorkspaceInvitationStatus), numeric))
-                {
-                    statusFilter = (WorkspaceInvitationStatus)numeric;
+                    statusFilter = parsed;
                 }
                 else
                 {
