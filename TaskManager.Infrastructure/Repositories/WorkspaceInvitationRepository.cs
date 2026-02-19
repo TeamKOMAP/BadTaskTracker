@@ -15,10 +15,16 @@ namespace TaskManager.Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task<WorkspaceInvitation> AddAsync(WorkspaceInvitation invitation, CancellationToken cancellationToken = default)
+        public async Task<WorkspaceInvitation> AddAsync(
+            WorkspaceInvitation invitation,
+            CancellationToken cancellationToken = default,
+            bool saveChanges = true)
         {
             await _context.WorkspaceInvitations.AddAsync(invitation, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
+            if (saveChanges)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
             return invitation;
         }
 
@@ -74,9 +80,20 @@ namespace TaskManager.Infrastructure.Repositories
                 .ToListAsync(cancellationToken);
         }
 
-        public async Task UpdateAsync(WorkspaceInvitation invitation, CancellationToken cancellationToken = default)
+        public async Task UpdateAsync(
+            WorkspaceInvitation invitation,
+            CancellationToken cancellationToken = default,
+            bool saveChanges = true)
         {
             _context.WorkspaceInvitations.Update(invitation);
+            if (saveChanges)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
             await _context.SaveChangesAsync(cancellationToken);
         }
     }

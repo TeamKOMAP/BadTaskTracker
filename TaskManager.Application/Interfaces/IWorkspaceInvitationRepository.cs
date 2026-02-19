@@ -5,7 +5,10 @@ namespace TaskManager.Application.Interfaces
 {
     public interface IWorkspaceInvitationRepository
     {
-        Task<WorkspaceInvitation> AddAsync(WorkspaceInvitation invitation, CancellationToken cancellationToken = default);
+        Task<WorkspaceInvitation> AddAsync(
+            WorkspaceInvitation invitation,
+            CancellationToken cancellationToken = default,
+            bool saveChanges = true);
         Task<WorkspaceInvitation?> GetByIdAsync(int invitationId, CancellationToken cancellationToken = default);
         Task<WorkspaceInvitation?> GetActiveByWorkspaceAndEmailAsync(
             int workspaceId,
@@ -16,6 +19,10 @@ namespace TaskManager.Application.Interfaces
             string email,
             WorkspaceInvitationStatus? status = null,
             CancellationToken cancellationToken = default);
-        Task UpdateAsync(WorkspaceInvitation invitation, CancellationToken cancellationToken = default);
+        Task UpdateAsync(
+            WorkspaceInvitation invitation,
+            CancellationToken cancellationToken = default,
+            bool saveChanges = true);
+        Task SaveChangesAsync(CancellationToken cancellationToken = default);
     }
 }

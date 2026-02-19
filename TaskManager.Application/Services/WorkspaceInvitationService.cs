@@ -113,7 +113,8 @@ namespace TaskManager.Application.Services
                     full,
                     actorMember.User?.Name,
                     now,
-                    cancellationToken);
+                    cancellationToken,
+                    saveChanges: true);
             }
 
             try
@@ -255,6 +256,8 @@ namespace TaskManager.Application.Services
                 WorkspaceInvitationStatus.Pending,
                 cancellationToken);
 
+            var hasDeferredChanges = false;
+
             foreach (var invitation in pendingInvitations)
             {
                 var shouldUpdate = false;
@@ -274,27 +277,40 @@ namespace TaskManager.Application.Services
 
                 if (shouldUpdate)
                 {
-                    await _workspaceInvitationRepository.UpdateAsync(invitation, cancellationToken);
+                    await _workspaceInvitationRepository.UpdateAsync(
+                        invitation,
+                        cancellationToken,
+                        saveChanges: false);
+                    hasDeferredChanges = true;
                 }
 
                 if (invitation.Status == WorkspaceInvitationStatus.Pending)
                 {
-                    await CreateInviteNotificationIfMissingAsync(
+                    var created = await CreateInviteNotificationIfMissingAsync(
                         actor.Id,
                         invitation,
                         invitation.InvitedByUser?.Name,
                         now,
-                        cancellationToken);
+                        cancellationToken,
+                        saveChanges: false);
+
+                    hasDeferredChanges = hasDeferredChanges || created;
                 }
+            }
+
+            if (hasDeferredChanges)
+            {
+                await _workspaceInvitationRepository.SaveChangesAsync(cancellationToken);
             }
         }
 
-        private async Task CreateInviteNotificationIfMissingAsync(
+        private async Task<bool> CreateInviteNotificationIfMissingAsync(
             int invitedUserId,
             WorkspaceInvitation invitation,
             string? inviterName,
             DateTime now,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken,
+            bool saveChanges)
         {
             var workspaceName = invitation.Workspace?.Name?.Trim();
             var safeWorkspaceName = string.IsNullOrWhiteSpace(workspaceName) ? "проект" : workspaceName;
@@ -310,7 +326,7 @@ namespace TaskManager.Application.Services
                 cancellationToken);
             if (exists)
             {
-                return;
+                return false;
             }
 
             await _notificationRepository.AddAsync(new Notification
@@ -323,7 +339,9 @@ namespace TaskManager.Application.Services
                 ActionUrl = actionUrl,
                 IsRead = false,
                 CreatedAt = now
-            }, cancellationToken);
+            }, cancellationToken, saveChanges);
+
+            return true;
         }
 
         private static WorkspaceInvitationDto MapToDto(WorkspaceInvitation invitation, DateTime now)

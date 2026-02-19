@@ -14,10 +14,37 @@ namespace TaskManager.Infrastructure.Repositories
             _context = context;
         }
 
-        public async Task AddAsync(Notification notification, CancellationToken cancellationToken = default)
+        public async Task AddAsync(
+            Notification notification,
+            CancellationToken cancellationToken = default,
+            bool saveChanges = true)
         {
             await _context.Notifications.AddAsync(notification, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
+            if (saveChanges)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
+        public async Task AddRangeAsync(
+            IEnumerable<Notification> notifications,
+            CancellationToken cancellationToken = default,
+            bool saveChanges = true)
+        {
+            var batch = notifications?
+                .Where(n => n != null)
+                .ToList() ?? new List<Notification>();
+
+            if (batch.Count == 0)
+            {
+                return;
+            }
+
+            await _context.Notifications.AddRangeAsync(batch, cancellationToken);
+            if (saveChanges)
+            {
+                await _context.SaveChangesAsync(cancellationToken);
+            }
         }
 
         public async Task<List<Notification>> GetUserNotificationsAsync(
@@ -30,8 +57,6 @@ namespace TaskManager.Infrastructure.Repositories
 
             var query = _context.Notifications
                 .AsNoTracking()
-                .Include(n => n.Task)
-                .Include(n => n.Workspace)
                 .Where(n => n.UserId == userId);
 
             if (unreadOnly)
@@ -106,6 +131,11 @@ namespace TaskManager.Infrastructure.Repositories
                     && n.Type == normalizedType
                     && n.ActionUrl == normalizedActionUrl,
                     cancellationToken);
+        }
+
+        public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            await _context.SaveChangesAsync(cancellationToken);
         }
     }
 }

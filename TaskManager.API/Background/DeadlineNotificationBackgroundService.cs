@@ -38,7 +38,7 @@ namespace TaskManager.API.Background
                             var emailSender = scope.ServiceProvider.GetRequiredService<IEmailSender>();
                             var notificationRepo = scope.ServiceProvider.GetRequiredService<INotificationRepository>();
 
-                            await CheckDeadlinesAsync(dbContext, emailSender, notificationRepo);
+                            await CheckDeadlinesAsync(dbContext, emailSender, notificationRepo, stoppingToken);
                         }
                         nextRun = now.Date.AddDays(1).AddHours(9);
                     }
@@ -60,7 +60,8 @@ namespace TaskManager.API.Background
         private async Task CheckDeadlinesAsync(
             ApplicationDbContext dbContext,
             IEmailSender emailSender,
-            INotificationRepository notificationRepo)
+            INotificationRepository notificationRepo,
+            CancellationToken cancellationToken)
         {
             var today = DateTime.UtcNow.Date;
             var tomorrow = today.AddDays(1);
@@ -80,6 +81,8 @@ namespace TaskManager.API.Background
                 _logger.LogInformation("Нет задач для уведомлений");
                 return;
             }
+
+            var notificationsToCreate = new List<Notification>(tasksDueSoon.Count);
 
             foreach (var task in tasksDueSoon)
             {
@@ -114,14 +117,15 @@ namespace TaskManager.API.Background
                     IsRead = false
                 };
 
-                await notificationRepo.AddAsync(notification);
+                notificationsToCreate.Add(notification);
 
                 // 3. Помечаем, что уведомление отправлено
                 task.DeadlineNotificationSent = true;
                 task.DeadlineNotificationSentAt = DateTime.UtcNow;
             }
 
-            await dbContext.SaveChangesAsync();
+            await notificationRepo.AddRangeAsync(notificationsToCreate, cancellationToken, saveChanges: false);
+            await dbContext.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Отправлено {Count} уведомлений о дедлайнах", tasksDueSoon.Count);
         }
     }
