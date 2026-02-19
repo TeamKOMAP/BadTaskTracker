@@ -82,16 +82,30 @@ export const createFlowDragController = (deps) => {
 
   const clampNodePosition = (node, left, top) => {
     if (!flowCanvas) return { left, top };
+
+    const canvasWidth = flowCanvas.clientWidth;
+    const canvasHeight = flowCanvas.clientHeight;
+    const nodeWidth = node?.offsetWidth || 0;
+    const nodeHeight = node?.offsetHeight || 0;
+
+    if (canvasWidth < 40 || canvasHeight < 40 || nodeWidth < 20 || nodeHeight < 20) {
+      return { left, top };
+    }
+
     const padding = 16;
     const scale = getEffectiveScale();
     const clampScale = scale > 1 ? scale : 1;
-    const width = flowCanvas.clientWidth / clampScale;
-    const height = flowCanvas.clientHeight / clampScale;
-    const maxLeft = width - node.offsetWidth - padding;
-    const maxTop = height - node.offsetHeight - padding;
+    const width = canvasWidth / clampScale;
+    const height = canvasHeight / clampScale;
+    const virtualWidth = Math.max(width * 3.2, 3200);
+    const virtualHeight = Math.max(height * 2.8, 2200);
+    const minLeft = -Math.round(virtualWidth * 0.32);
+    const minTop = -Math.round(virtualHeight * 0.28);
+    const maxLeft = minLeft + virtualWidth - nodeWidth - padding;
+    const maxTop = minTop + virtualHeight - nodeHeight - padding;
     return {
-      left: clampValue(left, padding, Math.max(padding, maxLeft)),
-      top: clampValue(top, padding, Math.max(padding, maxTop))
+      left: clampValue(left, minLeft, Math.max(minLeft, maxLeft)),
+      top: clampValue(top, minTop, Math.max(minTop, maxTop))
     };
   };
 
@@ -427,7 +441,7 @@ export const createFlowDragController = (deps) => {
       const direction = event.deltaY < 0 ? 1 : -1;
       const step = event.shiftKey ? 0.15 : 0.08;
       const current = getEffectiveScale();
-      const next = clampValue(current + direction * step, 0.6, 1.8);
+      const next = clampValue(current + direction * step, 0.3, 1.8);
       if (Math.abs(next - current) < 0.0001) return;
       const changed = setFlowScale(next, {
         clientX: event.clientX,

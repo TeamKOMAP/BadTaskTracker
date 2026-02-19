@@ -67,6 +67,100 @@ export const createFlowEditorController = (deps) => {
   const getFlowScale = () => flowScale;
   const getFlowOffset = () => ({ x: flowOffsetX, y: flowOffsetY });
 
+  const readNodePosition = (node) => {
+    const leftStyle = Number.parseFloat(node.style.left);
+    const topStyle = Number.parseFloat(node.style.top);
+    return {
+      left: Number.isFinite(leftStyle) ? leftStyle : node.offsetLeft,
+      top: Number.isFinite(topStyle) ? topStyle : node.offsetTop,
+      width: node.offsetWidth,
+      height: node.offsetHeight
+    };
+  };
+
+  const getFlowPanBounds = (scaleValue = flowScale) => {
+    if (!flowCanvas) {
+      return {
+        minX: 0,
+        maxX: 0,
+        minY: 0,
+        maxY: 0
+      };
+    }
+
+    const scale = Number.isFinite(Number(scaleValue)) && Number(scaleValue) > 0
+      ? Number(scaleValue)
+      : 1;
+    const viewportWidth = flowCanvas.clientWidth;
+    const viewportHeight = flowCanvas.clientHeight;
+    const minSceneWidth = Math.max(viewportWidth / scale, 2800);
+    const minSceneHeight = Math.max(viewportHeight / scale, 2000);
+    const panPadding = Math.max(220, Math.round(Math.min(viewportWidth, viewportHeight) * 0.35));
+    const baseLeft = -Math.round(minSceneWidth * 0.32);
+    const baseTop = -Math.round(minSceneHeight * 0.28);
+
+    let contentLeft = baseLeft;
+    let contentTop = baseTop;
+    let contentRight = baseLeft + minSceneWidth;
+    let contentBottom = baseTop + minSceneHeight;
+
+    const nodes = Array.from(flowNodesLayer?.querySelectorAll(".flow-node") || []);
+    if (nodes.length) {
+      let nodeLeft = Number.POSITIVE_INFINITY;
+      let nodeTop = Number.POSITIVE_INFINITY;
+      let nodeRight = Number.NEGATIVE_INFINITY;
+      let nodeBottom = Number.NEGATIVE_INFINITY;
+
+      nodes.forEach((node) => {
+        const box = readNodePosition(node);
+        nodeLeft = Math.min(nodeLeft, box.left);
+        nodeTop = Math.min(nodeTop, box.top);
+        nodeRight = Math.max(nodeRight, box.left + box.width);
+        nodeBottom = Math.max(nodeBottom, box.top + box.height);
+      });
+
+      contentLeft = Math.min(contentLeft, nodeLeft - panPadding);
+      contentTop = Math.min(contentTop, nodeTop - panPadding);
+      contentRight = Math.max(contentRight, nodeRight + panPadding);
+      contentBottom = Math.max(contentBottom, nodeBottom + panPadding);
+    }
+
+    contentRight = Math.max(contentRight, contentLeft + minSceneWidth);
+    contentBottom = Math.max(contentBottom, contentTop + minSceneHeight);
+
+    let minX = viewportWidth - contentRight * scale;
+    let maxX = -contentLeft * scale;
+    let minY = viewportHeight - contentBottom * scale;
+    let maxY = -contentTop * scale;
+
+    if (minX > maxX) {
+      const centerX = (minX + maxX) / 2;
+      minX = centerX;
+      maxX = centerX;
+    }
+
+    if (minY > maxY) {
+      const centerY = (minY + maxY) / 2;
+      minY = centerY;
+      maxY = centerY;
+    }
+
+    return {
+      minX,
+      maxX,
+      minY,
+      maxY
+    };
+  };
+
+  const clampFlowOffset = (x, y, scaleValue = flowScale) => {
+    const bounds = getFlowPanBounds(scaleValue);
+    return {
+      x: clampValue(x, bounds.minX, bounds.maxX),
+      y: clampValue(y, bounds.minY, bounds.maxY)
+    };
+  };
+
   const normalizeNodeId = (value) => String(value || "").trim().slice(0, 120);
 
   const buildFlowStateSnapshot = () => {
@@ -159,16 +253,18 @@ export const createFlowEditorController = (deps) => {
   const setFlowOffset = (nextX, nextY, options = null) => {
     const x = Number(nextX);
     const y = Number(nextY);
-    const normalizedX = Number.isFinite(x) ? x : 0;
-    const normalizedY = Number.isFinite(y) ? y : 0;
+    const normalizedX = Number.isFinite(x) ? x : flowOffsetX;
+    const normalizedY = Number.isFinite(y) ? y : flowOffsetY;
     const shouldPersist = options?.persist !== false;
+    const clamped = clampFlowOffset(normalizedX, normalizedY, flowScale);
 
-    if (Math.abs(normalizedX - flowOffsetX) < 0.01 && Math.abs(normalizedY - flowOffsetY) < 0.01) {
+    if (Math.abs(clamped.x - flowOffsetX) < 0.01
+      && Math.abs(clamped.y - flowOffsetY) < 0.01) {
       return false;
     }
 
-    flowOffsetX = normalizedX;
-    flowOffsetY = normalizedY;
+    flowOffsetX = clamped.x;
+    flowOffsetY = clamped.y;
     applyFlowTransformVars();
     linksController.updateFlowLines();
     if (shouldPersist) {
@@ -180,7 +276,7 @@ export const createFlowEditorController = (deps) => {
   const setFlowScale = (nextScale, options = null) => {
     const prevScale = flowScale;
     const parsed = Number(nextScale);
-    const normalized = Number.isFinite(parsed) ? clampValue(parsed, 0.6, 1.8) : 1;
+    const normalized = Number.isFinite(parsed) ? clampValue(parsed, 0.3, 1.8) : 1;
     const hasScaleChange = Math.abs(normalized - flowScale) >= 0.0001;
     const shouldPersist = options?.persist !== false;
     if (!hasScaleChange) {
@@ -207,12 +303,22 @@ export const createFlowEditorController = (deps) => {
       flowOffsetY = anchorY - rect.top - scenePointY * flowScale;
     }
 
+    const clamped = clampFlowOffset(flowOffsetX, flowOffsetY, flowScale);
+    flowOffsetX = clamped.x;
+    flowOffsetY = clamped.y;
+
     applyFlowTransformVars();
     linksController.updateFlowLines();
     if (shouldPersist) {
       scheduleFlowStatePersist();
     }
     return true;
+  };
+
+  const ensureFlowOffsetWithinBounds = (persist = false) => {
+    setFlowOffset(flowOffsetX, flowOffsetY, {
+      persist
+    });
   };
 
   const linksController = createFlowLinksController({
@@ -296,6 +402,7 @@ export const createFlowEditorController = (deps) => {
     linksController.removeAllConnectionsForNode(node);
     node.remove();
     updateFlowEmptyState();
+    ensureFlowOffsetWithinBounds(shouldPersist);
     linksController.updateFlowLines();
     if (shouldPersist) {
       scheduleFlowStatePersist();
@@ -309,6 +416,7 @@ export const createFlowEditorController = (deps) => {
     flowNodesLayer?.querySelectorAll(".flow-node").forEach((node) => node.remove());
     linksController.clearAllConnections();
     updateFlowEmptyState();
+    ensureFlowOffsetWithinBounds(shouldPersist);
     if (shouldPersist) {
       scheduleFlowStatePersist();
     }
@@ -502,6 +610,7 @@ export const createFlowEditorController = (deps) => {
     });
 
     updateFlowEmptyState();
+    ensureFlowOffsetWithinBounds(false);
     linksController.updateFlowLines();
   };
 
@@ -560,11 +669,6 @@ export const createFlowEditorController = (deps) => {
 
     isFlowStateRestoring = true;
     try {
-      if (viewport) {
-        setFlowScale(viewport.scale, { persist: false });
-        setFlowOffset(viewport.offsetX, viewport.offsetY, { persist: false });
-      }
-
       flowNodesLayer?.querySelectorAll(".flow-node").forEach((node) => node.remove());
       linksController.clearAllConnections();
 
@@ -617,6 +721,13 @@ export const createFlowEditorController = (deps) => {
 
         linksController.connectFlowNodes(fromNode, toNode);
       });
+
+      if (viewport) {
+        setFlowScale(viewport.scale, { persist: false });
+        setFlowOffset(viewport.offsetX, viewport.offsetY, { persist: false });
+      } else {
+        ensureFlowOffsetWithinBounds(false);
+      }
     } finally {
       isFlowStateRestoring = false;
     }

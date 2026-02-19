@@ -169,11 +169,11 @@ import {
   setStoredWorkspaceColumns,
   getStoredWorkspaceFlowMap,
   setStoredWorkspaceFlowMap
-} from "./storage.js?v=authflow5";
+} from "./storage.js?v=authflow7";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
-import { createFlowEditorController } from "./flow-editor.js?v=perf3";
+import { createFlowEditorController } from "./flow-editor.js?v=perf6";
 import { createTaskDetailController } from "./task-detail.js?v=perf13";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
 import { createProfileModalsController } from "./profile-modals.js?v=profile1";

@@ -89,8 +89,8 @@ const normalizeFlowNodeState = (item) => {
   const taskIdRaw = normalizeTaskId(item.taskId);
   const taskId = taskIdRaw ? taskIdRaw : null;
   const taskKey = String(item.taskKey || "").trim().slice(0, 240);
-  const left = clampNumber(item.left, -50000, 50000, 16);
-  const top = clampNumber(item.top, -50000, 50000, 16);
+  const left = clampNumber(item.left ?? item.x, -50000, 50000, 16);
+  const top = clampNumber(item.top ?? item.y, -50000, 50000, 16);
   const customColor = normalizeFlowColor(item.customColor);
 
   return {
@@ -127,7 +127,7 @@ const normalizeFlowViewportState = (viewport) => {
   }
 
   return {
-    scale: clampNumber(viewport.scale, 0.6, 1.8, 1),
+    scale: clampNumber(viewport.scale, 0.3, 1.8, 1),
     offsetX: clampNumber(viewport.offsetX, -50000, 50000, 0),
     offsetY: clampNumber(viewport.offsetY, -50000, 50000, 0)
   };
