@@ -10,6 +10,7 @@ namespace TaskManager.Application.Interfaces
         Task<bool> ExistsAsync(int id);
         Task<bool> EmailExistsAsync(string email);
         Task<User> AddAsync(User user);
+        Task UpdateAsync(User user, CancellationToken cancellationToken = default);
         Task<int> GetTaskCountAsync(int userId);
         Task<Dictionary<int, int>> GetTaskCountsAsync(IEnumerable<int> userIds);
     }

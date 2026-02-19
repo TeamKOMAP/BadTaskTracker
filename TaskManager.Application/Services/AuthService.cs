@@ -174,6 +174,7 @@ namespace TaskManager.Application.Services
                 {
                     Name = BuildDefaultNameFromEmail(email),
                     Email = email,
+                    TimeZoneId = "UTC",
                     CreatedAt = now
                 });
             }
@@ -257,7 +258,33 @@ namespace TaskManager.Application.Services
             {
                 Id = user.Id,
                 Name = user.Name,
-                Email = user.Email
+                Email = user.Email,
+                TimeZoneId = NormalizeTimeZoneId(user.TimeZoneId)
+            };
+        }
+
+        public async Task<AuthUserDto> UpdateTimeZoneAsync(int actorUserId, string timeZoneId)
+        {
+            if (actorUserId <= 0)
+            {
+                throw new ForbiddenException("Access denied");
+            }
+
+            var user = await _userRepository.GetByIdAsync(actorUserId);
+            if (user == null)
+            {
+                throw new NotFoundException("User not found");
+            }
+
+            user.TimeZoneId = NormalizeTimeZoneId(timeZoneId);
+            await _userRepository.UpdateAsync(user);
+
+            return new AuthUserDto
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                TimeZoneId = user.TimeZoneId
             };
         }
 
@@ -273,9 +300,26 @@ namespace TaskManager.Application.Services
                 {
                     Id = user.Id,
                     Name = user.Name,
-                    Email = user.Email
+                    Email = user.Email,
+                    TimeZoneId = NormalizeTimeZoneId(user.TimeZoneId)
                 }
             };
+        }
+
+        private static string NormalizeTimeZoneId(string? raw)
+        {
+            var value = (raw ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "UTC";
+            }
+
+            if (value.Length > 100)
+            {
+                value = value[..100];
+            }
+
+            return value;
         }
 
         private static string BuildEmailBody(string code, int minutes)

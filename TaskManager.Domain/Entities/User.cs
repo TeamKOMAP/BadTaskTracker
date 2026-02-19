@@ -17,6 +17,10 @@ namespace TaskManager.Domain.Entities
         [EmailAddress]
         public string Email { get; set; } = string.Empty;
 
+        [Required]
+        [MaxLength(100)]
+        public string TimeZoneId { get; set; } = "UTC";
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation properties

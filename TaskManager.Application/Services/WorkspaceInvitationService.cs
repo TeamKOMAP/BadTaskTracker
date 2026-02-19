@@ -1,10 +1,12 @@
 using System.Net.Mail;
+using System.Net;
 using Microsoft.Extensions.Logging;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
+using TimeZoneConverter;
 
 namespace TaskManager.Application.Services
 {
@@ -126,7 +128,11 @@ namespace TaskManager.Application.Services
                 await _emailSender.SendAsync(
                     normalizedEmail,
                     $"Приглашение в проект {workspace.Name}",
-                    BuildInvitationEmailBody(workspace.Name, actorMember.User?.Name, invitation.ExpiresAtUtc));
+                    BuildInvitationEmailBody(
+                        workspace.Name,
+                        actorMember.User?.Name,
+                        invitation.ExpiresAtUtc,
+                        existingUser?.TimeZoneId));
             }
             catch (Exception ex)
             {
@@ -205,7 +211,10 @@ namespace TaskManager.Application.Services
             invitation.InvitedUserId = actorUserId;
             invitation.Status = WorkspaceInvitationStatus.Accepted;
             invitation.RespondedAtUtc = now;
-            await _workspaceInvitationRepository.UpdateAsync(invitation, cancellationToken);
+            await _workspaceInvitationRepository.UpdateAsync(
+                invitation,
+                cancellationToken,
+                saveChanges: false);
 
             var isMember = await _workspaceMemberRepository.IsMemberAsync(invitation.WorkspaceId, actorUserId);
             if (!isMember)
@@ -216,8 +225,10 @@ namespace TaskManager.Application.Services
                     UserId = actorUserId,
                     Role = invitation.Role,
                     AddedAt = now
-                });
+                }, cancellationToken, saveChanges: false);
             }
+
+            await _workspaceInvitationRepository.SaveChangesAsync(cancellationToken);
 
             return MapToDto(invitation, now);
         }
@@ -430,11 +441,19 @@ namespace TaskManager.Application.Services
             return $"invites.html?workspaceId={workspaceId}&inviteId={invitationId}";
         }
 
-        private static string BuildInvitationEmailBody(string workspaceName, string? inviterName, DateTime expiresAtUtc)
+        private static string BuildInvitationEmailBody(
+            string workspaceName,
+            string? inviterName,
+            DateTime expiresAtUtc,
+            string? recipientTimeZoneId)
         {
             var safeWorkspaceName = string.IsNullOrWhiteSpace(workspaceName) ? "проект" : workspaceName;
             var inviter = string.IsNullOrWhiteSpace(inviterName) ? "Участник" : inviterName.Trim();
-            var expiresLabel = expiresAtUtc.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
+            var expiresLabel = FormatUtcForTimeZone(expiresAtUtc, recipientTimeZoneId);
+
+            var workspaceHtml = WebUtility.HtmlEncode(safeWorkspaceName);
+            var inviterHtml = WebUtility.HtmlEncode(inviter);
+            var expiresHtml = WebUtility.HtmlEncode(expiresLabel);
 
             return $@"<!DOCTYPE html>
 <html>
@@ -445,13 +464,45 @@ namespace TaskManager.Application.Services
       <h1 style=""margin: 0; font-size: 20px; font-weight: 700;"">Приглашение в workspace</h1>
     </div>
     <div style=""padding: 24px; color: #2b3240;"">
-      <p style=""margin: 0 0 12px;""><strong>{inviter}</strong> приглашает вас в проект <strong>{safeWorkspaceName}</strong>.</p>
+      <p style=""margin: 0 0 12px;""><strong>{inviterHtml}</strong> приглашает вас в проект <strong>{workspaceHtml}</strong>.</p>
       <p style=""margin: 0 0 12px;"">Откройте приложение и перейдите в раздел приглашений, чтобы принять или отклонить приглашение.</p>
-      <p style=""margin: 0; color: #6b7280; font-size: 13px;"">Приглашение действует до {expiresLabel}.</p>
+      <p style=""margin: 0; color: #6b7280; font-size: 13px;"">Приглашение действует до {expiresHtml}.</p>
     </div>
   </div>
 </body>
 </html>";
+        }
+
+        private static string FormatUtcForTimeZone(DateTime utcValue, string? timeZoneId)
+        {
+            var normalizedUtc = utcValue.Kind switch
+            {
+                DateTimeKind.Utc => utcValue,
+                DateTimeKind.Local => utcValue.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(utcValue, DateTimeKind.Utc)
+            };
+
+            var tz = ResolveTimeZone(timeZoneId);
+            var local = TimeZoneInfo.ConvertTimeFromUtc(normalizedUtc, tz);
+            return local.ToString("dd.MM.yyyy HH:mm");
+        }
+
+        private static TimeZoneInfo ResolveTimeZone(string? timeZoneId)
+        {
+            var raw = (timeZoneId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return TimeZoneInfo.Utc;
+            }
+
+            try
+            {
+                return TZConvert.GetTimeZoneInfo(raw);
+            }
+            catch
+            {
+                return TimeZoneInfo.Utc;
+            }
         }
     }
 }

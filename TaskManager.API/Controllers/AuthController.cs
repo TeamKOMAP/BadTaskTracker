@@ -5,6 +5,7 @@ using TaskManager.API.Security;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
+using TimeZoneConverter;
 
 namespace TaskManager.API.Controllers
 {
@@ -113,6 +114,56 @@ namespace TaskManager.API.Controllers
             catch (NotFoundException ex)
             {
                 return NotFound(new { error = ex.Message });
+            }
+        }
+
+        [Authorize]
+        [HttpPost("timezone")]
+        public async Task<ActionResult<AuthUserDto>> UpdateTimeZone([FromBody] UpdateTimeZoneDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Authenticated user claim is missing" });
+            }
+
+            try
+            {
+                var normalizedTimeZoneId = NormalizeTimeZoneId(dto.TimeZoneId);
+                var user = await _authService.UpdateTimeZoneAsync(actorUserId.Value, normalizedTimeZoneId);
+                return Ok(user);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+        }
+
+        private static string NormalizeTimeZoneId(string? rawTimeZoneId)
+        {
+            var timeZoneId = (rawTimeZoneId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(timeZoneId) || timeZoneId.Length > 100)
+            {
+                return "UTC";
+            }
+
+            try
+            {
+                _ = TZConvert.GetTimeZoneInfo(timeZoneId);
+                return timeZoneId;
+            }
+            catch
+            {
+                return "UTC";
             }
         }
     }

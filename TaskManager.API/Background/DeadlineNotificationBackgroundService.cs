@@ -1,8 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using TaskManager.Application.Interfaces;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
 using TaskManager.Infrastructure.Data;
+using TimeZoneConverter;
 
 namespace TaskManager.API.Background
 {
@@ -23,14 +24,16 @@ namespace TaskManager.API.Background
         {
             _logger.LogInformation("Сервис уведомлений о дедлайнах запущен");
 
+            DateTime? lastRunDateUtc = null;
+
             while (!stoppingToken.IsCancellationRequested)
             {
                 try
                 {
-                    var now = DateTime.Now;
-                    var nextRun = now.Date.AddDays(1).AddHours(9);
+                    var nowUtc = DateTime.UtcNow;
+                    var runTodayAtUtc = nowUtc.Date.AddHours(9);
 
-                    if (now.Hour >= 9)
+                    if (nowUtc >= runTodayAtUtc && lastRunDateUtc != nowUtc.Date)
                     {
                         using (var scope = _services.CreateScope())
                         {
@@ -40,12 +43,17 @@ namespace TaskManager.API.Background
 
                             await CheckDeadlinesAsync(dbContext, emailSender, notificationRepo, stoppingToken);
                         }
-                        nextRun = now.Date.AddDays(1).AddHours(9);
+
+                        lastRunDateUtc = nowUtc.Date;
                     }
 
-                    var delay = nextRun - now;
+                    var nextRunUtc = nowUtc < runTodayAtUtc
+                        ? runTodayAtUtc
+                        : nowUtc.Date.AddDays(1).AddHours(9);
+
+                    var delay = nextRunUtc - nowUtc;
                     if (delay < TimeSpan.Zero)
-                        delay = TimeSpan.FromHours(1);
+                        delay = TimeSpan.FromMinutes(1);
 
                     await Task.Delay(delay, stoppingToken);
                 }
@@ -63,18 +71,18 @@ namespace TaskManager.API.Background
             INotificationRepository notificationRepo,
             CancellationToken cancellationToken)
         {
-            var today = DateTime.UtcNow.Date;
-            var tomorrow = today.AddDays(1);
-            var dayAfterTomorrow = today.AddDays(2);
+            var nowUtc = DateTime.UtcNow;
+            var rangeStartUtc = nowUtc.Date.AddDays(-1);
+            var rangeEndUtc = nowUtc.Date.AddDays(3);
 
             var tasksDueSoon = await dbContext.Tasks
                 .Include(t => t.Assignee)
-                .Where(t => t.DueDate.Date >= today
-                    && t.DueDate.Date < dayAfterTomorrow
+                .Where(t => t.DueDate >= rangeStartUtc
+                    && t.DueDate < rangeEndUtc
                     && t.Status != TaskItemStatus.Done
                     && t.Assignee != null
                     && !t.DeadlineNotificationSent)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             if (!tasksDueSoon.Any())
             {
@@ -86,8 +94,19 @@ namespace TaskManager.API.Background
 
             foreach (var task in tasksDueSoon)
             {
-                var isToday = task.DueDate.Date == today;
-                var hoursLeft = (int)(task.DueDate - DateTime.UtcNow).TotalHours;
+                var dueUtc = NormalizeUtc(task.DueDate);
+                var userTimeZone = ResolveTimeZone(task.Assignee?.TimeZoneId);
+                var dueLocal = TimeZoneInfo.ConvertTimeFromUtc(dueUtc, userTimeZone);
+                var nowLocal = TimeZoneInfo.ConvertTimeFromUtc(nowUtc, userTimeZone);
+
+                var isToday = dueLocal.Date == nowLocal.Date;
+                var isTomorrow = dueLocal.Date == nowLocal.Date.AddDays(1);
+                if (!isToday && !isTomorrow)
+                {
+                    continue;
+                }
+
+                var hoursLeft = (int)Math.Max(0, Math.Ceiling((dueUtc - nowUtc).TotalHours));
 
                 // 1. Отправляем email
                 if (task.Assignee?.Email != null)
@@ -97,7 +116,7 @@ namespace TaskManager.API.Background
                         : $"Напоминание: Задача '{task.Title}' истекает завтра";
 
                     string emailBody = $"Задача: {task.Title}\n" +
-                                      $"Дедлайн: {task.DueDate:dd.MM.yyyy HH:mm}\n" +
+                                      $"Дедлайн: {dueLocal:dd.MM.yyyy HH:mm}\n" +
                                       $"Осталось: {hoursLeft} часов\n" +
                                       $"Приоритет: {task.Priority}";
 
@@ -110,7 +129,7 @@ namespace TaskManager.API.Background
                     UserId = task.Assignee!.Id,
                     Type = "deadline_soon",
                     Title = isToday ? "⚠️ Дедлайн сегодня" : "⏰ Дедлайн завтра",
-                    Message = $"Задача '{task.Title}' истекает {(isToday ? "сегодня" : "завтра")} в {task.DueDate:HH:mm}",
+                    Message = $"Задача '{task.Title}' истекает {(isToday ? "сегодня" : "завтра")} в {dueLocal:HH:mm}",
                     TaskId = task.Id,
                     WorkspaceId = task.WorkspaceId,
                     ActionUrl = $"workspace.html?workspaceId={task.WorkspaceId}",
@@ -124,9 +143,43 @@ namespace TaskManager.API.Background
                 task.DeadlineNotificationSentAt = DateTime.UtcNow;
             }
 
+            if (notificationsToCreate.Count == 0)
+            {
+                _logger.LogInformation("Нет задач для уведомлений в локальных таймзонах пользователей");
+                return;
+            }
+
             await notificationRepo.AddRangeAsync(notificationsToCreate, cancellationToken, saveChanges: false);
             await dbContext.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Отправлено {Count} уведомлений о дедлайнах", tasksDueSoon.Count);
+            _logger.LogInformation("Отправлено {Count} уведомлений о дедлайнах", notificationsToCreate.Count);
+        }
+
+        private static DateTime NormalizeUtc(DateTime value)
+        {
+            return value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
+        }
+
+        private static TimeZoneInfo ResolveTimeZone(string? timeZoneId)
+        {
+            var raw = (timeZoneId ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                return TimeZoneInfo.Utc;
+            }
+
+            try
+            {
+                return TZConvert.GetTimeZoneInfo(raw);
+            }
+            catch
+            {
+                return TimeZoneInfo.Utc;
+            }
         }
     }
 }

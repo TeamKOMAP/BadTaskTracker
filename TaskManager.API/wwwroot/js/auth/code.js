@@ -196,6 +196,43 @@ const verifyCode = async (code) => {
   }
 };
 
+const resolveBrowserTimeZoneId = () => {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const token = String(zone || "").trim();
+    return token || "UTC";
+  } catch {
+    return "UTC";
+  }
+};
+
+const syncUserTimeZone = async () => {
+  const timeZoneId = resolveBrowserTimeZoneId();
+
+  try {
+    const response = await apiFetch(buildApiUrl("/auth/timezone"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({ timeZoneId })
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    try {
+      await response.json();
+    } catch {
+      // ignore response parse errors for best-effort sync
+    }
+  } catch {
+    // ignore timezone sync errors for best-effort login flow
+  }
+};
+
 const initialCooldownSeconds = Number.isFinite(initialResendAfterSeconds) && initialResendAfterSeconds > 0
   ? initialResendAfterSeconds
   : 60;
@@ -274,6 +311,7 @@ if (codeForm) {
 
       setAccessToken(token);
       clearDevelopmentCode();
+      await syncUserTimeZone();
 
       if (returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//")) {
         window.location.href = returnUrl;

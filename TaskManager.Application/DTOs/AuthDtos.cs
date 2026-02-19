@@ -28,6 +28,13 @@ namespace TaskManager.Application.DTOs
         public int WorkspaceId { get; set; }
     }
 
+    public class UpdateTimeZoneDto
+    {
+        [Required]
+        [StringLength(100)]
+        public string TimeZoneId { get; set; } = "UTC";
+    }
+
     public class EmailCodeRequestResultDto
     {
         public int ResendAfterSeconds { get; set; }
@@ -40,6 +47,7 @@ namespace TaskManager.Application.DTOs
         public int Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
+        public string TimeZoneId { get; set; } = "UTC";
     }
 
     public class AuthTokenResponseDto
