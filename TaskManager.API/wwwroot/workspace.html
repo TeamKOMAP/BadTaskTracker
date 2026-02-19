@@ -75,7 +75,7 @@
           <button class="view-btn" data-view="list" aria-pressed="false">List</button>
           <button class="view-btn" data-view="calendar" aria-pressed="false">Calendar</button>
           <button class="view-btn" data-view="priority" aria-pressed="false">Priority</button>
-          <button class="view-btn" data-view="flow" aria-pressed="false">Flow Map</button>
+          <button class="view-btn" data-view="flow" aria-pressed="false">Flow</button>
         </div>
       <div class="topbar-right">
         <div class="user-meta">
@@ -319,32 +319,46 @@
         <aside class="flow-list">
           <div class="flow-list-header">
             <div class="flow-list-title">
-              <span class="flow-kicker">Task list</span>
-              <h3 class="flow-title">Drag tasks onto the map</h3>
+              <span class="flow-kicker">Список задач</span>
+              <h3 class="flow-title">Перетащите задачи на карту</h3>
             </div>
-            <button class="flow-add" id="flow-add-task" type="button" aria-label="Create task">
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-            </button>
+            <div class="flow-list-actions">
+              <button class="flow-add" id="flow-add-task" type="button" aria-label="Создать задачу">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </button>
+              <button class="flow-add flow-remove" id="flow-clear-task" type="button" aria-label="Очистить карту" aria-expanded="false" title="Очистить карту">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 12h14" />
+                </svg>
+              </button>
+              <div class="flow-clear-menu" id="flow-clear-menu" hidden>
+                <button class="flow-clear-menu-item" type="button" data-flow-clear="all">Очистить карту</button>
+                <button class="flow-clear-menu-item" type="button" data-flow-clear="links">Удалить только стрелки</button>
+              </div>
+            </div>
           </div>
           <div class="flow-list-items"></div>
             <div class="flow-list-footer">
-              <span>Drop tasks on the right and click two cards to connect them.</span>
-           </div>
+              <span>Перетащите задачи направо. Кнопка X на узле включает режим связи между узлами.</span>
+            </div>
         </aside>
         <section class="flow-canvas" id="flow-canvas">
-          <div class="flow-grid"></div>
-          <svg class="flow-links" id="flow-links" aria-hidden="true">
-            <defs>
-              <marker id="flow-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
-                <path d="M0,0 L0,6 L6,3 z" fill="rgba(68, 210, 199, 0.85)" />
-              </marker>
-            </defs>
-          </svg>
+          <div class="flow-scene" id="flow-scene">
+            <div class="flow-grid"></div>
+            <svg class="flow-links" id="flow-links" aria-hidden="true">
+              <defs>
+                <marker id="flow-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+                  <path d="M0,0 L0,6 L6,3 z" fill="rgba(68, 210, 199, 0.85)" />
+                </marker>
+              </defs>
+            </svg>
+            <div class="flow-nodes" id="flow-nodes"></div>
+          </div>
           <div class="flow-dropzone" id="flow-dropzone">
-            <strong>Drop tasks here</strong>
-            <span>Move cards around and connect them into a flow</span>
+            <strong>Перетащите задачи сюда</strong>
+            <span>Перемещайте узлы, масштабируйте колесом и связывайте их в поток</span>
           </div>
         </section>
       </section>
@@ -720,6 +734,6 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow70"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow72"></script>
 </body>
 </html>

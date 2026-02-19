@@ -38,10 +38,14 @@ export const taskTrashZone = document.getElementById("task-trash-zone");
 
 export const flowLayout = document.getElementById("flow-layout");
 export const flowCanvas = document.getElementById("flow-canvas");
+export const flowScene = document.getElementById("flow-scene");
 export const flowLinks = document.getElementById("flow-links");
+export const flowNodesLayer = document.getElementById("flow-nodes");
 export const flowDropzone = document.getElementById("flow-dropzone");
 export const flowListItems = document.querySelector(".flow-list-items");
 export const flowAddTaskBtn = document.getElementById("flow-add-task");
+export const flowClearBtn = document.getElementById("flow-clear-task");
+export const flowClearMenu = document.getElementById("flow-clear-menu");
 
 export const calendarLayout = document.getElementById("calendar-layout");
 
