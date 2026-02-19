@@ -1,24 +1,11 @@
 name: PushNotification
+
 on: [push]
 
 jobs:
   send-email:
     runs-on: ubuntu-latest
     steps:
-      - name: Masti
-        id: generate_message
-        run: |
-          MESSAGES=(
-            "🚶 ПЕШЕХОД – зашкваренный за то, что прошел босиком по полу в хате, особенно возле толчка, или в барачном толчке. Непроткнутая масть."
-            "🔄 КРУГЛЯК – петух, ебомый как орально, так и анально, иногда одновременно. Проткнутая масть."
-            "💨 ГАЗОНЮХ – Опущ, которого заставляют по команде «Пацан хочет пернуть» подбегать к блатным, присасываться ртом к их жопе и вдыхать в себя их выперженные газы, выдыхая их позже в форточку.'"
-            "👑 КОРОЛЬ ВСЕХ МАСТЕЙ – особо стремный петух, собравший все или многие из петушиных мастей. Естественно, масть проткнутая, с целым пуканом королем всех мастей не стать.'"
-            "✊ МАСЛОБОЙ – мастурбатор, который рукой дрочит хуй другим пацанам. Непроткнутая масть, хоть и через хуй.'"
-            "🦌 ГАШЕНЫЙ – зашкваренный за то, что по воле лизал бабе пилотку или целовал бабу в губы после сосания ею хуя. Естественно, признаются в этом на тюрячке только конченые долбоебы или пряники. После этого, естественно, немедленно отселяются в петушиный угол и получают дырявую миску. Непроткнутая масть.'"
-          )
-          RANDOM_INDEX=$(( RANDOM % ${#MESSAGES[@]} ))
-          echo "message=${MESSAGES[$RANDOM_INDEX]}" >> $GITHUB_OUTPUT
-      
       - name: Send email
         uses: dawidd6/action-send-mail@v3
         with:
@@ -26,20 +13,57 @@ jobs:
           server_port: 465
           username: ${{ secrets.MAIL_USERNAME }}
           password: ${{ secrets.MAIL_PASSWORD }}
-          subject: '🚀 Новый пуш в ${{ github.repository }} от ${{ github.actor }}'
+          subject: 'GoodTaskTracker: ${{ github.event.head_commit.message }}'
           to: ${{ secrets.TEAM_EMAIL }}
-          from: 'TeamKOMAP'
-          reply_to: 'noreply@github.com'
-          body: |
-            📌 Автор: ${{ github.actor }}
-            📦 Коммит: ${{ github.event.head_commit.message }}
-            🌿 Ветка: ${{ github.ref_name }}
-            📊 Коммитов в пуше: ${{ github.event.commits.length }}
-            
-            🎯 Масть тимлида:
-            ${{ steps.generate_message.outputs.message }}
-            
-            ——————————————
-            🔗 Ссылка на коммит: ${{ github.event.head_commit.url }}
-            
-            Это автоматическое уведомление о пуше в репозиторий.
+          from: 'GoodTaskTracker CI'
+          reply_to: 'noreply@goodtasktracker.com'
+          html_body: |
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8">
+              <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f6f8fa; margin: 0; padding: 20px; }
+                .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+                .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px; }
+                .header h1 { margin: 0; font-size: 20px; font-weight: 600; }
+                .header p { margin: 8px 0 0; opacity: 0.9; font-size: 14px; }
+                .content { padding: 24px; }
+                .info-row { display: flex; padding: 12px 0; border-bottom: 1px solid #e1e4e8; }
+                .info-label { width: 120px; color: #586069; font-size: 14px; }
+                .info-value { flex: 1; color: #24292e; font-size: 14px; }
+                .commit-message { background: #f6f8fa; padding: 16px; border-radius: 6px; margin: 16px 0; font-family: monospace; font-size: 13px; border-left: 4px solid #667eea; }
+                .btn { display: inline-block; padding: 10px 20px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-size: 14px; margin-top: 16px; }
+                .footer { padding: 16px 24px; background: #f6f8fa; color: #586069; font-size: 12px; text-align: center; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1>🚀 Новый коммит в репозитории</h1>
+                  <p>${{ github.repository }}</p>
+                </div>
+                <div class="content">
+                  <div class="info-row">
+                    <span class="info-label">👤 Автор</span>
+                    <span class="info-value"><strong>${{ github.actor }}</strong></span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">🌿 Ветка</span>
+                    <span class="info-value"><code>${{ github.ref_name }}</code></span>
+                  </div>
+                  <div class="info-row">
+                    <span class="info-label">🔖 SHA</span>
+                    <span class="info-value"><code>${{ github.sha }}</code></span>
+                  </div>
+                  <div class="commit-message">
+                    ${{ github.event.head_commit.message }}
+                  </div>
+                  <a href="${{ github.event.head_commit.url }}" class="btn">Открыть коммит →</a>
+                </div>
+                <div class="footer">
+                  Это автоматическое уведомление от GoodTaskTracker CI
+                </div>
+              </div>
+            </body>
+            </html>
