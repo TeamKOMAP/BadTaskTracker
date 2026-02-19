@@ -8,6 +8,9 @@ export const createFlowEditorController = (deps) => {
   const flowDropzone = deps?.flowDropzone ?? null;
   const flowListItems = deps?.flowListItems ?? null;
 
+  const onFlowTaskDragStart = typeof deps?.onFlowTaskDragStart === "function" ? deps.onFlowTaskDragStart : () => {};
+  const onFlowTaskDragEnd = typeof deps?.onFlowTaskDragEnd === "function" ? deps.onFlowTaskDragEnd : () => {};
+
   const clampValue = typeof deps?.clampValue === "function"
     ? deps.clampValue
     : (value, min, max) => Math.min(max, Math.max(min, value));
@@ -103,6 +106,12 @@ export const createFlowEditorController = (deps) => {
         event.dataTransfer.setData("text/plain", JSON.stringify(payload));
         event.dataTransfer.setDragImage(task, 20, 20);
       }
+
+      onFlowTaskDragStart(payload, event);
+    });
+
+    task.addEventListener("dragend", (event) => {
+      onFlowTaskDragEnd(event);
     });
   };
 

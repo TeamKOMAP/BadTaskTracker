@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GoodTaskTracker - Отчеты</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css?v=base6">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/workspace.css?v=perf36">
+  <link rel="stylesheet" href="css/reports.css?v=rep5">
+</head>
+
+<body data-theme="dark">
+  <div class="app-shell" id="app-shell">
+    <div class="page">
+      <header class="topbar">
+        <div class="brand-stack">
+          <button class="brand-mark" id="workspace-avatar" type="button" aria-label="Аватар проекта">GT</button>
+          <div class="brand" aria-label="Отчеты">
+            <div class="brand-text">
+              <span class="brand-kicker">Проект</span>
+              <span class="brand-title" id="reports-workspace-name">Отчеты</span>
+            </div>
+          </div>
+          <a class="spaces-back-link" id="back-to-workspace" href="workspace.html" aria-label="Назад к проекту">&lt; Назад</a>
+        </div>
+
+        <div class="topbar-right">
+          <div class="reports-meta" id="reports-meta">
+            <span class="user-label">Обновлено</span>
+            <span class="user-name" id="reports-updated">-</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="reports" aria-label="Отчеты">
+        <section class="report-card" aria-label="Отчеты по статусам">
+          <header class="report-head">
+            <h2 class="report-title">Статусы</h2>
+            <span class="report-sub">Только статусы, которые есть в проекте сейчас</span>
+          </header>
+          <div class="report-body">
+            <div class="report-chart" id="report-statuses-chart" aria-label="Диаграмма статусов"></div>
+            <div class="status-grid" id="report-statuses"></div>
+            <div class="report-empty" id="report-statuses-empty" hidden>Нет задач.</div>
+          </div>
+        </section>
+
+        <section class="report-card" aria-label="Просрочено">
+          <header class="report-head">
+            <h2 class="report-title">Просрочено</h2>
+            <span class="report-sub">Исполнитель, просрочено, задачи</span>
+          </header>
+          <div class="report-body">
+            <div class="report-chart" id="report-overdue-chart" aria-label="Диаграмма просрочек"></div>
+            <div class="report-note" id="report-overdue-note" hidden></div>
+            <div class="overdue-list" id="report-overdue"></div>
+            <div class="report-empty" id="report-overdue-empty" hidden>Нет просроченных задач.</div>
+          </div>
+        </section>
+
+        <section class="report-card" aria-label="Среднее время выполнения">
+          <header class="report-head">
+            <h2 class="report-title">Среднее время выполнения</h2>
+            <span class="report-sub">От добавления до выполнения</span>
+          </header>
+          <div class="report-body">
+            <div class="metric" id="report-avg">
+              <div class="metric-value" id="report-avg-value">-</div>
+              <div class="metric-sub" id="report-avg-sub">-</div>
+            </div>
+            <div class="report-chart" id="report-avg-chart" aria-label="Диаграмма времени выполнения"></div>
+          </div>
+        </section>
+      </main>
+
+      <div class="reports-toast" id="reports-toast" hidden></div>
+    </div>
+  </div>
+
+  <script type="module" src="js/reports/main.js?v=rep8"></script>
+</body>
+</html>

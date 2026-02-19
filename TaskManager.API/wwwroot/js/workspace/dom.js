@@ -18,6 +18,22 @@ export const styleSwitch = document.getElementById("style-switch");
 export const styleToggleTitleEl = document.getElementById("style-toggle-title");
 export const styleToggleSubEl = document.getElementById("style-toggle-sub");
 
+export const boardToolbar = document.getElementById("board-toolbar");
+export const boardSearchInput = document.getElementById("board-search");
+export const boardSearchTags = document.getElementById("board-search-tags");
+export const boardSearchClearBtn = document.getElementById("board-search-clear");
+export const boardSortToggleBtn = document.getElementById("board-sort-toggle");
+export const boardFilterToggleBtn = document.getElementById("board-filter-toggle");
+export const boardSortMenu = document.getElementById("board-sort-menu");
+export const boardFilterPanel = document.getElementById("board-filter-panel");
+export const boardFilterResetBtn = document.getElementById("board-filter-reset");
+export const boardTaskCreateBtn = document.getElementById("board-task-create");
+
+export const taskGrid = document.getElementById("task-grid");
+export const taskGridItems = document.getElementById("task-grid-items");
+export const taskGridEmptyEl = document.getElementById("task-grid-empty");
+export const taskGridSubEl = document.getElementById("task-grid-sub");
+
 export const taskTrashZone = document.getElementById("task-trash-zone");
 
 export const flowLayout = document.getElementById("flow-layout");
@@ -106,6 +122,13 @@ export const taskDetailPhotoWrap = document.getElementById("task-detail-photo");
 export const taskDetailPhotoImg = document.getElementById("task-detail-photo-img");
 export const taskDetailPhotoBtn = document.getElementById("task-detail-photo-btn");
 export const taskDetailPhotoClearBtn = document.getElementById("task-detail-photo-clear-btn");
+
+export const taskDetailHistoryPanel = document.getElementById("task-detail-history-panel");
+export const taskDetailHistoryToggleBtn = document.getElementById("task-detail-history-toggle");
+
+export const taskDetailHistoryList = document.getElementById("task-detail-history");
+export const taskDetailHistoryEmpty = document.getElementById("task-detail-history-empty");
+export const taskDetailHistoryClearBtn = document.getElementById("task-detail-history-clear");
 
 export const taskAttachBtn = document.getElementById("task-attach-btn");
 export const taskAttachmentsList = document.getElementById("task-attachments-list");

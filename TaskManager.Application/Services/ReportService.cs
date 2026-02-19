@@ -43,7 +43,7 @@ namespace TaskManager.Application.Services
                     {
                         TaskId = t.TaskId,
                         Title = t.Title,
-                        DueDate = t.DueDate,
+                        DueDate = AsUtc(t.DueDate),
                         DaysOverdue = Math.Max(0, (int)(now - t.DueDate).TotalDays)
                     }).ToList()
                 })
@@ -65,6 +65,13 @@ namespace TaskManager.Application.Services
             {
                 throw new TaskManager.Application.Exceptions.ForbiddenException("You are not a member of this workspace");
             }
+        }
+
+        private static DateTime AsUtc(DateTime value)
+        {
+            return value.Kind == DateTimeKind.Utc
+                ? value
+                : DateTime.SpecifyKind(value, DateTimeKind.Utc);
         }
     }
 }

@@ -10,6 +10,17 @@ import {
 } from "../shared/constants.js";
 import { normalizeToken, pad2 } from "../shared/utils.js";
 
+const ensureIsoHasTimeZone = (iso) => {
+  const token = normalizeToken(iso);
+  if (!token) return "";
+  if (/[zZ]$/.test(token) || /[+\-]\d\d:\d\d$/.test(token)) return token;
+  // Treat ISO strings without zone as UTC to avoid time drift.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,7})?)?$/.test(token)) {
+    return `${token}Z`;
+  }
+  return token;
+};
+
 export const toStatusValue = (status) => {
   if (status === null || status === undefined) return 1;
   if (typeof status === "number") {
@@ -39,7 +50,7 @@ export const formatDateTimeLocal = (date) => {
 
 export const toDateTimeLocalValue = (iso) => {
   if (!iso) return "";
-  const date = new Date(iso);
+  const date = new Date(ensureIsoHasTimeZone(iso));
   if (Number.isNaN(date.getTime())) return "";
   return formatDateTimeLocal(date);
 };
@@ -59,7 +70,7 @@ export const getDefaultDueDateIso = () => {
 
 export const formatShortDate = (iso) => {
   if (!iso) return "";
-  const date = new Date(iso);
+  const date = new Date(ensureIsoHasTimeZone(iso));
   if (Number.isNaN(date.getTime())) return "";
   return `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}`;
 };
@@ -67,7 +78,7 @@ export const formatShortDate = (iso) => {
 export const getUrgency = (dueDateIso, statusValue) => {
   if (toStatusValue(statusValue) === 3) return URGENCY.done;
   if (!dueDateIso) return URGENCY.none;
-  const due = new Date(dueDateIso);
+  const due = new Date(ensureIsoHasTimeZone(dueDateIso));
   if (Number.isNaN(due.getTime())) return URGENCY.none;
   const delta = due.getTime() - Date.now();
   if (delta < 0) return URGENCY.red;
@@ -95,7 +106,7 @@ export const formatDurationShort = (ms) => {
 
 export const formatDueLabel = (dueDate, statusValue) => {
   if (!dueDate) return "Без срока";
-  const due = new Date(dueDate);
+  const due = new Date(ensureIsoHasTimeZone(dueDate));
   if (Number.isNaN(due.getTime())) return "Без срока";
 
   if (toStatusValue(statusValue) === 3) {
@@ -107,6 +118,27 @@ export const formatDueLabel = (dueDate, statusValue) => {
   if (delta < 0) return `Просрочено ${formatShortDate(dueDate)}`;
   if (delta <= 1000 * 60 * 60 * 24) return `Срок через ${formatDurationShort(delta)}`;
   return `До ${formatShortDate(dueDate)}`;
+};
+
+// For task cards: keep only the numeric/date part.
+export const formatCardDueLabel = (dueDate, statusValue) => {
+  if (!dueDate) return "-";
+  const due = new Date(ensureIsoHasTimeZone(dueDate));
+  if (Number.isNaN(due.getTime())) return "-";
+
+  const normalizedStatus = toStatusValue(statusValue);
+  if (normalizedStatus === 3) {
+    return formatShortDate(dueDate);
+  }
+
+  const delta = due.getTime() - Date.now();
+  if (delta < 0) {
+    return formatShortDate(dueDate);
+  }
+  if (delta <= 1000 * 60 * 60 * 24) {
+    return formatDurationShort(delta);
+  }
+  return formatShortDate(dueDate);
 };
 
 export const parseTagIds = (raw) => {
@@ -126,7 +158,7 @@ export const addUniqueToken = (map, value) => {
 
 export const formatIso = (iso) => {
   if (!iso) return "";
-  const date = new Date(iso);
+  const date = new Date(ensureIsoHasTimeZone(iso));
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString([], {
     year: "numeric",
@@ -185,7 +217,7 @@ export const getCalendarBucketId = (task) => {
   if (statusValue === 3) return "done";
 
   const priorityValue = toPriorityValue(task?.priorityValue ?? task?.priority);
-  const due = task?.dueDate ? new Date(task.dueDate) : null;
+  const due = task?.dueDate ? new Date(ensureIsoHasTimeZone(task.dueDate)) : null;
 
   if (!due || Number.isNaN(due.getTime())) {
     return priorityValue === 3 ? "high" : "gtmonth";

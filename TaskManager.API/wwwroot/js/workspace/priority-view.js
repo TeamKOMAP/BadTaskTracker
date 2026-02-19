@@ -38,6 +38,8 @@ export const createPriorityViewController = (deps) => {
     return String(a?.title || "").localeCompare(String(b?.title || ""));
   };
 
+  const compareTasks = typeof deps?.compareTasks === "function" ? deps.compareTasks : comparePriorityTasks;
+
   const ensurePriorityGroupUiState = (group) => {
     if (!(group instanceof Element)) return;
     const body = group.querySelector(".calendar-group-body");
@@ -96,8 +98,6 @@ export const createPriorityViewController = (deps) => {
     if (!(card instanceof Element)) {
       return false;
     }
-    card.setAttribute("draggable", "false");
-
     const existingInTarget = Array.from(targetBody.querySelectorAll(".task-card:not(.is-empty)"));
     const insertBefore = existingInTarget.find((item) => {
       const candidate = {
@@ -105,7 +105,7 @@ export const createPriorityViewController = (deps) => {
         dueDate: item.dataset.dueDate || null,
         priorityValue: Number.parseInt(item.dataset.priorityValue || "", 10)
       };
-      return comparePriorityTasks(candidate, taskData) > 0;
+      return compareTasks(candidate, taskData) > 0;
     });
 
     if (insertBefore) {
@@ -176,7 +176,7 @@ export const createPriorityViewController = (deps) => {
       const body = document.createElement("div");
       body.className = "calendar-group-body";
 
-      const list = (lists.get(bucket.id) || []).slice().sort(comparePriorityTasks);
+      const list = (lists.get(bucket.id) || []).slice().sort(compareTasks);
       count.textContent = String(list.length);
 
       if (list.length === 0) {
@@ -188,7 +188,6 @@ export const createPriorityViewController = (deps) => {
         list.forEach((task) => {
           const card = createTaskCard(task);
           if (!(card instanceof Element)) return;
-          card.setAttribute("draggable", "false");
           body.appendChild(card);
         });
       }
