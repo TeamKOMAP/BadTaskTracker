@@ -140,6 +140,12 @@ Smtp__FromEmail=your-from-email
 Smtp__TimeoutSeconds=10
 ```
 
+Ограничение на смену ника (по умолчанию раз в 3 часа):
+
+```env
+Profile__NicknameChangeCooldownHours=3
+```
+
 Шаблон переменных: `.env.example`.
 
 ## 💯 КАК СДЕЛАТЬ (Swagger)?

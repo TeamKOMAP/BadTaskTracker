@@ -277,6 +277,32 @@ body[data-theme="light"] .notifications-panel-inner {
   transition: border 0.2s ease, box-shadow 0.2s ease;
 }
 
+.settings-nickname-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-nickname-row input {
+  flex: 1 1 auto;
+}
+
+.settings-nickname-save {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 10px 12px;
+}
+
+.settings-nickname-note {
+  min-height: 1.2em;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.settings-nickname-note.is-error {
+  color: rgba(248, 113, 113, 0.95);
+}
+
 .settings-field input:focus {
   border-color: rgba(68, 210, 199, 0.6);
   box-shadow: 0 0 0 1px rgba(68, 210, 199, 0.25);
@@ -285,6 +311,10 @@ body[data-theme="light"] .notifications-panel-inner {
 body[data-theme="light"] .settings-field input {
   background: rgba(255, 255, 255, 0.72);
   border-color: rgba(15, 20, 28, 0.16);
+}
+
+body[data-theme="light"] .settings-nickname-note.is-error {
+  color: rgba(220, 38, 38, 0.9);
 }
 
 .settings-avatar-row {

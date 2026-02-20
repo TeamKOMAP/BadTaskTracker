@@ -27,6 +27,7 @@ namespace TaskManager.Application.Services
         private readonly IWorkspaceInvitationService _workspaceInvitationService;
         private readonly ILogger<AuthService> _logger;
         private readonly EmailAuthSettings _settings;
+        private readonly ProfileSettings _profileSettings;
 
         public AuthService(
             IUserRepository userRepository,
@@ -36,7 +37,8 @@ namespace TaskManager.Application.Services
             IJwtTokenService jwtTokenService,
             IWorkspaceInvitationService workspaceInvitationService,
             ILogger<AuthService> logger,
-            EmailAuthSettings settings)
+            EmailAuthSettings settings,
+            ProfileSettings profileSettings)
         {
             _userRepository = userRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
@@ -46,6 +48,7 @@ namespace TaskManager.Application.Services
             _workspaceInvitationService = workspaceInvitationService;
             _logger = logger;
             _settings = settings ?? new EmailAuthSettings();
+            _profileSettings = profileSettings ?? new ProfileSettings();
         }
 
         public Task<EmailCodeRequestResultDto> RequestEmailCodeAsync(EmailCodeRequestDto dto)
@@ -254,13 +257,7 @@ namespace TaskManager.Application.Services
                 throw new NotFoundException("User not found");
             }
 
-            return new AuthUserDto
-            {
-                Id = user.Id,
-                Name = user.Name,
-                Email = user.Email,
-                TimeZoneId = NormalizeTimeZoneId(user.TimeZoneId)
-            };
+            return MapAuthUser(user);
         }
 
         public async Task<AuthUserDto> UpdateTimeZoneAsync(int actorUserId, string timeZoneId)
@@ -279,13 +276,40 @@ namespace TaskManager.Application.Services
             user.TimeZoneId = NormalizeTimeZoneId(timeZoneId);
             await _userRepository.UpdateAsync(user);
 
-            return new AuthUserDto
+            return MapAuthUser(user);
+        }
+
+        public async Task<AuthUserDto> UpdateNicknameAsync(int actorUserId, string nickname)
+        {
+            if (actorUserId <= 0)
             {
-                Id = user.Id,
-                Name = user.Name,
-                Email = user.Email,
-                TimeZoneId = user.TimeZoneId
-            };
+                throw new ForbiddenException("Access denied");
+            }
+
+            var user = await _userRepository.GetByIdAsync(actorUserId);
+            if (user == null)
+            {
+                throw new NotFoundException("User not found");
+            }
+
+            var normalizedNickname = NormalizeNickname(nickname);
+            if (string.Equals(normalizedNickname, user.Name, StringComparison.Ordinal))
+            {
+                return MapAuthUser(user);
+            }
+
+            var now = DateTime.UtcNow;
+            var availableAtUtc = GetNicknameChangeAvailableAtUtc(user, now);
+            if (availableAtUtc.HasValue && availableAtUtc.Value > now)
+            {
+                throw new ValidationException("Nickname change cooldown is active. Try again later.");
+            }
+
+            user.Name = normalizedNickname;
+            user.NicknameChangedAtUtc = now;
+            await _userRepository.UpdateAsync(user);
+
+            return MapAuthUser(user, now);
         }
 
         private AuthTokenResponseDto MapTokenResponse(User user, string token, int? workspaceId)
@@ -296,14 +320,71 @@ namespace TaskManager.Application.Services
                 TokenType = "Bearer",
                 ExpiresInSeconds = Math.Max(60, _jwtTokenService.AccessTokenLifetimeMinutes * 60),
                 WorkspaceId = workspaceId,
-                User = new AuthUserDto
-                {
-                    Id = user.Id,
-                    Name = user.Name,
-                    Email = user.Email,
-                    TimeZoneId = NormalizeTimeZoneId(user.TimeZoneId)
-                }
+                User = MapAuthUser(user)
             };
+        }
+
+        private AuthUserDto MapAuthUser(User user, DateTime? nowUtc = null)
+        {
+            var now = nowUtc ?? DateTime.UtcNow;
+            return new AuthUserDto
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                TimeZoneId = NormalizeTimeZoneId(user.TimeZoneId),
+                NicknameChangeAvailableAtUtc = GetNicknameChangeAvailableAtUtc(user, now)
+            };
+        }
+
+        private DateTime? GetNicknameChangeAvailableAtUtc(User user, DateTime nowUtc)
+        {
+            if (!user.NicknameChangedAtUtc.HasValue)
+            {
+                return null;
+            }
+
+            var cooldown = GetNicknameChangeCooldown();
+            if (cooldown <= TimeSpan.Zero)
+            {
+                return null;
+            }
+
+            var changedAtUtc = EnsureUtc(user.NicknameChangedAtUtc.Value);
+            var availableAt = changedAtUtc.Add(cooldown);
+            return availableAt > EnsureUtc(nowUtc) ? availableAt : null;
+        }
+
+        private TimeSpan GetNicknameChangeCooldown()
+        {
+            var hours = Math.Max(0, _profileSettings.NicknameChangeCooldownHours);
+            return TimeSpan.FromHours(hours);
+        }
+
+        private static DateTime EnsureUtc(DateTime value)
+        {
+            return value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
+        }
+
+        private static string NormalizeNickname(string? rawNickname)
+        {
+            var nickname = (rawNickname ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(nickname))
+            {
+                throw new ValidationException("Nickname is required.");
+            }
+
+            if (nickname.Length > 60)
+            {
+                throw new ValidationException("Nickname is too long.");
+            }
+
+            return nickname;
         }
 
         private static string NormalizeTimeZoneId(string? raw)

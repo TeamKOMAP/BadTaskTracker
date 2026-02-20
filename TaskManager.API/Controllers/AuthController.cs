@@ -195,6 +195,50 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Updates the user's nickname.
+        /// </summary>
+        /// <param name="dto">The nickname update request.</param>
+        /// <returns>Updated user information.</returns>
+        /// <response code="200">Nickname updated successfully</response>
+        /// <response code="400">If nickname is invalid or cooldown is active</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If access is denied</response>
+        /// <response code="404">If user is not found</response>
+        [Authorize]
+        [HttpPost("nickname")]
+        public async Task<ActionResult<AuthUserDto>> UpdateNickname([FromBody] UpdateNicknameDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return ValidationProblem(ModelState);
+            }
+
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Authenticated user claim is missing" });
+            }
+
+            try
+            {
+                var user = await _authService.UpdateNicknameAsync(actorUserId.Value, dto.Nickname);
+                return Ok(user);
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+        }
+
         private static string NormalizeTimeZoneId(string? rawTimeZoneId)
         {
             var timeZoneId = (rawTimeZoneId ?? string.Empty).Trim();

@@ -247,6 +247,91 @@ namespace TaskManager.Tests.IntegrationTests
         }
 
         [Fact]
+        public async Task UpdateNickname_WithValidValue_StoresNameAndCooldown()
+        {
+            var token = await GetAuthTokenAsync("nickname.valid@example.com");
+
+            var authClient = _factory.CreateClient();
+            authClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var response = await authClient.PostAsJsonAsync("/api/auth/nickname", new
+            {
+                nickname = "Новый Ник"
+            });
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var updated = await response.Content.ReadFromJsonAsync<AuthUserDto>();
+            updated.Should().NotBeNull();
+            updated!.Name.Should().Be("Новый Ник");
+            updated.NicknameChangeAvailableAtUtc.Should().NotBeNull();
+            updated.NicknameChangeAvailableAtUtc!.Value.Kind.Should().Be(DateTimeKind.Utc);
+
+            var meResponse = await authClient.GetAsync("/api/auth/me");
+            meResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var me = await meResponse.Content.ReadFromJsonAsync<AuthUserDto>();
+            me.Should().NotBeNull();
+            me!.Name.Should().Be("Новый Ник");
+            me.NicknameChangeAvailableAtUtc.Should().NotBeNull();
+            me.NicknameChangeAvailableAtUtc!.Value.Kind.Should().Be(DateTimeKind.Utc);
+        }
+
+        [Fact]
+        public async Task UpdateNickname_DuringCooldown_ReturnsBadRequest()
+        {
+            var token = await GetAuthTokenAsync("nickname.cooldown@example.com");
+
+            var authClient = _factory.CreateClient();
+            authClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+            var first = await authClient.PostAsJsonAsync("/api/auth/nickname", new
+            {
+                nickname = "Первый Ник"
+            });
+            first.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var second = await authClient.PostAsJsonAsync("/api/auth/nickname", new
+            {
+                nickname = "Второй Ник"
+            });
+
+            second.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+        }
+
+        [Fact]
+        public async Task UpdateNickname_PropagatesToWorkspaceMembers()
+        {
+            var memberEmail = $"nickname.member.{Guid.NewGuid():N}@example.com";
+            var memberToken = await GetAuthTokenAsync(memberEmail);
+            var memberUserId = await AddUserToWorkspaceAsync(memberEmail, WorkspaceRole.Member);
+
+            var memberClient = _factory.CreateClient();
+            memberClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", memberToken);
+
+            var updateResponse = await memberClient.PostAsJsonAsync("/api/auth/nickname", new
+            {
+                nickname = "Командный Ник"
+            });
+
+            updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var ownerToken = await GetAuthTokenAsync("test@example.com");
+            var ownerClient = _factory.CreateClient();
+            ownerClient.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", ownerToken);
+
+            var membersResponse = await ownerClient.GetAsync($"/api/spaces/{_testWorkspaceId}/members");
+            membersResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var members = await membersResponse.Content.ReadFromJsonAsync<List<WorkspaceMemberDto>>();
+
+            members.Should().NotBeNull();
+            members!.Should().Contain(m => m.UserId == memberUserId && m.Name == "Командный Ник");
+        }
+
+        [Fact]
         public async Task GetCurrentUser_WithoutToken_ReturnsUnauthorized()
         {
             var clientWithoutAuth = _factory.CreateClient();
@@ -362,6 +447,27 @@ namespace TaskManager.Tests.IntegrationTests
 
             var tokenResult = await verifyResponse.Content.ReadFromJsonAsync<AuthTokenResponseDto>();
             return tokenResult!.AccessToken;
+        }
+
+        private async Task<int> AddUserToWorkspaceAsync(string email, WorkspaceRole role)
+        {
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var user = await db.Users.FirstAsync(u => u.Email == email);
+
+            if (!await db.WorkspaceMembers.AnyAsync(m => m.WorkspaceId == _testWorkspaceId && m.UserId == user.Id))
+            {
+                db.WorkspaceMembers.Add(new WorkspaceMember
+                {
+                    WorkspaceId = _testWorkspaceId,
+                    UserId = user.Id,
+                    Role = role,
+                    AddedAt = DateTime.UtcNow
+                });
+                await db.SaveChangesAsync();
+            }
+
+            return user.Id;
         }
 
         private void SeedTestData(ApplicationDbContext db)

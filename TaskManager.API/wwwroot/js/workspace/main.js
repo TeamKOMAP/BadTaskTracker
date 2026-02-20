@@ -75,6 +75,8 @@ import {
   notificationsMarkAllBtn,
   logoutBtn,
   settingsNicknameInput,
+  settingsNicknameSaveBtn,
+  settingsNicknameCooldownEl,
   settingsAvatarPreview,
   settingsAvatarPreviewTextEl,
   settingsAvatarInput,
@@ -104,7 +106,7 @@ import {
   confirmModalMessageEl,
   confirmModalCancelBtn,
   confirmModalAcceptBtn
-} from "./dom.js?v=authflow11";
+} from "./dom.js?v=authflow12";
 
 import {
   buildApiUrl,
@@ -130,8 +132,6 @@ import { normalizeToken, toInitials, toWorkspaceRole, clampValue } from "../shar
 import { getRoleLabel } from "../shared/roles.js?v=auth1";
 import { createNotificationsPanelController } from "../shared/notifications.js?v=notif3";
 import {
-  getStoredAccountNickname,
-  setStoredAccountNickname,
   getStoredAccountAvatar,
   setStoredAccountAvatar,
   applyAccountAvatarToElement
@@ -233,6 +233,11 @@ const setWorkspaceEditing = (editing) => {
   }
 };
 let actorUser = null;
+let nicknameSaveInFlight = false;
+let nicknameCooldownEndsAt = 0;
+let nicknameCooldownTimerHandle = null;
+let nicknameStatusMessage = "";
+let nicknameStatusIsError = false;
 
 let workspaceMembers = [];
 
@@ -289,9 +294,6 @@ const getTaskNormalizedTags = (taskData) => {
 const getAssigneeLabelById = (assigneeId) => {
   const id = Number.parseInt(String(assigneeId ?? ""), 10);
   if (!Number.isFinite(id) || id <= 0) return "";
-
-  const storedNickname = normalizeToken(getStoredAccountNickname(id));
-  if (storedNickname) return storedNickname;
 
   const match = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === id);
   if (!match) return "";
@@ -662,8 +664,7 @@ const renderAssigneeOptions = (options) => {
   taskAssignee.appendChild(unassignedOption);
 
   members.forEach((m) => {
-    const storedNickname = normalizeToken(getStoredAccountNickname(m.id));
-    const fullLabel = storedNickname || normalizeToken(m.name) || "Без имени";
+    const fullLabel = normalizeToken(m.name) || normalizeToken(m.email) || "Без имени";
     const label = truncateLabel(fullLabel, 24);
     const option = document.createElement("option");
     option.value = String(m.id);
@@ -1233,16 +1234,7 @@ const loadUsersFromApi = async () => {
   const members = users
     .map((u) => ({
       id: Number(u.userId ?? u.id),
-      name: (() => {
-        const id = Number(u.userId ?? u.id);
-        const apiName = normalizeToken(u.name);
-        if (id === getActorUserId()) {
-          const storedNickname = normalizeToken(getStoredAccountNickname(id));
-          const fallbackName = apiName && apiName.toLowerCase() !== "system" ? apiName : "Без имени";
-          return storedNickname || fallbackName;
-        }
-        return apiName;
-      })(),
+      name: normalizeToken(u.name) || normalizeToken(u.email) || "Без имени",
       email: normalizeToken(u.email),
       role: toWorkspaceRole(u.role),
       taskCount: Number(u.taskCount || 0)
@@ -1334,13 +1326,133 @@ const updateMyMemberItem = (displayName, email) => {
   }
 };
 
+const parseApiErrorMessage = async (response, fallback) => {
+  try {
+    const payload = await response.json();
+    const message = normalizeToken(payload?.error || payload?.title);
+    if (message) return message;
+  } catch {
+    // ignore parse errors
+  }
+  return fallback;
+};
+
+const getActorDisplayName = () => {
+  const apiName = normalizeToken(actorUser?.name);
+  if (apiName && apiName.toLowerCase() !== "system") {
+    return apiName;
+  }
+  return "Без имени";
+};
+
+const formatCooldownTime = (totalSeconds) => {
+  const safe = Math.max(0, Number(totalSeconds) || 0);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+};
+
+const getNicknameCooldownRemainingSeconds = () => {
+  if (!Number.isFinite(nicknameCooldownEndsAt) || nicknameCooldownEndsAt <= 0) return 0;
+  return Math.max(0, Math.ceil((nicknameCooldownEndsAt - Date.now()) / 1000));
+};
+
+const stopNicknameCooldownTimer = () => {
+  if (nicknameCooldownTimerHandle) {
+    window.clearInterval(nicknameCooldownTimerHandle);
+    nicknameCooldownTimerHandle = null;
+  }
+};
+
+const setNicknameStatusMessage = (message, isError = false) => {
+  nicknameStatusMessage = normalizeToken(message);
+  nicknameStatusIsError = !!isError;
+};
+
+const clearNicknameStatusMessage = () => {
+  nicknameStatusMessage = "";
+  nicknameStatusIsError = false;
+};
+
+const renderNicknameStatus = () => {
+  if (!settingsNicknameCooldownEl) return;
+
+  const remaining = getNicknameCooldownRemainingSeconds();
+  if (remaining > 0) {
+    settingsNicknameCooldownEl.textContent = `Следующая смена ника через ${formatCooldownTime(remaining)}`;
+    settingsNicknameCooldownEl.classList.remove("is-error");
+    settingsNicknameCooldownEl.removeAttribute("hidden");
+    return;
+  }
+
+  if (nicknameStatusMessage) {
+    settingsNicknameCooldownEl.textContent = nicknameStatusMessage;
+    settingsNicknameCooldownEl.classList.toggle("is-error", nicknameStatusIsError);
+    settingsNicknameCooldownEl.removeAttribute("hidden");
+    return;
+  }
+
+  settingsNicknameCooldownEl.textContent = "";
+  settingsNicknameCooldownEl.classList.remove("is-error");
+  settingsNicknameCooldownEl.setAttribute("hidden", "");
+};
+
+const refreshNicknameControls = () => {
+  const canUseNicknameSettings = Number.isFinite(Number(getActorUserId()));
+  const remaining = getNicknameCooldownRemainingSeconds();
+  const isCooldownActive = remaining > 0;
+  const currentDisplayName = getActorDisplayName();
+  const draftNickname = normalizeToken(settingsNicknameInput?.value);
+  const isDirty = draftNickname !== normalizeToken(currentDisplayName);
+  const hasDraft = draftNickname.length > 0;
+
+  if (settingsNicknameInput) {
+    settingsNicknameInput.disabled = !canUseNicknameSettings || nicknameSaveInFlight || isCooldownActive;
+  }
+
+  if (settingsNicknameSaveBtn) {
+    settingsNicknameSaveBtn.disabled = !canUseNicknameSettings
+      || nicknameSaveInFlight
+      || isCooldownActive
+      || !hasDraft
+      || !isDirty;
+    settingsNicknameSaveBtn.textContent = nicknameSaveInFlight ? "Сохраняем..." : "Сохранить";
+  }
+
+  renderNicknameStatus();
+};
+
+const syncNicknameCooldownFromActor = () => {
+  const raw = normalizeToken(actorUser?.nicknameChangeAvailableAtUtc);
+  const nextAllowedAt = raw ? Date.parse(raw) : Number.NaN;
+  if (Number.isFinite(nextAllowedAt) && nextAllowedAt > Date.now()) {
+    nicknameCooldownEndsAt = nextAllowedAt;
+  } else {
+    nicknameCooldownEndsAt = 0;
+  }
+
+  if (getNicknameCooldownRemainingSeconds() > 0) {
+    if (!nicknameCooldownTimerHandle) {
+      nicknameCooldownTimerHandle = window.setInterval(() => {
+        if (getNicknameCooldownRemainingSeconds() <= 0) {
+          nicknameCooldownEndsAt = 0;
+          stopNicknameCooldownTimer();
+          clearNicknameStatusMessage();
+        }
+        refreshNicknameControls();
+      }, 1000);
+    }
+  } else {
+    stopNicknameCooldownTimer();
+  }
+};
+
 const updateActorUi = () => {
   const email = actorUser?.email || "account@example.com";
   const id = getActorUserId();
-  const storedNickname = id ? normalizeToken(getStoredAccountNickname(id)) : "";
-  const apiName = normalizeToken(actorUser?.name);
-  const fallbackName = apiName && apiName.toLowerCase() !== "system" ? apiName : "Без имени";
-  const displayName = storedNickname || fallbackName;
+  const displayName = getActorDisplayName();
   const initials = toInitials(displayName, email);
   const avatarDataUrl = id ? getStoredAccountAvatar(id) : "";
 
@@ -1359,8 +1471,10 @@ const updateActorUi = () => {
   updateMyMemberItem(displayName, email);
 
   if (settingsNicknameInput && document.activeElement !== settingsNicknameInput) {
-    settingsNicknameInput.value = storedNickname;
+    settingsNicknameInput.value = displayName;
   }
+
+  refreshNicknameControls();
 };
 
 const setActorUser = (user) => {
@@ -1370,8 +1484,11 @@ const setActorUser = (user) => {
   actorUser = {
     id,
     name: normalizeToken(user.name) || `Пользователь ${id}`,
-    email: normalizeToken(user.email) || `user${id}@local`
+    email: normalizeToken(user.email) || `user${id}@local`,
+    nicknameChangeAvailableAtUtc: normalizeToken(user.nicknameChangeAvailableAtUtc)
   };
+
+  syncNicknameCooldownFromActor();
   updateActorUi();
 };
 
@@ -1469,6 +1586,9 @@ const loadCurrentUserFromApi = async () => {
   }
 
   actorUser = null;
+  nicknameCooldownEndsAt = 0;
+  stopNicknameCooldownTimer();
+  clearNicknameStatusMessage();
   updateActorUi();
 };
 
@@ -3760,8 +3880,6 @@ taskDetailController = createTaskDetailController({
   ensureTagsLoaded,
   getTagNameById: (id) => tagById.get(Number(id)) || "",
   getAssigneeNameById: (id) => {
-    const storedNickname = normalizeToken(getStoredAccountNickname(Number(id)));
-    if (storedNickname) return storedNickname;
     const match = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === Number(id));
     return normalizeToken(match?.name);
   },
@@ -3973,10 +4091,76 @@ if (panelWorkspaceAvatarInput) {
 
 if (settingsNicknameInput) {
   settingsNicknameInput.addEventListener("input", () => {
-    const id = getActorUserId();
-    if (!id) return;
-    setStoredAccountNickname(id, settingsNicknameInput.value);
-    updateActorUi();
+    clearNicknameStatusMessage();
+    refreshNicknameControls();
+  });
+
+  settingsNicknameInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    settingsNicknameSaveBtn?.click();
+  });
+}
+
+if (settingsNicknameSaveBtn) {
+  settingsNicknameSaveBtn.addEventListener("click", () => {
+    void (async () => {
+      const actorUserId = getActorUserId();
+      if (!actorUserId) return;
+      if (nicknameSaveInFlight) return;
+      if (getNicknameCooldownRemainingSeconds() > 0) {
+        refreshNicknameControls();
+        return;
+      }
+
+      const nickname = normalizeToken(settingsNicknameInput?.value);
+      const currentDisplayName = normalizeToken(getActorDisplayName());
+      if (!nickname || nickname === currentDisplayName) {
+        refreshNicknameControls();
+        return;
+      }
+
+      nicknameSaveInFlight = true;
+      clearNicknameStatusMessage();
+      refreshNicknameControls();
+
+      const response = await apiFetch(buildApiUrl("/auth/nickname"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({ nickname })
+      });
+
+      if (!response.ok) {
+        const message = await parseApiErrorMessage(response, "Не удалось изменить ник.");
+        setNicknameStatusMessage(message, true);
+        if (response.status === 400) {
+          await loadCurrentUserFromApi();
+        }
+        nicknameSaveInFlight = false;
+        refreshNicknameControls();
+        return;
+      }
+
+      let updatedUser = null;
+      try {
+        updatedUser = await response.json();
+      } catch {
+        updatedUser = null;
+      }
+
+      if (updatedUser?.id) {
+        setActorUser(updatedUser);
+      } else {
+        await loadCurrentUserFromApi();
+      }
+
+      clearNicknameStatusMessage();
+      nicknameSaveInFlight = false;
+      refreshNicknameControls();
+    })();
   });
 }
 
