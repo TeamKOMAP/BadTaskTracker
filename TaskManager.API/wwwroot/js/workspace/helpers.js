@@ -201,9 +201,9 @@ export const buildFlowNote = (taskData) => {
   const tags = Array.isArray(taskData?.tags) ? taskData.tags : [];
   const dueShort = formatShortDate(taskData?.dueDate);
   const noteParts = [];
-  if (dueShort) noteParts.push(`Due ${dueShort}`);
+  if (dueShort) noteParts.push(`Срок ${dueShort}`);
   if (tags.length) noteParts.push(tags.join(" • "));
-  return noteParts.length ? noteParts.join(" • ") : "No due";
+  return noteParts.length ? noteParts.join(" • ") : "Без срока";
 };
 
 export const startOfLocalDay = (date) => {

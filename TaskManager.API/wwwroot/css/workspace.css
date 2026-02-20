@@ -3123,6 +3123,13 @@ body[data-theme="light"] .add-task:hover {
   gap: 4px;
 }
 
+.flow-list-actions {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .flow-add {
   width: 34px;
   height: 34px;
@@ -3154,6 +3161,79 @@ body[data-theme="light"] .add-task:hover {
 
 body[data-theme="light"] .flow-add {
   background: rgba(255, 255, 255, 0.72);
+  color: var(--text-1);
+}
+
+.flow-remove {
+  color: rgba(248, 113, 113, 0.92);
+}
+
+.flow-remove:hover {
+  border-color: rgba(248, 113, 113, 0.55);
+  box-shadow: 0 10px 18px rgba(40, 8, 12, 0.35);
+}
+
+.flow-clear-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 230px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: rgba(9, 14, 21, 0.96);
+  box-shadow: 0 18px 30px rgba(4, 8, 13, 0.48);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 8;
+}
+
+body[data-theme="light"] .flow-clear-menu {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 16px 26px rgba(15, 20, 28, 0.16);
+}
+
+.flow-clear-menu[hidden] {
+  display: none;
+}
+
+.flow-clear-menu-item {
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: rgba(16, 22, 30, 0.65);
+  color: var(--text-2);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 9px 10px;
+  cursor: pointer;
+  transition: color 0.2s ease, border 0.2s ease, background 0.2s ease;
+}
+
+.flow-clear-menu-item:hover {
+  color: var(--text-1);
+  border-color: var(--stroke-strong);
+}
+
+.flow-clear-menu-item[data-flow-clear="all"] {
+  border-color: rgba(248, 113, 113, 0.3);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.flow-clear-menu-item[data-flow-clear="all"]:hover {
+  border-color: rgba(248, 113, 113, 0.5);
+  background: rgba(248, 113, 113, 0.14);
+}
+
+body[data-theme="light"] .flow-clear-menu-item {
+  background: rgba(255, 255, 255, 0.8);
+  color: rgba(15, 20, 28, 0.76);
+  border-color: rgba(15, 20, 28, 0.12);
+}
+
+body[data-theme="light"] .flow-clear-menu-item:hover {
+  background: rgba(255, 255, 255, 0.96);
   color: var(--text-1);
 }
 
@@ -3190,15 +3270,74 @@ body[data-theme="light"] .flow-add {
 }
 
 .flow-task {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  --flow-status-tint: rgba(0, 0, 0, 0.18);
+  --flow-status-color: #78b6ff;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
   padding: 12px;
-  background: linear-gradient(150deg, rgba(23, 30, 40, 0.95), rgba(16, 22, 30, 0.9));
+  background:
+    linear-gradient(150deg, rgba(23, 30, 40, 0.95), rgba(16, 22, 30, 0.9)),
+    var(--task-photo, none);
+  background-size: auto, cover;
+  background-position: center, center;
   display: flex;
   flex-direction: column;
   gap: 6px;
   cursor: grab;
   transition: transform 0.2s ease, border 0.2s ease, box-shadow 0.2s ease;
+}
+
+.flow-task::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--flow-status-tint);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.flow-task::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(520px 120px at 15% 0%, rgba(255, 255, 255, 0.12), transparent 62%);
+  pointer-events: none;
+}
+
+.flow-task > * {
+  position: relative;
+  z-index: 1;
+}
+
+.flow-task.has-photo {
+  background:
+    linear-gradient(150deg, rgba(23, 30, 40, 0.82), rgba(16, 22, 30, 0.82)),
+    var(--task-photo, none);
+  background-size: auto, cover;
+  background-position: center, center;
+}
+
+.flow-task[data-task-status="1"] {
+  --flow-status-tint: rgba(0, 0, 0, 0.20);
+  --flow-status-color: #9dbcf8;
+}
+
+.flow-task[data-task-status="2"] {
+  --flow-status-tint: rgba(250, 204, 21, 0.22);
+  --flow-status-color: #f0c36a;
+}
+
+.flow-task[data-task-status="3"] {
+  --flow-status-tint: rgba(34, 197, 94, 0.12);
+  --flow-status-color: #4ade80;
+}
+
+.flow-task[data-task-status="4"] {
+  --flow-status-tint: rgba(248, 113, 113, 0.22);
+  --flow-status-color: #f87171;
 }
 
 
@@ -3214,7 +3353,11 @@ body[data-theme="light"] .flow-add {
 
 body[data-theme="light"] .flow-task {
   border-color: rgba(15, 20, 28, 0.12);
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.88), rgba(245, 247, 250, 0.78));
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.88), rgba(245, 247, 250, 0.78)),
+    var(--task-photo, none);
+  background-size: auto, cover;
+  background-position: center, center;
 }
 
 body[data-theme="light"] .flow-task:hover {
@@ -3222,12 +3365,20 @@ body[data-theme="light"] .flow-task:hover {
   box-shadow: 0 12px 20px rgba(15, 20, 28, 0.10);
 }
 
+body[data-theme="light"] .flow-task.has-photo {
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.76), rgba(245, 247, 250, 0.7)),
+    var(--task-photo, none);
+  background-size: auto, cover;
+  background-position: center, center;
+}
+
 .flow-task-tag {
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--flow-status-color);
 }
 
 .flow-task-title {
@@ -3246,6 +3397,12 @@ body[data-theme="light"] .flow-task:hover {
 }
 
 .flow-canvas {
+  --flow-scale: 1;
+  --flow-offset-x: 0px;
+  --flow-offset-y: 0px;
+  --flow-grid-offset-x: 0px;
+  --flow-grid-offset-y: 0px;
+  --flow-grid-size: 40px;
   position: relative;
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -3254,9 +3411,41 @@ body[data-theme="light"] .flow-task:hover {
   overflow: hidden;
 }
 
+.flow-canvas::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size:
+    calc(var(--flow-grid-size) * var(--flow-scale)) calc(var(--flow-grid-size) * var(--flow-scale)),
+    calc(var(--flow-grid-size) * var(--flow-scale)) calc(var(--flow-grid-size) * var(--flow-scale));
+  background-position:
+    var(--flow-grid-offset-x) var(--flow-grid-offset-y),
+    var(--flow-grid-offset-x) var(--flow-grid-offset-y);
+  opacity: 0.35;
+}
+
 body[data-theme="light"] .flow-canvas {
   border-color: rgba(15, 20, 28, 0.14);
   background: linear-gradient(160deg, rgba(255, 255, 255, 0.82), rgba(245, 247, 250, 0.68));
+}
+
+body[data-theme="light"] .flow-canvas::before {
+  background-image:
+    linear-gradient(90deg, rgba(15, 20, 28, 0.11) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(15, 20, 28, 0.11) 1px, transparent 1px);
+}
+
+.flow-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  transform-origin: 0 0;
+  transform: translate(var(--flow-offset-x), var(--flow-offset-y)) scale(var(--flow-scale));
 }
 
 .flow-canvas.is-dragging-over {
@@ -3267,12 +3456,13 @@ body[data-theme="light"] .flow-canvas {
 .flow-grid {
   position: absolute;
   inset: 0;
-  background-image:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
-  background-size: 40px 40px;
-  opacity: 0.35;
+  display: none;
   pointer-events: none;
+}
+
+.flow-canvas.is-panning,
+.flow-canvas.is-panning * {
+  cursor: grabbing !important;
 }
 
 .flow-links {
@@ -3280,6 +3470,7 @@ body[data-theme="light"] .flow-canvas {
   inset: 0;
   width: 100%;
   height: 100%;
+  overflow: visible;
   pointer-events: none;
 }
 
@@ -3290,13 +3481,33 @@ body[data-theme="light"] .flow-canvas {
   marker-end: url(#flow-arrow);
 }
 
+.flow-line.is-preview {
+  stroke: rgba(68, 210, 199, 0.85);
+  stroke-dasharray: 6 6;
+}
+
+.flow-nodes {
+  position: absolute;
+  inset: 0;
+}
+
 .flow-node {
   position: absolute;
+  isolation: isolate;
+  overflow: visible;
+  --flow-status-tint: rgba(0, 0, 0, 0.2);
+  --flow-status-color: #78b6ff;
+  --flow-node-accent: rgba(68, 210, 199, 0.8);
+  --flow-node-accent-shadow: rgba(68, 210, 199, 0.25);
   min-width: 180px;
   max-width: 240px;
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  background: linear-gradient(150deg, rgba(28, 36, 48, 0.95), rgba(18, 24, 33, 0.95));
+  background:
+    linear-gradient(150deg, rgba(28, 36, 48, 0.95), rgba(18, 24, 33, 0.95)),
+    var(--task-photo, none);
+  background-size: auto, cover;
+  background-position: center, center;
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
@@ -3304,6 +3515,66 @@ body[data-theme="light"] .flow-canvas {
   cursor: grab;
   box-shadow: 0 12px 24px rgba(4, 8, 13, 0.4);
   touch-action: none;
+}
+
+.flow-node::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--flow-status-tint);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.flow-node::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(560px 140px at 15% 0%, rgba(255, 255, 255, 0.12), transparent 64%);
+  pointer-events: none;
+}
+
+.flow-node > * {
+  position: relative;
+  z-index: 1;
+}
+
+.flow-node.has-photo {
+  background:
+    linear-gradient(150deg, rgba(28, 36, 48, 0.82), rgba(18, 24, 33, 0.82)),
+    var(--task-photo, none);
+  background-size: auto, cover;
+  background-position: center, center;
+}
+
+.flow-node[data-task-status="1"] {
+  --flow-status-tint: rgba(0, 0, 0, 0.22);
+  --flow-status-color: #9dbcf8;
+  --flow-node-accent: rgba(120, 182, 255, 0.86);
+  --flow-node-accent-shadow: rgba(120, 182, 255, 0.28);
+}
+
+.flow-node[data-task-status="2"] {
+  --flow-status-tint: rgba(250, 204, 21, 0.24);
+  --flow-status-color: #f0c36a;
+  --flow-node-accent: rgba(240, 195, 106, 0.9);
+  --flow-node-accent-shadow: rgba(240, 195, 106, 0.28);
+}
+
+.flow-node[data-task-status="3"] {
+  --flow-status-tint: rgba(34, 197, 94, 0.14);
+  --flow-status-color: #4ade80;
+  --flow-node-accent: rgba(74, 222, 128, 0.9);
+  --flow-node-accent-shadow: rgba(74, 222, 128, 0.26);
+}
+
+.flow-node[data-task-status="4"] {
+  --flow-status-tint: rgba(248, 113, 113, 0.24);
+  --flow-status-color: #f87171;
+  --flow-node-accent: rgba(248, 113, 113, 0.92);
+  --flow-node-accent-shadow: rgba(248, 113, 113, 0.3);
 }
 
 body[data-theme="light"] .flow-grid {
@@ -3315,11 +3586,24 @@ body[data-theme="light"] .flow-grid {
 
 body[data-theme="light"] .flow-node {
   border-color: rgba(15, 20, 28, 0.14);
-  background: linear-gradient(150deg, rgba(255, 255, 255, 0.92), rgba(245, 247, 250, 0.82));
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.92), rgba(245, 247, 250, 0.82)),
+    var(--task-photo, none);
+  background-size: auto, cover;
+  background-position: center, center;
   box-shadow: 0 12px 24px rgba(15, 20, 28, 0.12);
 }
 
-.flow-node-remove {
+body[data-theme="light"] .flow-node.has-photo {
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.78), rgba(245, 247, 250, 0.72)),
+    var(--task-photo, none);
+  background-size: auto, cover;
+  background-position: center, center;
+}
+
+.flow-node-remove,
+.flow-node-clear {
   position: absolute;
   top: 6px;
   right: 6px;
@@ -3337,13 +3621,19 @@ body[data-theme="light"] .flow-node {
   transition: opacity 0.2s ease, border 0.2s ease, color 0.2s ease, background 0.2s ease;
 }
 
-body[data-theme="light"] .flow-node-remove {
+body[data-theme="light"] .flow-node-remove,
+body[data-theme="light"] .flow-node-clear {
   border-color: rgba(15, 20, 28, 0.18);
   background: rgba(255, 255, 255, 0.82);
   color: rgba(15, 20, 28, 0.65);
 }
 
-.flow-node-remove svg {
+.flow-node-clear {
+  right: 32px;
+}
+
+.flow-node-remove svg,
+.flow-node-clear svg {
   width: 12px;
   height: 12px;
   fill: none;
@@ -3352,15 +3642,29 @@ body[data-theme="light"] .flow-node-remove {
   stroke-linecap: round;
 }
 
-.flow-node.is-selected .flow-node-remove {
+.flow-node.is-selected .flow-node-remove,
+.flow-node.is-selected .flow-node-clear {
   opacity: 1;
   pointer-events: auto;
 }
 
 .flow-node-remove:hover {
+  color: rgba(68, 210, 199, 0.98);
+  border-color: rgba(68, 210, 199, 0.5);
+  background: rgba(16, 30, 29, 0.92);
+}
+
+.flow-node-clear:hover {
   color: #ff9f6b;
   border-color: rgba(255, 159, 107, 0.5);
   background: rgba(26, 18, 16, 0.9);
+}
+
+.flow-node.is-connecting .flow-node-remove {
+  opacity: 1;
+  pointer-events: auto;
+  color: rgba(68, 210, 199, 0.98);
+  border-color: rgba(68, 210, 199, 0.5);
 }
 
 .flow-node:active {
@@ -3368,8 +3672,14 @@ body[data-theme="light"] .flow-node-remove {
 }
 
 .flow-node.is-selected {
-  border-color: rgba(68, 210, 199, 0.8);
-  box-shadow: 0 0 0 2px rgba(68, 210, 199, 0.25);
+  border-color: var(--flow-node-accent);
+  box-shadow: 0 0 0 2px var(--flow-node-accent-shadow);
+}
+
+.flow-node.has-custom-color {
+  --flow-node-accent: var(--flow-node-custom-color);
+  --flow-node-accent-shadow: rgba(var(--flow-node-custom-color-rgb, 68, 210, 199), 0.3);
+  border-color: var(--flow-node-custom-color);
 }
 
 .flow-node.is-duplicate {
@@ -3383,7 +3693,11 @@ body[data-theme="light"] .flow-node-remove {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent-2);
+  color: var(--flow-status-color);
+}
+
+.flow-node.has-custom-color .flow-node-tag {
+  color: var(--flow-node-custom-color);
 }
 
 .flow-node-title {
@@ -3409,9 +3723,99 @@ body[data-theme="light"] .flow-node-remove {
   transform: translateY(0);
 }
 
+.flow-node-menu {
+  position: absolute;
+  top: 34px;
+  right: 8px;
+  min-width: 168px;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: rgba(10, 16, 24, 0.96);
+  box-shadow: 0 12px 20px rgba(5, 8, 13, 0.44);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 3;
+}
+
+body[data-theme="light"] .flow-node-menu {
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 22px rgba(15, 20, 28, 0.14);
+}
+
+.flow-node-menu[hidden] {
+  display: none;
+}
+
+.flow-node-menu-open,
+.flow-node-menu-delete {
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: rgba(16, 22, 30, 0.68);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: color 0.2s ease, border 0.2s ease;
+}
+
+.flow-node-menu-open:hover,
+.flow-node-menu-delete:hover {
+  color: var(--text-1);
+  border-color: var(--stroke-strong);
+}
+
+body[data-theme="light"] .flow-node-menu-open,
+body[data-theme="light"] .flow-node-menu-delete {
+  background: rgba(255, 255, 255, 0.82);
+  color: rgba(15, 20, 28, 0.74);
+}
+
+.flow-node-menu-delete {
+  border-color: rgba(248, 113, 113, 0.34);
+  background: rgba(248, 113, 113, 0.1);
+  color: rgba(248, 113, 113, 0.96);
+}
+
+.flow-node-menu-delete:hover {
+  border-color: rgba(248, 113, 113, 0.58);
+  background: rgba(248, 113, 113, 0.16);
+}
+
+body[data-theme="light"] .flow-node-menu-delete {
+  border-color: rgba(248, 113, 113, 0.34);
+  background: rgba(248, 113, 113, 0.12);
+  color: rgba(180, 40, 56, 0.96);
+}
+
+.flow-node-color-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.flow-node-color-input {
+  width: 34px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--stroke);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
 .flow-dropzone {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
