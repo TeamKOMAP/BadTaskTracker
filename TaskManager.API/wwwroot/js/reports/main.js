@@ -20,8 +20,6 @@ import {
   STATUS_LABELS
 } from "../shared/constants.js";
 
-import { getStoredAccountNickname } from "../shared/account-prefs.js";
-
 const workspaceNameEl = document.getElementById("reports-workspace-name");
 const updatedEl = document.getElementById("reports-updated");
 const backToWorkspaceLink = document.getElementById("back-to-workspace");
@@ -177,9 +175,6 @@ const loadWorkspaceMembers = async (workspaceId) => {
 const getAssigneeLabel = (assigneeId, apiAssigneeName) => {
   const id = Number.parseInt(String(assigneeId ?? ""), 10);
   if (!Number.isFinite(id) || id <= 0) return "Все";
-
-  const stored = normalizeToken(getStoredAccountNickname(id));
-  if (stored) return stored;
 
   const member = workspaceMembers.find((m) => Number(m?.id) === id);
   const name = normalizeToken(member?.name);

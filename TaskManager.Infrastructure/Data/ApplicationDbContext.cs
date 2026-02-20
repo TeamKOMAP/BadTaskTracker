@@ -30,6 +30,7 @@ namespace TaskManager.Infrastructure.Data
                 entity.Property(u => u.Name).IsRequired().HasMaxLength(100);
                 entity.Property(u => u.Email).IsRequired().HasMaxLength(100);
                 entity.Property(u => u.TimeZoneId).IsRequired().HasMaxLength(100).HasDefaultValue("UTC");
+                entity.Property(u => u.NicknameChangedAtUtc);
                 entity.HasIndex(u => u.Email).IsUnique();
                 entity.Property(u => u.CreatedAt).HasDefaultValueSql("datetime('now')");
             });

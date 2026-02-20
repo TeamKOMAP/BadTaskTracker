@@ -9,5 +9,6 @@ namespace TaskManager.Application.Interfaces
         Task<AuthTokenResponseDto> SwitchWorkspaceAsync(int actorUserId, SwitchWorkspaceRequestDto dto);
         Task<AuthUserDto> GetCurrentUserAsync(int actorUserId);
         Task<AuthUserDto> UpdateTimeZoneAsync(int actorUserId, string timeZoneId);
+        Task<AuthUserDto> UpdateNicknameAsync(int actorUserId, string nickname);
     }
 }

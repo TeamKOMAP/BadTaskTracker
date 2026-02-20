@@ -98,6 +98,8 @@ export const notificationsMarkAllBtn = document.getElementById("notifications-ma
 
 export const logoutBtn = document.getElementById("logout-btn");
 export const settingsNicknameInput = document.getElementById("settings-nickname");
+export const settingsNicknameSaveBtn = document.getElementById("settings-nickname-save");
+export const settingsNicknameCooldownEl = document.getElementById("settings-nickname-cooldown");
 export const settingsAvatarPreview = document.getElementById("settings-avatar-preview");
 export const settingsAvatarPreviewTextEl = settingsAvatarPreview?.querySelector("span") || null;
 export const settingsAvatarInput = document.getElementById("settings-avatar-input");

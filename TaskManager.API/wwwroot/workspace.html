@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css?v=base6">
   <link rel="stylesheet" href="css/components.css?v=comp2">
-  <link rel="stylesheet" href="css/workspace.css?v=perf62">
+  <link rel="stylesheet" href="css/workspace.css?v=perf63">
   <link rel="stylesheet" href="css/workspace-members.css?v=wm1">
 </head>
 <body data-theme="dark">
@@ -379,7 +379,11 @@
           <span class="settings-section-title">Аккаунт</span>
           <label class="settings-field">
             <span class="settings-label">Никнейм</span>
-            <input id="settings-nickname" type="text" placeholder="Без имени" maxlength="60" autocomplete="nickname">
+            <div class="settings-nickname-row">
+              <input id="settings-nickname" type="text" placeholder="Без имени" maxlength="60" autocomplete="nickname">
+              <button class="ghost-btn settings-nickname-save" id="settings-nickname-save" type="button">Сохранить</button>
+            </div>
+            <span class="settings-nickname-note" id="settings-nickname-cooldown" hidden></span>
           </label>
 
           <div class="settings-avatar-row">
@@ -734,6 +738,6 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow77"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow79"></script>
 </body>
 </html>

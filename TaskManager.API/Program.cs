@@ -45,6 +45,7 @@ if ((builder.Environment.IsProduction() || builder.Environment.IsStaging())
 
 var emailAuthSettings = builder.Configuration.GetSection("EmailAuth").Get<EmailAuthSettings>() ?? new EmailAuthSettings();
 var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>() ?? new SmtpSettings();
+var profileSettings = builder.Configuration.GetSection("Profile").Get<ProfileSettings>() ?? new ProfileSettings();
 
 if (!builder.Environment.IsDevelopment())
 {
@@ -55,6 +56,7 @@ if (!builder.Environment.IsDevelopment())
 builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddSingleton(emailAuthSettings);
 builder.Services.AddSingleton(smtpSettings);
+builder.Services.AddSingleton(profileSettings);
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
