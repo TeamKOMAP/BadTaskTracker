@@ -10,6 +10,7 @@ using TaskManager.API.Configuration;
 using TaskManager.API.Security;
 using TaskManager.Application.Auth;
 using TaskManager.Application.Interfaces;
+using TaskManager.Application.Storage;
 using TaskManager.Application.Services;
 using TaskManager.Infrastructure.Data;
 using TaskManager.Infrastructure.Email;
@@ -46,6 +47,7 @@ if ((builder.Environment.IsProduction() || builder.Environment.IsStaging())
 var emailAuthSettings = builder.Configuration.GetSection("EmailAuth").Get<EmailAuthSettings>() ?? new EmailAuthSettings();
 var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>() ?? new SmtpSettings();
 var profileSettings = builder.Configuration.GetSection("Profile").Get<ProfileSettings>() ?? new ProfileSettings();
+var storageSettings = builder.Configuration.GetSection("Storage").Get<StorageSettings>() ?? new StorageSettings();
 
 if (!builder.Environment.IsDevelopment())
 {
@@ -57,6 +59,7 @@ builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddSingleton(emailAuthSettings);
 builder.Services.AddSingleton(smtpSettings);
 builder.Services.AddSingleton(profileSettings);
+builder.Services.AddSingleton(storageSettings);
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -140,12 +143,20 @@ builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddHostedService<OverdueStatusSyncBackgroundService>();
 builder.Services.AddHostedService<DeadlineNotificationBackgroundService>();
-builder.Services.AddSingleton<IAttachmentStorage>(sp =>
+builder.Services.AddSingleton<IObjectStorage>(sp =>
 {
+    var settings = sp.GetRequiredService<StorageSettings>();
+    var provider = (settings.Provider ?? string.Empty).Trim();
+    if (provider.Equals("S3", StringComparison.OrdinalIgnoreCase))
+    {
+        return new S3ObjectStorage(settings);
+    }
+
     var env = sp.GetRequiredService<IWebHostEnvironment>();
-    var logger = sp.GetRequiredService<ILogger<FileAttachmentStorage>>();
-    return new FileAttachmentStorage(env.ContentRootPath, logger);
+    return new LocalObjectStorage(env.ContentRootPath, settings);
 });
+builder.Services.AddScoped<IAttachmentStorage, ObjectAttachmentStorage>();
+builder.Services.AddScoped<LegacyStorageMigrator>();
 
 // Configure Swagger/OpenAPI
 builder.Services.AddSwaggerGen(c =>
@@ -245,6 +256,7 @@ using (var scope = app.Services.CreateScope())
         var startupSection = builder.Configuration.GetSection("DatabaseStartup");
         var applyMigrations = startupSection.GetValue<bool>("ApplyMigrations", true);
         var seed = startupSection.GetValue<bool>("Seed", true);
+        var migrateLegacyFiles = startupSection.GetValue<bool>("MigrateLegacyFiles", true);
 
         if (applyMigrations)
         {
@@ -255,6 +267,14 @@ using (var scope = app.Services.CreateScope())
                 dbContext.Database.Migrate();
                 logger.LogInformation("Migrations applied successfully.");
             }
+        }
+
+        if (migrateLegacyFiles)
+        {
+            logger.LogInformation("Running legacy storage migration...");
+            var migrator = services.GetRequiredService<LegacyStorageMigrator>();
+            await migrator.MigrateAsync();
+            logger.LogInformation("Legacy storage migration complete.");
         }
 
         if (seed)

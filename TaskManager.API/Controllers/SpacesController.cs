@@ -4,6 +4,7 @@ using TaskManager.API.Security;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
+using TaskManager.Application.Storage;
 
 namespace TaskManager.API.Controllers
 {
@@ -26,22 +27,30 @@ namespace TaskManager.API.Controllers
 
         private readonly IWorkspaceService _workspaceService;
         private readonly IWorkspaceInvitationService _workspaceInvitationService;
-        private readonly IWebHostEnvironment _environment;
+        private readonly IObjectStorage _objectStorage;
+        private readonly StorageSettings _storageSettings;
+        private readonly ILogger<SpacesController> _logger;
 
         /// <summary>
         /// Initializes a new instance of the SpacesController.
         /// </summary>
         /// <param name="workspaceService">The workspace service.</param>
         /// <param name="workspaceInvitationService">The workspace invitation service.</param>
-        /// <param name="environment">The web host environment.</param>
+        /// <param name="objectStorage">The object storage service.</param>
+        /// <param name="storageSettings">The storage settings.</param>
+        /// <param name="logger">The logger.</param>
         public SpacesController(
             IWorkspaceService workspaceService,
             IWorkspaceInvitationService workspaceInvitationService,
-            IWebHostEnvironment environment)
+            IObjectStorage objectStorage,
+            StorageSettings storageSettings,
+            ILogger<SpacesController> logger)
         {
             _workspaceService = workspaceService;
             _workspaceInvitationService = workspaceInvitationService;
-            _environment = environment;
+            _objectStorage = objectStorage;
+            _storageSettings = storageSettings;
+            _logger = logger;
         }
 
         /// <summary>
@@ -190,7 +199,7 @@ namespace TaskManager.API.Controllers
         /// <response code="403">If user is not a workspace owner</response>
         /// <response code="404">If workspace is not found</response>
         [HttpPost("{workspaceId:int}/avatar")]
-        [RequestSizeLimit(20L * 1024 * 1024)]
+        [RequestSizeLimit(MaxAvatarSizeBytes)]
         public async Task<ActionResult<WorkspaceDto>> SetSpaceAvatar(int workspaceId, IFormFile? file)
         {
             var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
@@ -221,36 +230,66 @@ namespace TaskManager.API.Controllers
                 return BadRequest(new { error = "Unsupported avatar file format." });
             }
 
+            string? uploadedObjectKey = null;
+
             try
             {
-                var fileName = $"space-{workspaceId}-{Guid.NewGuid():N}{detectedExtension}";
-                var webRoot = string.IsNullOrWhiteSpace(_environment.WebRootPath)
-                    ? Path.Combine(_environment.ContentRootPath, "wwwroot")
-                    : _environment.WebRootPath;
-                var folder = Path.Combine(webRoot, "uploads", "spaces");
-                Directory.CreateDirectory(folder);
+                var previousObjectKey = await _workspaceService.GetAvatarObjectKeyAsync(actorUserId.Value, workspaceId);
+                var objectKey = $"avatars/workspaces/workspace-{workspaceId}/{Guid.NewGuid():N}{detectedExtension}";
 
-                var fullPath = Path.Combine(folder, fileName);
-                await using (var stream = System.IO.File.Create(fullPath))
+                await using (var stream = file.OpenReadStream())
                 {
-                    await file.CopyToAsync(stream);
+                    await _objectStorage.UploadAsync(
+                        _storageSettings.PublicBucket,
+                        objectKey,
+                        stream,
+                        ResolveAvatarContentType(detectedExtension));
+                }
+                uploadedObjectKey = objectKey;
+
+                var avatarPath = BuildPublicFileUrl(objectKey);
+                var updated = await _workspaceService.SetAvatarAsync(actorUserId.Value, workspaceId, avatarPath, objectKey);
+
+                if (!string.IsNullOrWhiteSpace(previousObjectKey)
+                    && !string.Equals(previousObjectKey, objectKey, StringComparison.Ordinal))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, previousObjectKey);
                 }
 
-                var avatarPath = $"/uploads/spaces/{fileName}";
-                var updated = await _workspaceService.SetAvatarAsync(actorUserId.Value, workspaceId, avatarPath);
                 return Ok(updated);
             }
             catch (NotFoundException ex)
             {
+                if (!string.IsNullOrWhiteSpace(uploadedObjectKey))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, uploadedObjectKey);
+                }
                 return NotFound(new { error = ex.Message });
             }
             catch (ForbiddenException ex)
             {
+                if (!string.IsNullOrWhiteSpace(uploadedObjectKey))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, uploadedObjectKey);
+                }
                 return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
             }
             catch (ValidationException ex)
             {
+                if (!string.IsNullOrWhiteSpace(uploadedObjectKey))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, uploadedObjectKey);
+                }
                 return BadRequest(new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                if (!string.IsNullOrWhiteSpace(uploadedObjectKey))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, uploadedObjectKey);
+                }
+                _logger.LogError(ex, "Failed to set workspace avatar for workspace {WorkspaceId}", workspaceId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { error = "Failed to set workspace avatar." });
             }
         }
 
@@ -297,6 +336,22 @@ namespace TaskManager.API.Controllers
             return null;
         }
 
+        private static string ResolveAvatarContentType(string extension)
+        {
+            return extension.ToLowerInvariant() switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".webp" => "image/webp",
+                _ => "application/octet-stream"
+            };
+        }
+
+        private static string BuildPublicFileUrl(string objectKey)
+        {
+            return $"/api/public-files?key={Uri.EscapeDataString(objectKey)}";
+        }
+
         /// <summary>
         /// Removes the workspace avatar.
         /// </summary>
@@ -317,7 +372,14 @@ namespace TaskManager.API.Controllers
 
             try
             {
+                var oldObjectKey = await _workspaceService.GetAvatarObjectKeyAsync(actorUserId.Value, workspaceId);
                 var updated = await _workspaceService.ClearAvatarAsync(actorUserId.Value, workspaceId);
+
+                if (!string.IsNullOrWhiteSpace(oldObjectKey))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, oldObjectKey);
+                }
+
                 return Ok(updated);
             }
             catch (NotFoundException)
@@ -327,6 +389,11 @@ namespace TaskManager.API.Controllers
             catch (ForbiddenException ex)
             {
                 return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to clear workspace avatar for workspace {WorkspaceId}", workspaceId);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { error = "Failed to clear workspace avatar." });
             }
         }
 

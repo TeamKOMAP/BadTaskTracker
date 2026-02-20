@@ -5,6 +5,7 @@ using TaskManager.API.Security;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
+using TaskManager.Application.Storage;
 using TimeZoneConverter;
 
 namespace TaskManager.API.Controllers
@@ -16,15 +17,32 @@ namespace TaskManager.API.Controllers
     [ApiController]
     public class AuthController : ControllerBase
     {
+        private const long MaxAvatarSizeBytes = 5L * 1024 * 1024;
+        private static readonly HashSet<string> AllowedAvatarContentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+        };
+
         private readonly IAuthService _authService;
+        private readonly IObjectStorage _objectStorage;
+        private readonly StorageSettings _storageSettings;
 
         /// <summary>
         /// Initializes a new instance of the AuthController.
         /// </summary>
         /// <param name="authService">The authentication service.</param>
-        public AuthController(IAuthService authService)
+        /// <param name="objectStorage">The object storage service.</param>
+        /// <param name="storageSettings">The storage settings.</param>
+        public AuthController(
+            IAuthService authService,
+            IObjectStorage objectStorage,
+            StorageSettings storageSettings)
         {
             _authService = authService;
+            _objectStorage = objectStorage;
+            _storageSettings = storageSettings;
         }
 
         /// <summary>
@@ -239,6 +257,141 @@ namespace TaskManager.API.Controllers
             }
         }
 
+        /// <summary>
+        /// Sets or updates the user's avatar image.
+        /// </summary>
+        /// <param name="file">The avatar image file (JPEG, PNG, or WEBP, max 5MB).</param>
+        /// <returns>Updated user information.</returns>
+        /// <response code="200">Avatar updated successfully</response>
+        /// <response code="400">If file is invalid</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If access is denied</response>
+        /// <response code="404">If user is not found</response>
+        [Authorize]
+        [HttpPost("avatar")]
+        [RequestSizeLimit(MaxAvatarSizeBytes)]
+        public async Task<ActionResult<AuthUserDto>> SetAvatar(IFormFile? file)
+        {
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Authenticated user claim is missing" });
+            }
+
+            if (file == null || file.Length <= 0)
+            {
+                return BadRequest(new { error = "Avatar file is required." });
+            }
+
+            if (file.Length > MaxAvatarSizeBytes)
+            {
+                return BadRequest(new { error = "Avatar file is too large. Maximum size is 5MB." });
+            }
+
+            if (!string.IsNullOrWhiteSpace(file.ContentType)
+                && !AllowedAvatarContentTypes.Contains(file.ContentType))
+            {
+                return BadRequest(new { error = "Only JPEG, PNG and WEBP avatars are allowed." });
+            }
+
+            var detectedExtension = await DetectAvatarExtensionAsync(file);
+            if (detectedExtension == null)
+            {
+                return BadRequest(new { error = "Unsupported avatar file format." });
+            }
+
+            string? uploadedObjectKey = null;
+
+            try
+            {
+                var oldObjectKey = await _authService.GetAvatarObjectKeyAsync(actorUserId.Value);
+                var objectKey = $"avatars/users/user-{actorUserId.Value}/{Guid.NewGuid():N}{detectedExtension}";
+
+                await using var stream = file.OpenReadStream();
+                await _objectStorage.UploadAsync(
+                    _storageSettings.PublicBucket,
+                    objectKey,
+                    stream,
+                    ResolveAvatarContentType(detectedExtension));
+                uploadedObjectKey = objectKey;
+
+                var avatarPath = BuildPublicFileUrl(objectKey);
+                var updated = await _authService.SetAvatarAsync(actorUserId.Value, avatarPath, objectKey);
+
+                if (!string.IsNullOrWhiteSpace(oldObjectKey)
+                    && !string.Equals(oldObjectKey, objectKey, StringComparison.Ordinal))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, oldObjectKey);
+                }
+
+                return Ok(updated);
+            }
+            catch (NotFoundException ex)
+            {
+                if (!string.IsNullOrWhiteSpace(uploadedObjectKey))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, uploadedObjectKey);
+                }
+                return NotFound(new { error = ex.Message });
+            }
+            catch (ForbiddenException ex)
+            {
+                if (!string.IsNullOrWhiteSpace(uploadedObjectKey))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, uploadedObjectKey);
+                }
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+            catch (ValidationException ex)
+            {
+                if (!string.IsNullOrWhiteSpace(uploadedObjectKey))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, uploadedObjectKey);
+                }
+                return BadRequest(new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Clears the user's avatar.
+        /// </summary>
+        /// <returns>Updated user information.</returns>
+        /// <response code="200">Avatar removed successfully</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If access is denied</response>
+        /// <response code="404">If user is not found</response>
+        [Authorize]
+        [HttpDelete("avatar")]
+        public async Task<ActionResult<AuthUserDto>> ClearAvatar()
+        {
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Authenticated user claim is missing" });
+            }
+
+            try
+            {
+                var oldObjectKey = await _authService.GetAvatarObjectKeyAsync(actorUserId.Value);
+                var updated = await _authService.ClearAvatarAsync(actorUserId.Value);
+
+                if (!string.IsNullOrWhiteSpace(oldObjectKey))
+                {
+                    await _objectStorage.DeleteAsync(_storageSettings.PublicBucket, oldObjectKey);
+                }
+
+                return Ok(updated);
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+        }
+
         private static string NormalizeTimeZoneId(string? rawTimeZoneId)
         {
             var timeZoneId = (rawTimeZoneId ?? string.Empty).Trim();
@@ -256,6 +409,65 @@ namespace TaskManager.API.Controllers
             {
                 return "UTC";
             }
+        }
+
+        private static async Task<string?> DetectAvatarExtensionAsync(IFormFile file)
+        {
+            await using var stream = file.OpenReadStream();
+            var header = new byte[12];
+            var read = await stream.ReadAsync(header.AsMemory(0, header.Length));
+
+            if (read >= 3
+                && header[0] == 0xFF
+                && header[1] == 0xD8
+                && header[2] == 0xFF)
+            {
+                return ".jpg";
+            }
+
+            if (read >= 8
+                && header[0] == 0x89
+                && header[1] == 0x50
+                && header[2] == 0x4E
+                && header[3] == 0x47
+                && header[4] == 0x0D
+                && header[5] == 0x0A
+                && header[6] == 0x1A
+                && header[7] == 0x0A)
+            {
+                return ".png";
+            }
+
+            if (read >= 12
+                && header[0] == 0x52
+                && header[1] == 0x49
+                && header[2] == 0x46
+                && header[3] == 0x46
+                && header[8] == 0x57
+                && header[9] == 0x45
+                && header[10] == 0x42
+                && header[11] == 0x50)
+            {
+                return ".webp";
+            }
+
+            return null;
+        }
+
+        private static string ResolveAvatarContentType(string extension)
+        {
+            return extension.ToLowerInvariant() switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".webp" => "image/webp",
+                _ => "application/octet-stream"
+            };
+        }
+
+        private static string BuildPublicFileUrl(string objectKey)
+        {
+            return $"/api/public-files?key={Uri.EscapeDataString(objectKey)}";
         }
     }
 }

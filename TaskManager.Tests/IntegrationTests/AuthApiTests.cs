@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using TaskManager.API.Security;
 using TaskManager.Application.Auth;
@@ -329,6 +330,107 @@ namespace TaskManager.Tests.IntegrationTests
 
             members.Should().NotBeNull();
             members!.Should().Contain(m => m.UserId == memberUserId && m.Name == "Командный Ник");
+        }
+
+        [Fact]
+        public async Task UpdateAvatar_WithValidImage_StoresAvatarPathAndPublicAccess()
+        {
+            var token = await GetAuthTokenAsync("avatar.valid@example.com");
+
+            var authClient = _factory.CreateClient();
+            authClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", token);
+
+            var imageBytes = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgQfDdcQAAAAASUVORK5CYII=");
+
+            using var form = new MultipartFormDataContent();
+            var payload = new ByteArrayContent(imageBytes);
+            payload.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+            form.Add(payload, "file", "avatar.png");
+
+            var response = await authClient.PostAsync("/api/auth/avatar", form);
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var updated = await response.Content.ReadFromJsonAsync<AuthUserDto>();
+            updated.Should().NotBeNull();
+            updated!.AvatarPath.Should().NotBeNullOrWhiteSpace();
+
+            var publicResponse = await _client.GetAsync(updated.AvatarPath!);
+            publicResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var meResponse = await authClient.GetAsync("/api/auth/me");
+            meResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var me = await meResponse.Content.ReadFromJsonAsync<AuthUserDto>();
+            me.Should().NotBeNull();
+            me!.AvatarPath.Should().Be(updated.AvatarPath);
+        }
+
+        [Fact]
+        public async Task ClearAvatar_RemovesAvatarPath()
+        {
+            var token = await GetAuthTokenAsync("avatar.clear@example.com");
+
+            var authClient = _factory.CreateClient();
+            authClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", token);
+
+            var imageBytes = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgQfDdcQAAAAASUVORK5CYII=");
+
+            using (var form = new MultipartFormDataContent())
+            {
+                var payload = new ByteArrayContent(imageBytes);
+                payload.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+                form.Add(payload, "file", "avatar.png");
+
+                var uploadResponse = await authClient.PostAsync("/api/auth/avatar", form);
+                uploadResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            }
+
+            var clearResponse = await authClient.DeleteAsync("/api/auth/avatar");
+            clearResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var updated = await clearResponse.Content.ReadFromJsonAsync<AuthUserDto>();
+            updated.Should().NotBeNull();
+            string.IsNullOrWhiteSpace(updated!.AvatarPath).Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task UpdateAvatar_PropagatesToWorkspaceMembers()
+        {
+            var memberEmail = $"avatar.member.{Guid.NewGuid():N}@example.com";
+            var memberToken = await GetAuthTokenAsync(memberEmail);
+            var memberUserId = await AddUserToWorkspaceAsync(memberEmail, WorkspaceRole.Member);
+
+            var memberClient = _factory.CreateClient();
+            memberClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", memberToken);
+
+            var imageBytes = Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8Xw8AAoMBgQfDdcQAAAAASUVORK5CYII=");
+
+            using (var form = new MultipartFormDataContent())
+            {
+                var payload = new ByteArrayContent(imageBytes);
+                payload.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+                form.Add(payload, "file", "avatar.png");
+
+                var updateResponse = await memberClient.PostAsync("/api/auth/avatar", form);
+                updateResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            }
+
+            var ownerToken = await GetAuthTokenAsync("test@example.com");
+            var ownerClient = _factory.CreateClient();
+            ownerClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", ownerToken);
+
+            var membersResponse = await ownerClient.GetAsync($"/api/spaces/{_testWorkspaceId}/members");
+            membersResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var members = await membersResponse.Content.ReadFromJsonAsync<List<WorkspaceMemberDto>>();
+
+            members.Should().NotBeNull();
+            members!.Should().Contain(m => m.UserId == memberUserId && !string.IsNullOrWhiteSpace(m.AvatarPath));
         }
 
         [Fact]

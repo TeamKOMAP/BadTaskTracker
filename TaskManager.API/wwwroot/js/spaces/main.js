@@ -253,13 +253,13 @@ const updateActorUi = () => {
   const email = actorUser?.email || "account@example.com";
   const name = getActorDisplayName();
   const initials = toInitials(name, email);
-  const avatarDataUrl = id ? getStoredAccountAvatar(id) : "";
+  const avatarPath = normalizeToken(actorUser?.avatarPath);
 
   if (spacesAccountNameEl) spacesAccountNameEl.textContent = name;
   if (spacesAccountEmailEl) spacesAccountEmailEl.textContent = email;
 
-  applyAccountAvatarToElement(spacesAccountAvatarEl, null, initials, avatarDataUrl);
-  applyAccountAvatarToElement(settingsAvatarPreview, settingsAvatarPreviewTextEl, initials, avatarDataUrl);
+  applyAccountAvatarToElement(spacesAccountAvatarEl, null, initials, avatarPath);
+  applyAccountAvatarToElement(settingsAvatarPreview, settingsAvatarPreviewTextEl, initials, avatarPath);
 
   if (settingsNicknameInput && document.activeElement !== settingsNicknameInput) {
     settingsNicknameInput.value = name;
@@ -277,6 +277,7 @@ const setActorUser = (user) => {
     id,
     name: normalizeToken(user.name) || `User ${id}`,
     email: normalizeToken(user.email) || `user${id}@local`,
+    avatarPath: normalizeToken(user.avatarPath),
     nicknameChangeAvailableAtUtc: normalizeToken(user.nicknameChangeAvailableAtUtc)
   };
 
@@ -299,6 +300,52 @@ const loadCurrentUserFromApi = async () => {
   stopNicknameCooldownTimer();
   clearNicknameStatusMessage();
   updateActorUi();
+};
+
+const migrateLegacyAvatarIfNeeded = async () => {
+  const id = getActorUserId();
+  if (!id) return;
+
+  if (normalizeToken(actorUser?.avatarPath)) {
+    setStoredAccountAvatar(id, "");
+    return;
+  }
+
+  const legacyAvatar = getStoredAccountAvatar(id);
+  if (!legacyAvatar || !legacyAvatar.startsWith("data:image/")) {
+    return;
+  }
+
+  try {
+    const legacyBlob = await fetch(legacyAvatar).then((response) => response.blob());
+    if (!legacyBlob || legacyBlob.size <= 0) return;
+
+    const ext = legacyBlob.type === "image/png"
+      ? "png"
+      : legacyBlob.type === "image/webp"
+        ? "webp"
+        : "jpg";
+
+    const form = new FormData();
+    form.append("file", legacyBlob, `legacy-avatar.${ext}`);
+
+    const response = await apiFetch(buildApiUrl("/auth/avatar"), {
+      method: "POST",
+      body: form
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const updated = await response.json();
+    if (updated?.id) {
+      setActorUser(updated);
+      setStoredAccountAvatar(id, "");
+    }
+  } catch {
+    // ignore one-time migration errors
+  }
 };
 
 const closeSpaceModal = () => {
@@ -573,30 +620,65 @@ const bindEvents = () => {
 
   if (settingsAvatarInput) {
     settingsAvatarInput.addEventListener("change", () => {
-      const file = settingsAvatarInput.files && settingsAvatarInput.files[0];
-      const id = getActorUserId();
-      // Allow re-selecting the same file.
-      settingsAvatarInput.value = "";
-      if (!id || !file) return;
+      void (async () => {
+        const file = settingsAvatarInput.files && settingsAvatarInput.files[0];
+        settingsAvatarInput.value = "";
+        if (!getActorUserId() || !file) return;
 
-      const reader = new FileReader();
-      reader.addEventListener("load", () => {
-        const dataUrl = typeof reader.result === "string" ? reader.result : "";
-        if (!dataUrl) return;
-        setStoredAccountAvatar(id, dataUrl);
-        updateActorUi();
-      });
-      reader.readAsDataURL(file);
+        const form = new FormData();
+        form.append("file", file);
+
+        const response = await apiFetch(buildApiUrl("/auth/avatar"), {
+          method: "POST",
+          body: form
+        });
+
+        if (!response.ok) {
+          await handleApiError(response, "Обновление аватара аккаунта");
+          return;
+        }
+
+        try {
+          const updated = await response.json();
+          if (updated?.id) {
+            setActorUser(updated);
+          } else {
+            await loadCurrentUserFromApi();
+          }
+        } catch {
+          await loadCurrentUserFromApi();
+        }
+      })();
     });
   }
 
   if (settingsAvatarClearBtn) {
     settingsAvatarClearBtn.addEventListener("click", () => {
-      const id = getActorUserId();
-      if (!id) return;
-      setStoredAccountAvatar(id, "");
-      if (settingsAvatarInput) settingsAvatarInput.value = "";
-      updateActorUi();
+      void (async () => {
+        if (!getActorUserId()) return;
+
+        const response = await apiFetch(buildApiUrl("/auth/avatar"), {
+          method: "DELETE"
+        });
+
+        if (!response.ok) {
+          await handleApiError(response, "Очистка аватара аккаунта");
+          return;
+        }
+
+        if (settingsAvatarInput) settingsAvatarInput.value = "";
+
+        try {
+          const updated = await response.json();
+          if (updated?.id) {
+            setActorUser(updated);
+          } else {
+            await loadCurrentUserFromApi();
+          }
+        } catch {
+          await loadCurrentUserFromApi();
+        }
+      })();
     });
   }
 
@@ -688,6 +770,7 @@ const bootstrap = async () => {
 
   bindEvents();
   await loadCurrentUserFromApi();
+  await migrateLegacyAvatarIfNeeded();
   updateActorUi();
   refreshSettingsThemeState();
 
@@ -711,13 +794,6 @@ window.addEventListener("storage", (event) => {
   if (key === "gtt-theme") {
     setTheme(getPreferredTheme());
     refreshSettingsThemeState();
-    return;
-  }
-
-  const id = getActorUserId();
-  if (!id) return;
-  if (key === `gtt-account-avatar:${id}`) {
-    updateActorUi();
   }
 });
 

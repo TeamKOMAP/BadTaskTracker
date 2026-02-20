@@ -312,6 +312,62 @@ namespace TaskManager.Application.Services
             return MapAuthUser(user, now);
         }
 
+        public async Task<string?> GetAvatarObjectKeyAsync(int actorUserId)
+        {
+            if (actorUserId <= 0)
+            {
+                throw new ForbiddenException("Access denied");
+            }
+
+            var user = await _userRepository.GetByIdAsync(actorUserId);
+            if (user == null)
+            {
+                throw new NotFoundException("User not found");
+            }
+
+            return user.AvatarObjectKey;
+        }
+
+        public async Task<AuthUserDto> SetAvatarAsync(int actorUserId, string avatarPath, string avatarObjectKey)
+        {
+            if (actorUserId <= 0)
+            {
+                throw new ForbiddenException("Access denied");
+            }
+
+            var user = await _userRepository.GetByIdAsync(actorUserId);
+            if (user == null)
+            {
+                throw new NotFoundException("User not found");
+            }
+
+            user.AvatarPath = NormalizeAvatarPath(avatarPath);
+            user.AvatarObjectKey = NormalizeAvatarObjectKey(avatarObjectKey);
+            await _userRepository.UpdateAsync(user);
+
+            return MapAuthUser(user);
+        }
+
+        public async Task<AuthUserDto> ClearAvatarAsync(int actorUserId)
+        {
+            if (actorUserId <= 0)
+            {
+                throw new ForbiddenException("Access denied");
+            }
+
+            var user = await _userRepository.GetByIdAsync(actorUserId);
+            if (user == null)
+            {
+                throw new NotFoundException("User not found");
+            }
+
+            user.AvatarPath = null;
+            user.AvatarObjectKey = null;
+            await _userRepository.UpdateAsync(user);
+
+            return MapAuthUser(user);
+        }
+
         private AuthTokenResponseDto MapTokenResponse(User user, string token, int? workspaceId)
         {
             return new AuthTokenResponseDto
@@ -333,6 +389,7 @@ namespace TaskManager.Application.Services
                 Name = user.Name,
                 Email = user.Email,
                 TimeZoneId = NormalizeTimeZoneId(user.TimeZoneId),
+                AvatarPath = user.AvatarPath,
                 NicknameChangeAvailableAtUtc = GetNicknameChangeAvailableAtUtc(user, now)
             };
         }
@@ -385,6 +442,38 @@ namespace TaskManager.Application.Services
             }
 
             return nickname;
+        }
+
+        private static string NormalizeAvatarPath(string? rawAvatarPath)
+        {
+            var avatarPath = (rawAvatarPath ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(avatarPath))
+            {
+                throw new ValidationException("Avatar path is required.");
+            }
+
+            if (avatarPath.Length > 400)
+            {
+                throw new ValidationException("Avatar path is too long.");
+            }
+
+            return avatarPath;
+        }
+
+        private static string NormalizeAvatarObjectKey(string? rawAvatarObjectKey)
+        {
+            var objectKey = (rawAvatarObjectKey ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(objectKey))
+            {
+                throw new ValidationException("Avatar storage key is required.");
+            }
+
+            if (objectKey.Length > 500)
+            {
+                throw new ValidationException("Avatar storage key is too long.");
+            }
+
+            return objectKey;
         }
 
         private static string NormalizeTimeZoneId(string? raw)
