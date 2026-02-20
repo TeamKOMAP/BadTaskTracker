@@ -81,9 +81,9 @@ namespace TaskManager.Application.Services
             var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId)
                 ?? throw new ForbiddenException("You are not a member of this workspace");
 
-            if (!CanManage(member.Role))
+            if (!CanEditWorkspace(member.Role))
             {
-                throw new ForbiddenException("Only workspace admin can update avatar");
+                throw new ForbiddenException("Only workspace owner can update avatar");
             }
 
             workspace.AvatarPath = avatarPath;
@@ -103,9 +103,9 @@ namespace TaskManager.Application.Services
             var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId)
                 ?? throw new ForbiddenException("You are not a member of this workspace");
 
-            if (!CanManage(member.Role))
+            if (!CanEditWorkspace(member.Role))
             {
-                throw new ForbiddenException("Only workspace admin can update avatar");
+                throw new ForbiddenException("Only workspace owner can update avatar");
             }
 
             workspace.AvatarPath = null;
@@ -125,9 +125,9 @@ namespace TaskManager.Application.Services
             var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId)
                 ?? throw new ForbiddenException("You are not a member of this workspace");
 
-            if (!CanManage(member.Role))
+            if (!CanEditWorkspace(member.Role))
             {
-                throw new ForbiddenException("Only workspace admin can update workspace");
+                throw new ForbiddenException("Only workspace owner can update workspace");
             }
 
             var name = dto.Name.Trim();
@@ -249,6 +249,11 @@ namespace TaskManager.Application.Services
             {
                 throw new ForbiddenException("You are not a member of this workspace");
             }
+        }
+
+        private static bool CanEditWorkspace(WorkspaceRole role)
+        {
+            return role == WorkspaceRole.Owner;
         }
 
         private static bool CanManage(WorkspaceRole role)

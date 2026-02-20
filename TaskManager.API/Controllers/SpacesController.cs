@@ -143,7 +143,7 @@ namespace TaskManager.API.Controllers
         /// <response code="200">Workspace updated successfully</response>
         /// <response code="400">If workspace data is invalid</response>
         /// <response code="401">If user is not authenticated</response>
-        /// <response code="403">If user is not a workspace admin</response>
+        /// <response code="403">If user is not a workspace owner</response>
         /// <response code="404">If workspace is not found</response>
         [HttpPut("{workspaceId:int}")]
         public async Task<ActionResult<WorkspaceDto>> UpdateSpace(int workspaceId, [FromBody] UpdateWorkspaceDto dto)
@@ -187,7 +187,7 @@ namespace TaskManager.API.Controllers
         /// <response code="200">Avatar updated successfully</response>
         /// <response code="400">If file is invalid or too large</response>
         /// <response code="401">If user is not authenticated</response>
-        /// <response code="403">If user is not a workspace admin</response>
+        /// <response code="403">If user is not a workspace owner</response>
         /// <response code="404">If workspace is not found</response>
         [HttpPost("{workspaceId:int}/avatar")]
         [RequestSizeLimit(20L * 1024 * 1024)]
@@ -304,7 +304,7 @@ namespace TaskManager.API.Controllers
         /// <returns>The updated workspace.</returns>
         /// <response code="200">Avatar removed successfully</response>
         /// <response code="401">If user is not authenticated</response>
-        /// <response code="403">If user is not a workspace admin</response>
+        /// <response code="403">If user is not a workspace owner</response>
         /// <response code="404">If workspace is not found</response>
         [HttpDelete("{workspaceId:int}/avatar")]
         public async Task<ActionResult<WorkspaceDto>> ClearSpaceAvatar(int workspaceId)

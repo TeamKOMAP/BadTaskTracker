@@ -3879,7 +3879,7 @@ if (logoutBtn) {
 
 const saveWorkspaceName = async () => {
   if (!currentWorkspaceId) return;
-  if (!isAdmin()) return;
+  if (!isOwner()) return;
   if (!panelWorkspaceNameEl) return;
 
   const name = normalizeToken(panelWorkspaceNameEl.textContent);
@@ -3914,7 +3914,7 @@ const saveWorkspaceName = async () => {
 
 if (panelWorkspaceEditBtn) {
   panelWorkspaceEditBtn.addEventListener("click", () => {
-    if (!isAdmin()) return;
+    if (!isOwner()) return;
     if (!panelWorkspaceNameEl) return;
     if (panelWorkspaceEditing) return;
     setWorkspaceEditing(true);
@@ -3949,7 +3949,7 @@ if (panelWorkspaceAvatarInput) {
     panelWorkspaceAvatarInput.value = "";
     if (!file) return;
     if (!currentWorkspaceId) return;
-    if (!isAdmin()) return;
+    if (!isOwner()) return;
 
     const form = new FormData();
     form.append("file", file);

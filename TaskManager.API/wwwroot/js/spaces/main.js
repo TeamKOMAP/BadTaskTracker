@@ -8,7 +8,7 @@ import {
   clearAccessToken
 } from "../shared/api.js?v=auth5";
 import { getPreferredTheme, setTheme } from "../workspace/storage.js?v=auth4";
-import { MANAGE_ROLES, STORAGE_WORKSPACE_ID } from "../shared/constants.js";
+import { STORAGE_WORKSPACE_ID } from "../shared/constants.js";
 import { navigateToWorkspacePage } from "../shared/navigation.js";
 import { normalizeToken, toInitials, toWorkspaceRole } from "../shared/utils.js";
 import { getRoleLabel } from "../shared/roles.js?v=auth1";
@@ -275,7 +275,7 @@ const renderSpaces = (spaces) => {
     });
     actions.appendChild(openBtn);
 
-    if (MANAGE_ROLES.has(role)) {
+    if (role === "Owner") {
       const avatarBtn = document.createElement("button");
       avatarBtn.type = "button";
       avatarBtn.className = "space-avatar-btn";
