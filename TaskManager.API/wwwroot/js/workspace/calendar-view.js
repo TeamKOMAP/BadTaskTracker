@@ -1,5 +1,4 @@
 const CALENDAR_BUCKETS = [
-  { id: "high", title: "Высокий приоритет" },
   { id: "today", title: "Сегодня" },
   { id: "week", title: "В течение недели" },
   { id: "gtweek", title: "Больше недели" },
