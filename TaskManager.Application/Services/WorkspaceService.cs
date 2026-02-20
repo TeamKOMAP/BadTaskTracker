@@ -125,9 +125,9 @@ namespace TaskManager.Application.Services
             var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId)
                 ?? throw new ForbiddenException("You are not a member of this workspace");
 
-            if (!CanEditWorkspace(member.Role))
+            if (!CanManage(member.Role))
             {
-                throw new ForbiddenException("Only workspace owner can update workspace");
+                throw new ForbiddenException("Only workspace admin or owner can update workspace");
             }
 
             var name = dto.Name.Trim();

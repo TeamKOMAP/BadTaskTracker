@@ -143,7 +143,7 @@ namespace TaskManager.API.Controllers
         /// <response code="200">Workspace updated successfully</response>
         /// <response code="400">If workspace data is invalid</response>
         /// <response code="401">If user is not authenticated</response>
-        /// <response code="403">If user is not a workspace owner</response>
+        /// <response code="403">If user is not a workspace admin or owner</response>
         /// <response code="404">If workspace is not found</response>
         [HttpPut("{workspaceId:int}")]
         public async Task<ActionResult<WorkspaceDto>> UpdateSpace(int workspaceId, [FromBody] UpdateWorkspaceDto dto)

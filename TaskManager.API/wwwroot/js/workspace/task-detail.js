@@ -90,7 +90,11 @@ const formatHistoryAt = (timestampMs) => {
 };
 
 export const createTaskDetailController = (deps) => {
-  const isAdmin = typeof deps?.isAdmin === "function" ? deps.isAdmin : () => false;
+  const canEditTask = typeof deps?.canEditTask === "function"
+    ? deps.canEditTask
+    : typeof deps?.isAdmin === "function"
+      ? deps.isAdmin
+      : () => false;
   const ensureTagsLoaded = typeof deps?.ensureTagsLoaded === "function" ? deps.ensureTagsLoaded : async () => {};
   const getTagNameById = typeof deps?.getTagNameById === "function" ? deps.getTagNameById : () => "";
   const getAssigneeNameById = typeof deps?.getAssigneeNameById === "function" ? deps.getAssigneeNameById : () => "";
@@ -484,16 +488,16 @@ export const createTaskDetailController = (deps) => {
     }
 
     if (taskDetailEditBtn) {
-      taskDetailEditBtn.toggleAttribute("hidden", !isAdmin());
+      taskDetailEditBtn.toggleAttribute("hidden", !canEditTask());
     }
     if (taskDetailPhotoBtn) {
-      taskDetailPhotoBtn.toggleAttribute("hidden", !isAdmin());
+      taskDetailPhotoBtn.toggleAttribute("hidden", !canEditTask());
     }
     if (taskDetailPhotoClearBtn) {
-      taskDetailPhotoClearBtn.toggleAttribute("hidden", !isAdmin());
+      taskDetailPhotoClearBtn.toggleAttribute("hidden", !canEditTask());
     }
     if (taskAttachBtn) {
-      taskAttachBtn.toggleAttribute("hidden", !isAdmin());
+      taskAttachBtn.toggleAttribute("hidden", !canEditTask());
     }
 
     const resolveTagName = (tagId) => getTagNameById(Number(tagId)) || "";
@@ -602,7 +606,7 @@ export const createTaskDetailController = (deps) => {
   };
 
   const onDetailEditClick = () => {
-    if (!isAdmin() || !detailTaskId) return;
+    if (!canEditTask() || !detailTaskId) return;
     const card = detailTaskCard || document.querySelector(`.task-card[data-task-id="${detailTaskId}"]`);
     if (!card) return;
     cache.deleteTask(detailTaskId);
@@ -611,13 +615,13 @@ export const createTaskDetailController = (deps) => {
   };
 
   const onDetailPhotoClick = () => {
-    if (!isAdmin() || !detailTaskId) return;
+    if (!canEditTask() || !detailTaskId) return;
     pendingPhotoTaskId = detailTaskId;
     taskBgInput?.click();
   };
 
   const onDetailPhotoClearClick = () => {
-    if (!isAdmin() || !detailTaskId) return;
+    if (!canEditTask() || !detailTaskId) return;
     clearStoredTaskBg(detailTaskId);
     cache.clearTaskBg(detailTaskId);
     applyTaskBgToCards(detailTaskId, "");
@@ -636,7 +640,7 @@ export const createTaskDetailController = (deps) => {
   };
 
   const onAttachClick = () => {
-    if (!isAdmin() || !detailTaskId) return;
+    if (!canEditTask() || !detailTaskId) return;
     taskAttachmentsInput?.click();
   };
 

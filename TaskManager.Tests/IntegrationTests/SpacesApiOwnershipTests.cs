@@ -34,22 +34,35 @@ namespace TaskManager.Tests.IntegrationTests
         }
 
         [Fact]
-        public async Task Admin_CannotUpdateWorkspace()
+        public async Task Admin_CanUpdateWorkspace()
         {
             var adminClient = await CreateAdminClientAsync();
 
             var response = await adminClient.PutAsJsonAsync($"/api/spaces/{TestWorkspaceId}", new
             {
-                name = "Admin should not update workspace"
+                name = "Admin updated workspace"
             });
 
-            response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
 
             var workspaceResponse = await _client.GetAsync($"/api/spaces/{TestWorkspaceId}");
             workspaceResponse.StatusCode.Should().Be(HttpStatusCode.OK);
             var workspace = await workspaceResponse.Content.ReadFromJsonAsync<WorkspaceDto>();
             workspace.Should().NotBeNull();
-            workspace!.Name.Should().NotBe("Admin should not update workspace");
+            workspace!.Name.Should().Be("Admin updated workspace");
+        }
+
+        [Fact]
+        public async Task Member_CannotUpdateWorkspace()
+        {
+            var memberClient = await CreateWorkspaceMemberClientAsync(WorkspaceRole.Member, "Workspace Member");
+
+            var response = await memberClient.PutAsJsonAsync($"/api/spaces/{TestWorkspaceId}", new
+            {
+                name = "Member should not update workspace"
+            });
+
+            response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
         }
 
         [Fact]
@@ -75,33 +88,38 @@ namespace TaskManager.Tests.IntegrationTests
 
         private async Task<HttpClient> CreateAdminClientAsync()
         {
-            int adminUserId;
+            return await CreateWorkspaceMemberClientAsync(WorkspaceRole.Admin, "Workspace Admin");
+        }
+
+        private async Task<HttpClient> CreateWorkspaceMemberClientAsync(WorkspaceRole role, string name)
+        {
+            int userId;
 
             using (var scope = _factory.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                 var user = new User
                 {
-                    Name = "Workspace Admin",
-                    Email = $"workspace.admin.{Guid.NewGuid():N}@example.com",
+                    Name = name,
+                    Email = $"workspace.{role.ToString().ToLowerInvariant()}.{Guid.NewGuid():N}@example.com",
                     CreatedAt = DateTime.UtcNow
                 };
 
                 db.Users.Add(user);
                 await db.SaveChangesAsync();
-                adminUserId = user.Id;
+                userId = user.Id;
 
                 db.WorkspaceMembers.Add(new WorkspaceMember
                 {
                     WorkspaceId = TestWorkspaceId,
-                    UserId = adminUserId,
-                    Role = WorkspaceRole.Admin,
+                    UserId = userId,
+                    Role = role,
                     AddedAt = DateTime.UtcNow
                 });
                 await db.SaveChangesAsync();
             }
 
-            return CreateAuthorizedClient(workspaceId: TestWorkspaceId, userId: adminUserId);
+            return CreateAuthorizedClient(workspaceId: TestWorkspaceId, userId: userId);
         }
     }
 }

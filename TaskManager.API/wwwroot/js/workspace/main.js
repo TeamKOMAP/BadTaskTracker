@@ -175,7 +175,7 @@ import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf6";
-import { createTaskDetailController } from "./task-detail.js?v=perf13";
+import { createTaskDetailController } from "./task-detail.js?v=perf14";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
 import { createProfileModalsController } from "./profile-modals.js?v=profile1";
 
@@ -1426,7 +1426,7 @@ const setWorkspaceContext = (space) => {
   refreshInviteControlsState();
 
   if (panelWorkspaceEditBtn) {
-    panelWorkspaceEditBtn.hidden = !isOwner();
+    panelWorkspaceEditBtn.hidden = !isAdmin();
     panelWorkspaceEditBtn.disabled = false;
     panelWorkspaceEditBtn.title = "Редактировать";
   }
@@ -3756,7 +3756,7 @@ document.addEventListener("click", (event) => {
 });
 
 taskDetailController = createTaskDetailController({
-  isAdmin,
+  canEditTask: isAdmin,
   ensureTagsLoaded,
   getTagNameById: (id) => tagById.get(Number(id)) || "",
   getAssigneeNameById: (id) => {
@@ -3879,7 +3879,7 @@ if (logoutBtn) {
 
 const saveWorkspaceName = async () => {
   if (!currentWorkspaceId) return;
-  if (!isOwner()) return;
+  if (!isAdmin()) return;
   if (!panelWorkspaceNameEl) return;
 
   const name = normalizeToken(panelWorkspaceNameEl.textContent);
@@ -3914,7 +3914,7 @@ const saveWorkspaceName = async () => {
 
 if (panelWorkspaceEditBtn) {
   panelWorkspaceEditBtn.addEventListener("click", () => {
-    if (!isOwner()) return;
+    if (!isAdmin()) return;
     if (!panelWorkspaceNameEl) return;
     if (panelWorkspaceEditing) return;
     setWorkspaceEditing(true);
