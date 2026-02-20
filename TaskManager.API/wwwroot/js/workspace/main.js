@@ -57,6 +57,7 @@ import {
   userEmpty,
   userAddInput,
   userAddBtn,
+  userAddSection,
   panelWorkspace,
   panelWorkspaceNameEl,
   panelWorkspaceEditBtn,
@@ -1425,10 +1426,14 @@ const setWorkspaceContext = (space) => {
   refreshInviteControlsState();
 
   if (panelWorkspaceEditBtn) {
-    panelWorkspaceEditBtn.disabled = !isAdmin();
-    panelWorkspaceEditBtn.title = isAdmin() ? "Редактировать" : "Только администраторы могут редактировать";
+    panelWorkspaceEditBtn.hidden = !isOwner();
+    panelWorkspaceEditBtn.disabled = false;
+    panelWorkspaceEditBtn.title = "Редактировать";
   }
 
+  if (userAddSection) {
+    userAddSection.hidden = !isAdmin();
+  }
 
   if (changed) {
     tagsLoaded = false;
@@ -1803,6 +1808,8 @@ const applyAttachmentCountToCards = (id, count) => {
 };
 
 const isAdmin = () => MANAGE_ROLES.has(String(currentWorkspaceRole || ""));
+
+const isOwner = () => String(currentWorkspaceRole || "") === "Owner";
 
 const shouldShowTrashZone = () => {
   if (!taskTrashZone || !board) return false;
