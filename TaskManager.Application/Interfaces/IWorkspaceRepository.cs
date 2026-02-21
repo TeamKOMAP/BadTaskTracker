@@ -8,5 +8,7 @@ namespace TaskManager.Application.Interfaces
         Task<Workspace?> GetByIdAsync(int workspaceId);
         Task<Workspace> AddAsync(Workspace workspace);
         Task UpdateAsync(Workspace workspace);
+
+        Task DeleteAsync(Workspace workspace);
     }
 }

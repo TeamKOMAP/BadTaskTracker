@@ -16,6 +16,16 @@ namespace TaskManager.API.Controllers
     {
         private readonly INotificationRepository _notificationRepo;
 
+        private static DateTime NormalizeUtc(DateTime value)
+        {
+            return value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
+        }
+
         /// <summary>
         /// Initializes a new instance of the NotificationsController.
         /// </summary>
@@ -62,7 +72,7 @@ namespace TaskManager.API.Controllers
                 WorkspaceId = n.WorkspaceId,
                 ActionUrl = n.ActionUrl,
                 IsRead = n.IsRead,
-                CreatedAt = n.CreatedAt
+                CreatedAt = NormalizeUtc(n.CreatedAt)
             }));
         }
 

@@ -121,6 +121,71 @@ body[data-theme="light"] .panel-workspace-name[contenteditable="true"] {
   flex: 0 0 auto;
 }
 
+.panel-workspace-danger {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel-workspace-danger[hidden] {
+  display: none !important;
+}
+
+.panel-workspace-delete {
+  width: 100%;
+  justify-content: center;
+}
+
+body[data-theme="light"] .panel-workspace-danger {
+  border-top-color: rgba(15, 20, 28, 0.10);
+}
+
+.task-confirm-input {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.task-confirm-input[hidden] {
+  display: none;
+}
+
+.task-confirm-input-hint {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.task-confirm-input-el {
+  width: 100%;
+  padding: 12px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--stroke);
+  background: rgba(12, 18, 26, 0.55);
+  color: var(--text-1);
+  font-size: 13px;
+  outline: none;
+}
+
+.task-confirm-input-el:focus {
+  box-shadow: 0 0 0 3px rgba(68, 210, 199, 0.22);
+  border-color: rgba(68, 210, 199, 0.35);
+}
+
+body[data-theme="light"] .task-confirm-input-el {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(15, 20, 28, 0.14);
+  color: rgba(15, 20, 28, 0.9);
+}
+
+body[data-theme="light"] .task-confirm-input-el:focus {
+  box-shadow: 0 0 0 3px rgba(44, 115, 255, 0.18);
+  border-color: rgba(44, 115, 255, 0.22);
+}
+
 
 .settings-panel {
   width: 0;
@@ -1011,6 +1076,26 @@ body[data-theme="light"] .board-popover-item {
 
 .board-filter-panel {
   width: min(320px, 88vw);
+}
+
+.board-tags-menu {
+  width: min(340px, 88vw);
+}
+
+.board-tags-list {
+  max-height: min(48vh, 320px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.board-tags-empty {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.board-tags-empty[hidden] {
+  display: none;
 }
 
 .board-popover-head {
@@ -2020,6 +2105,14 @@ body[data-theme="light"] .task-action-btn {
   border-color: rgba(255, 255, 255, 0.18);
   box-shadow: 0 16px 26px rgba(5, 8, 13, 0.4);
   z-index: 2;
+  max-height: min(72vh, 720px);
+}
+
+.task-card:not(.is-empty):hover .task-text,
+.task-card:not(.is-empty):focus-within .task-text {
+  max-height: 40em;
+  overflow: visible;
+  display: block;
 }
 
 body[data-theme="light"] .task-card:hover {
@@ -3397,6 +3490,7 @@ body[data-theme="light"] .flow-clear-menu-item:hover {
   gap: 10px;
   overflow-y: auto;
   padding-right: 6px;
+  min-height: 0;
   max-height: clamp(260px, 56vh, 560px);
 }
 
@@ -3426,6 +3520,7 @@ body[data-theme="light"] .flow-clear-menu-item:hover {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  flex: 0 0 auto;
   cursor: grab;
   transition: transform 0.2s ease, border 0.2s ease, box-shadow 0.2s ease;
 }

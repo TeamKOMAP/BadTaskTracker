@@ -490,5 +490,38 @@ namespace TaskManager.API.Controllers
                 return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
             }
         }
+
+        /// <summary>
+        /// Deletes a workspace. Only owner can delete.
+        /// </summary>
+        /// <param name="workspaceId">The workspace ID.</param>
+        /// <returns>No content if deleted.</returns>
+        /// <response code="204">Workspace deleted</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not the workspace owner</response>
+        /// <response code="404">If workspace is not found</response>
+        [HttpDelete("{workspaceId:int}")]
+        public async Task<IActionResult> DeleteWorkspace(int workspaceId)
+        {
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            try
+            {
+                await _workspaceService.DeleteWorkspaceAsync(actorUserId.Value, workspaceId);
+                return NoContent();
+            }
+            catch (NotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+        }
     }
 }

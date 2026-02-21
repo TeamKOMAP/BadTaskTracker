@@ -24,9 +24,14 @@ export const boardSearchTags = document.getElementById("board-search-tags");
 export const boardSearchClearBtn = document.getElementById("board-search-clear");
 export const boardSortToggleBtn = document.getElementById("board-sort-toggle");
 export const boardFilterToggleBtn = document.getElementById("board-filter-toggle");
+export const boardTagsToggleBtn = document.getElementById("board-tags-toggle");
 export const boardSortMenu = document.getElementById("board-sort-menu");
 export const boardFilterPanel = document.getElementById("board-filter-panel");
+export const boardTagsMenu = document.getElementById("board-tags-menu");
 export const boardFilterResetBtn = document.getElementById("board-filter-reset");
+export const boardTagsClearBtn = document.getElementById("board-tags-clear");
+export const boardTagsList = document.getElementById("board-tags-list");
+export const boardTagsEmptyEl = document.getElementById("board-tags-empty");
 export const boardTaskCreateBtn = document.getElementById("board-task-create");
 
 export const taskGrid = document.getElementById("task-grid");
@@ -73,6 +78,9 @@ export const panelWorkspaceNameEl = document.getElementById("panel-workspace-nam
 export const panelWorkspaceEditBtn = document.getElementById("panel-workspace-edit");
 export const panelWorkspaceAvatarEl = document.getElementById("panel-workspace-avatar");
 export const panelWorkspaceAvatarInput = document.getElementById("panel-workspace-avatar-input");
+
+export const panelWorkspaceDanger = document.getElementById("panel-workspace-danger");
+export const panelWorkspaceDeleteBtn = document.getElementById("panel-workspace-delete");
 
 export const taskBgInput = document.getElementById("task-bg-input");
 export const taskAttachmentsInput = document.getElementById("task-attachments-input");
@@ -156,3 +164,7 @@ export const confirmModalTitleEl = document.getElementById("confirm-modal-title"
 export const confirmModalMessageEl = document.getElementById("confirm-modal-message");
 export const confirmModalCancelBtn = document.getElementById("confirm-modal-cancel");
 export const confirmModalAcceptBtn = document.getElementById("confirm-modal-accept");
+
+export const confirmModalInputWrap = document.getElementById("confirm-modal-input-wrap");
+export const confirmModalInputHintEl = document.getElementById("confirm-modal-input-hint");
+export const confirmModalInputEl = document.getElementById("confirm-modal-input");
