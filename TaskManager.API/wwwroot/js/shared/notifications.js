@@ -1,6 +1,7 @@
 import {
   buildApiUrl,
   apiFetch,
+  setAccessToken,
   fetchJsonOrNull,
   handleApiError
 } from "./api.js?v=auth5";
@@ -10,6 +11,7 @@ import { normalizeToken } from "./utils.js";
 const NOTIFICATION_TYPE_META = {
   deadline_soon: { icon: "🔥", kind: "deadline" },
   deadline: { icon: "🔥", kind: "deadline" },
+  task_done_pending_approval: { icon: "🕒", kind: "pending" },
   task_done_approved: { icon: "✅", kind: "approved" },
   task_done_rejected: { icon: "❌", kind: "rejected" },
   workspace_invite_received: { icon: "👤", kind: "invite" },
@@ -93,6 +95,37 @@ export const createNotificationsPanelController = ({
   resolveWorkspaceId = () => null
 } = {}) => {
   let notifications = [];
+
+  const switchWorkspaceToken = async (workspaceId) => {
+    const id = Number(workspaceId);
+    if (!Number.isFinite(id) || id <= 0) return false;
+
+    const response = await apiFetch(buildApiUrl("/auth/switch-workspace"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({ workspaceId: id })
+    });
+
+    if (!response.ok) {
+      await handleApiError(response, "Переключение проекта");
+      return false;
+    }
+
+    try {
+      const data = await response.json();
+      const token = String(data?.accessToken || "").trim();
+      if (token) {
+        setAccessToken(token);
+      }
+    } catch {
+      // ignore
+    }
+
+    return true;
+  };
 
   const setUnreadBadge = (value) => {
     if (!toggleBtn) return;
@@ -205,6 +238,54 @@ export const createNotificationsPanelController = ({
     listEl.removeAttribute("hidden");
     listEl.innerHTML = "";
 
+    const runDoneApprovalAction = async (notification, decision) => {
+      const taskId = Number(notification?.taskId);
+      const workspaceId = Number(notification?.workspaceId);
+      if (!Number.isFinite(taskId) || taskId <= 0) return false;
+
+      // Ensure workspace context matches the task.
+      if (Number.isFinite(workspaceId) && workspaceId > 0) {
+        const switched = await switchWorkspaceToken(workspaceId);
+        if (!switched) return false;
+      }
+
+      const route = decision === "approve"
+        ? `/tasks/${taskId}/done-approval/approve`
+        : `/tasks/${taskId}/done-approval/reject`;
+
+      const response = await apiFetch(buildApiUrl(route), {
+        method: "POST",
+        headers: { Accept: "application/json" }
+      });
+
+      if (!response.ok) {
+        await handleApiError(response, decision === "approve" ? "Подтверждение задачи" : "Отклонение задачи");
+        await refreshNotifications();
+        return false;
+      }
+
+      let updatedTask = null;
+      try {
+        updatedTask = await response.json();
+      } catch {
+        updatedTask = null;
+      }
+
+      if (updatedTask) {
+        window.dispatchEvent(new CustomEvent("task:upsert", { detail: { task: updatedTask } }));
+      }
+
+      if (notification?.id && !notification?.isRead) {
+        const ok = await markAsRead(notification.id);
+        if (ok) {
+          notification.isRead = true;
+        }
+      }
+
+      await refreshNotifications();
+      return true;
+    };
+
     items.forEach((item) => {
       const type = normalizeToken(item?.type).toLowerCase();
       const title = normalizeToken(item?.title) || "Уведомление";
@@ -212,23 +293,109 @@ export const createNotificationsPanelController = ({
       const meta = resolveNotificationMeta(type);
       const timeLabel = formatRelativeTime(item?.createdAt);
 
-      const card = document.createElement("button");
-      card.type = "button";
+      const card = document.createElement("div");
       card.className = `notification-item ${item?.isRead ? "is-read" : "is-unread"}`;
-      card.innerHTML = `
-        <span class="notification-icon notification-icon--${meta.kind}" aria-hidden="true">${meta.icon}</span>
-        <span class="notification-body">
-          <span class="notification-title">${escapeHtml(title)}</span>
-          <span class="notification-text">${escapeHtml(message || "Откройте уведомление, чтобы посмотреть детали")}</span>
-          <span class="notification-meta">${escapeHtml(timeLabel)}</span>
-        </span>
-        <span class="notification-dot" aria-hidden="true"></span>
-      `;
+      card.setAttribute("role", "button");
+      card.tabIndex = 0;
 
-      card.addEventListener("click", () => {
+      const icon = document.createElement("span");
+      icon.className = `notification-icon notification-icon--${meta.kind}`;
+      icon.setAttribute("aria-hidden", "true");
+      icon.textContent = meta.icon;
+
+      const body = document.createElement("span");
+      body.className = "notification-body";
+      const titleEl = document.createElement("span");
+      titleEl.className = "notification-title";
+      titleEl.textContent = title;
+      const textEl = document.createElement("span");
+      textEl.className = "notification-text";
+      textEl.textContent = message || "Откройте уведомление, чтобы посмотреть детали";
+      const metaEl = document.createElement("span");
+      metaEl.className = "notification-meta";
+      metaEl.textContent = timeLabel;
+      body.append(titleEl, textEl, metaEl);
+
+      let actionsEl = null;
+      if (type === "task_done_pending_approval" && !item?.isRead && Number.isFinite(Number(item?.taskId)) && Number(item.taskId) > 0) {
+        const actions = document.createElement("span");
+        actions.className = "notification-actions";
+
+        const acceptBtn = document.createElement("button");
+        acceptBtn.type = "button";
+        acceptBtn.className = "notification-action notification-action--accept";
+        acceptBtn.textContent = "Принять";
+        acceptBtn.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (acceptBtn.disabled) return;
+          acceptBtn.disabled = true;
+          rejectBtn.disabled = true;
+          void (async () => {
+            const ok = await runDoneApprovalAction(item, "approve");
+            if (!ok) {
+              acceptBtn.disabled = false;
+              rejectBtn.disabled = false;
+              return;
+            }
+            item.isRead = true;
+            card.classList.add("is-read");
+            card.classList.remove("is-unread");
+            if (actionsEl) actionsEl.remove();
+          })();
+        });
+
+        const rejectBtn = document.createElement("button");
+        rejectBtn.type = "button";
+        rejectBtn.className = "notification-action notification-action--reject";
+        rejectBtn.textContent = "Отклонить";
+        rejectBtn.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (rejectBtn.disabled) return;
+          acceptBtn.disabled = true;
+          rejectBtn.disabled = true;
+          void (async () => {
+            const ok = await runDoneApprovalAction(item, "reject");
+            if (!ok) {
+              acceptBtn.disabled = false;
+              rejectBtn.disabled = false;
+              return;
+            }
+            item.isRead = true;
+            card.classList.add("is-read");
+            card.classList.remove("is-unread");
+            if (actionsEl) actionsEl.remove();
+          })();
+        });
+
+        actions.append(acceptBtn, rejectBtn);
+        actionsEl = actions;
+        body.appendChild(actions);
+      }
+
+      const dot = document.createElement("span");
+      dot.className = "notification-dot";
+      dot.setAttribute("aria-hidden", "true");
+
+      const open = () => {
         void handleNotificationClick(item);
+      };
+
+      card.addEventListener("click", (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target && target.closest(".notification-action")) return;
+        open();
+      });
+      card.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const target = event.target;
+        if (target !== card) return;
+        event.preventDefault();
+        open();
       });
 
+      card.append(icon, body, dot);
       listEl.appendChild(card);
     });
   };

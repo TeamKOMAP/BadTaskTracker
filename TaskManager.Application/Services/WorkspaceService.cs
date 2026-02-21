@@ -179,14 +179,9 @@ namespace TaskManager.Application.Services
             var actorMember = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId)
                 ?? throw new ForbiddenException("You are not a member of this workspace");
 
-            if (!CanManage(actorMember.Role))
+            if (actorMember.Role != WorkspaceRole.Owner)
             {
-                throw new ForbiddenException("Only workspace admin can add members");
-            }
-
-            if (dto.Role == WorkspaceRole.Owner && actorMember.Role != WorkspaceRole.Owner)
-            {
-                throw new ForbiddenException("Only owner can assign owner role");
+                throw new ForbiddenException("Only workspace owner can manage roles");
             }
 
             if (!dto.UserId.HasValue || dto.UserId.Value <= 0)
@@ -206,6 +201,16 @@ namespace TaskManager.Application.Services
             if (existing == null)
             {
                 throw new ValidationException("Member does not belong to workspace. Invite user first.");
+            }
+
+            if (existing.Role == WorkspaceRole.Owner)
+            {
+                throw new ValidationException("Workspace owner role cannot be changed");
+            }
+
+            if (dto.Role == WorkspaceRole.Owner)
+            {
+                throw new ValidationException("Owner role cannot be assigned via this endpoint");
             }
 
             existing.Role = dto.Role;
@@ -228,7 +233,7 @@ namespace TaskManager.Application.Services
 
             if (!CanManage(actorMember.Role))
             {
-                throw new ForbiddenException("Only workspace admin can remove members");
+                throw new ForbiddenException("Only workspace admin or owner can remove members");
             }
 
             var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, memberUserId)
@@ -237,6 +242,11 @@ namespace TaskManager.Application.Services
             if (member.Role == WorkspaceRole.Owner)
             {
                 throw new ValidationException("Workspace owner cannot be removed");
+            }
+
+            if (actorMember.Role == WorkspaceRole.Admin && member.Role != WorkspaceRole.Member)
+            {
+                throw new ForbiddenException("Workspace admin can only remove members");
             }
 
             await _workspaceMemberRepository.RemoveAsync(member);

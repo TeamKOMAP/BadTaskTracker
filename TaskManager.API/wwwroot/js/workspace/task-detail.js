@@ -24,6 +24,11 @@ import {
   taskDetailHistoryList,
   taskDetailHistoryEmpty,
   taskDetailHistoryClearBtn,
+  taskDetailApprovalWrap,
+  taskDetailApprovalTextEl,
+  taskDetailApprovalActions,
+  taskDetailApproveBtn,
+  taskDetailRejectBtn,
   taskAttachBtn,
   taskAttachmentsList,
   taskAttachmentsEmpty,
@@ -74,7 +79,12 @@ const detailElements = {
   tagsEl: taskDetailTagsEl,
   descriptionEl: taskDetailDescriptionEl,
   photoWrapEl: taskDetailPhotoWrap,
-  photoImgEl: taskDetailPhotoImg
+  photoImgEl: taskDetailPhotoImg,
+  approvalWrapEl: taskDetailApprovalWrap,
+  approvalTextEl: taskDetailApprovalTextEl,
+  approvalActionsEl: taskDetailApprovalActions,
+  approveBtnEl: taskDetailApproveBtn,
+  rejectBtnEl: taskDetailRejectBtn
 };
 
 const formatHistoryAt = (timestampMs) => {
@@ -95,6 +105,14 @@ export const createTaskDetailController = (deps) => {
     : typeof deps?.isAdmin === "function"
       ? deps.isAdmin
       : () => false;
+  const canClearHistory = typeof deps?.canClearHistory === "function"
+    ? deps.canClearHistory
+    : canEditTask;
+  const canManageDoneApproval = typeof deps?.canManageDoneApproval === "function"
+    ? deps.canManageDoneApproval
+    : canEditTask;
+  const approveDone = typeof deps?.approveDone === "function" ? deps.approveDone : async () => null;
+  const rejectDone = typeof deps?.rejectDone === "function" ? deps.rejectDone : async () => null;
   const ensureTagsLoaded = typeof deps?.ensureTagsLoaded === "function" ? deps.ensureTagsLoaded : async () => {};
   const getTagNameById = typeof deps?.getTagNameById === "function" ? deps.getTagNameById : () => "";
   const getAssigneeNameById = typeof deps?.getAssigneeNameById === "function" ? deps.getAssigneeNameById : () => "";
@@ -116,6 +134,14 @@ export const createTaskDetailController = (deps) => {
   let detailRequestSeq = 0;
   let detailAbortController = null;
 
+  const refreshHistoryClearButton = (options) => {
+    if (!taskDetailHistoryClearBtn) return;
+    const allowed = !!canClearHistory();
+    const hasEntries = Boolean(options?.hasEntries);
+    taskDetailHistoryClearBtn.toggleAttribute("hidden", !allowed);
+    taskDetailHistoryClearBtn.disabled = !allowed || !hasEntries;
+  };
+
   const renderHistoryForTask = (taskId = detailTaskId) => {
     if (!taskDetailHistoryList || !taskDetailHistoryEmpty) return;
     const id = Number(taskId);
@@ -123,7 +149,7 @@ export const createTaskDetailController = (deps) => {
       taskDetailHistoryList.innerHTML = "";
       taskDetailHistoryEmpty.hidden = false;
       taskDetailHistoryEmpty.textContent = "Нет изменений.";
-      if (taskDetailHistoryClearBtn) taskDetailHistoryClearBtn.disabled = true;
+      refreshHistoryClearButton({ hasEntries: false });
       return;
     }
 
@@ -133,12 +159,12 @@ export const createTaskDetailController = (deps) => {
     if (!entries.length) {
       taskDetailHistoryEmpty.hidden = false;
       taskDetailHistoryEmpty.textContent = "Нет изменений.";
-      if (taskDetailHistoryClearBtn) taskDetailHistoryClearBtn.disabled = true;
+      refreshHistoryClearButton({ hasEntries: false });
       return;
     }
 
     taskDetailHistoryEmpty.hidden = true;
-    if (taskDetailHistoryClearBtn) taskDetailHistoryClearBtn.disabled = false;
+    refreshHistoryClearButton({ hasEntries: true });
 
     const fragment = document.createDocumentFragment();
     entries.forEach((entry) => {
@@ -195,6 +221,7 @@ export const createTaskDetailController = (deps) => {
 
   const onHistoryClearClick = async () => {
     if (!detailTaskId) return;
+    if (!canClearHistory()) return;
     const confirmed = await confirmDestructiveAction({
       kicker: "История изменений",
       title: "Очистить историю изменений этой задачи?",
@@ -432,7 +459,7 @@ export const createTaskDetailController = (deps) => {
 
     if (taskDetailHistoryList) taskDetailHistoryList.innerHTML = "";
     if (taskDetailHistoryEmpty) taskDetailHistoryEmpty.hidden = true;
-    if (taskDetailHistoryClearBtn) taskDetailHistoryClearBtn.disabled = true;
+    refreshHistoryClearButton({ hasEntries: false });
   };
 
   const openTaskDetailModalForTask = async (taskId, card) => {
@@ -513,6 +540,7 @@ export const createTaskDetailController = (deps) => {
         taskId: id,
         requestSeq,
         elements: detailElements,
+        canManageDoneApproval,
         resolveTagName,
         resolveAssigneeName,
         getStoredTaskMeta,
@@ -571,6 +599,7 @@ export const createTaskDetailController = (deps) => {
       taskId: id,
       requestSeq,
       elements: detailElements,
+      canManageDoneApproval,
       resolveTagName,
       resolveAssigneeName,
       getStoredTaskMeta,
@@ -612,6 +641,46 @@ export const createTaskDetailController = (deps) => {
     cache.deleteTask(detailTaskId);
     closeTaskDetailModal();
     openTaskModalForEdit(card);
+  };
+
+  const setApprovalButtonsBusy = (busy) => {
+    const isBusy = Boolean(busy);
+    if (taskDetailApproveBtn instanceof HTMLButtonElement) {
+      taskDetailApproveBtn.disabled = isBusy;
+    }
+    if (taskDetailRejectBtn instanceof HTMLButtonElement) {
+      taskDetailRejectBtn.disabled = isBusy;
+    }
+  };
+
+  const onApproveDoneClick = () => {
+    if (!detailTaskId) return;
+    if (!canManageDoneApproval()) return;
+    setApprovalButtonsBusy(true);
+    void (async () => {
+      try {
+        await approveDone(detailTaskId);
+        cache.deleteTask(detailTaskId);
+        await openTaskDetailModalForTask(detailTaskId, detailTaskCard);
+      } finally {
+        setApprovalButtonsBusy(false);
+      }
+    })();
+  };
+
+  const onRejectDoneClick = () => {
+    if (!detailTaskId) return;
+    if (!canManageDoneApproval()) return;
+    setApprovalButtonsBusy(true);
+    void (async () => {
+      try {
+        await rejectDone(detailTaskId);
+        cache.deleteTask(detailTaskId);
+        await openTaskDetailModalForTask(detailTaskId, detailTaskCard);
+      } finally {
+        setApprovalButtonsBusy(false);
+      }
+    })();
   };
 
   const onDetailPhotoClick = () => {
@@ -700,6 +769,8 @@ export const createTaskDetailController = (deps) => {
     notifyTaskHistoryChanged,
     onDetailModalClick,
     onDetailEditClick,
+    onApproveDoneClick,
+    onRejectDoneClick,
     onDetailPhotoClick,
     onDetailPhotoClearClick,
     onHistoryToggleClick,

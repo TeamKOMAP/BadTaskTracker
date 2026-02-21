@@ -15,6 +15,9 @@ namespace TaskManager.Application.DTOs
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
+        public bool DoneApprovalPending { get; set; }
+        public int? DoneApprovalRequestedByUserId { get; set; }
+        public DateTime? DoneApprovalRequestedAtUtc { get; set; }
         public TaskPriority Priority { get; set; }
         public List<int> TagIds { get; set; } = new List<int>();
         public int AttachmentCount { get; set; }

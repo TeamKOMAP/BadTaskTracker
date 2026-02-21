@@ -17,6 +17,10 @@ namespace TaskManager.Application.Interfaces
         Task<TaskDto> GetTaskByIdAsync(int workspaceId, int actorUserId, int id);
         Task<TaskDto> CreateTaskAsync(int workspaceId, int actorUserId, CreateTaskDto createTaskDto);
         Task<TaskDto> UpdateTaskAsync(int workspaceId, int actorUserId, UpdateTaskDto updateTaskDto);
+
+        Task<TaskDto> ApproveTaskDoneAsync(int workspaceId, int actorUserId, int taskId);
+
+        Task<TaskDto> RejectTaskDoneAsync(int workspaceId, int actorUserId, int taskId);
         Task DeleteTaskAsync(int workspaceId, int actorUserId, int id);
     }
 }

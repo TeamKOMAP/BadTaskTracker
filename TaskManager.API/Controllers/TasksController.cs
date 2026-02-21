@@ -198,6 +198,94 @@ namespace TaskManager.API.Controllers
         }
 
         /// <summary>
+        /// Approves a task completion that is waiting for confirmation.
+        /// </summary>
+        /// <param name="id">The task ID.</param>
+        /// <returns>The updated task.</returns>
+        /// <response code="200">Task approved</response>
+        /// <response code="400">If task is not waiting for approval</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace admin or owner</response>
+        /// <response code="404">If task is not found</response>
+        [HttpPost("{id}/done-approval/approve")]
+        public async Task<IActionResult> ApproveDone(int id)
+        {
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue)
+            {
+                return BadRequest(new { error = "Workspace id is required" });
+            }
+
+            try
+            {
+                var updatedTask = await _taskService.ApproveTaskDoneAsync(workspaceId.Value, actorUserId.Value, id);
+                return Ok(updatedTask);
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (NotFoundException)
+            {
+                return NotFound();
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
+        /// Rejects a task completion that is waiting for confirmation.
+        /// </summary>
+        /// <param name="id">The task ID.</param>
+        /// <returns>The updated task.</returns>
+        /// <response code="200">Task rejected</response>
+        /// <response code="400">If task is not waiting for approval</response>
+        /// <response code="401">If user is not authenticated</response>
+        /// <response code="403">If user is not a workspace admin or owner</response>
+        /// <response code="404">If task is not found</response>
+        [HttpPost("{id}/done-approval/reject")]
+        public async Task<IActionResult> RejectDone(int id)
+        {
+            var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+            if (!actorUserId.HasValue)
+            {
+                return Unauthorized(new { error = "Actor user id is required" });
+            }
+
+            var workspaceId = RequestContextResolver.ResolveWorkspaceId(HttpContext);
+            if (!workspaceId.HasValue)
+            {
+                return BadRequest(new { error = "Workspace id is required" });
+            }
+
+            try
+            {
+                var updatedTask = await _taskService.RejectTaskDoneAsync(workspaceId.Value, actorUserId.Value, id);
+                return Ok(updatedTask);
+            }
+            catch (ValidationException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (NotFoundException)
+            {
+                return NotFound();
+            }
+            catch (ForbiddenException ex)
+            {
+                return StatusCode(StatusCodes.Status403Forbidden, new { error = ex.Message });
+            }
+        }
+
+        /// <summary>
         /// Deletes a task.
         /// </summary>
         /// <param name="id">The task ID.</param>

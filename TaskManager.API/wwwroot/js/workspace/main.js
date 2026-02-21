@@ -93,6 +93,8 @@ import {
   taskFormSubmitBtn,
   taskDetailModal,
   taskDetailEditBtn,
+  taskDetailApproveBtn,
+  taskDetailRejectBtn,
   taskDetailPhotoBtn,
   taskDetailPhotoClearBtn,
   taskDetailHistoryToggleBtn,
@@ -243,6 +245,70 @@ let workspaceMembers = [];
 
 let inviteControls = null;
 let taskDetailController = null;
+
+const canCreateTasks = () => isAdmin();
+
+const canManageColumns = () => isAdmin();
+
+const applyColumnPermissions = (column) => {
+  if (!(column instanceof Element)) return;
+  const canManage = canManageColumns();
+
+  const handle = column.querySelector(".column-handle");
+  if (handle instanceof HTMLButtonElement) {
+    handle.draggable = canManage;
+    handle.toggleAttribute("hidden", !canManage);
+  }
+
+  const title = column.querySelector(".column-title");
+  if (title instanceof HTMLElement) {
+    title.setAttribute("contenteditable", canManage ? "true" : "false");
+  }
+
+  const deleteBtn = column.querySelector(".column-delete");
+  if (deleteBtn instanceof HTMLButtonElement) {
+    deleteBtn.disabled = !canManage;
+    deleteBtn.toggleAttribute("hidden", !canManage);
+  }
+};
+
+const refreshBoardPermissionsUi = () => {
+  const canCreate = canCreateTasks();
+  const canColumns = canManageColumns();
+
+  const toolbarRight = boardToolbar?.querySelector?.(".board-toolbar-right");
+  if (toolbarRight instanceof HTMLElement) {
+    toolbarRight.toggleAttribute("hidden", !canCreate && !canColumns);
+  }
+
+  if (boardTaskCreateBtn instanceof HTMLButtonElement) {
+    boardTaskCreateBtn.toggleAttribute("hidden", !canCreate);
+    boardTaskCreateBtn.disabled = !canCreate;
+  }
+
+  if (flowAddTaskBtn instanceof HTMLButtonElement) {
+    flowAddTaskBtn.toggleAttribute("hidden", !canCreate);
+    flowAddTaskBtn.disabled = !canCreate;
+  }
+
+  if (addColumnControl instanceof HTMLElement) {
+    addColumnControl.toggleAttribute("hidden", !canColumns);
+  }
+  if (addColumnBtn instanceof HTMLButtonElement) {
+    addColumnBtn.toggleAttribute("hidden", !canColumns);
+    addColumnBtn.disabled = !canColumns;
+  }
+  if (addColumnMenu instanceof HTMLElement && !canColumns) {
+    addColumnMenu.setAttribute("hidden", "");
+  }
+  if (!canColumns) {
+    closeAddColumnMenu();
+  }
+
+  if (columnsWrap) {
+    Array.from(columnsWrap.querySelectorAll(".column")).forEach(applyColumnPermissions);
+  }
+};
 
 const refreshInviteControlsState = () => {
   inviteControls?.refresh();
@@ -690,6 +756,11 @@ const renderAssigneeOptions = (options) => {
 };
 
 const COLUMN_CREATE_VARIANTS = {
+  todo: {
+    title: "To Do",
+    columnId: "todo",
+    specialized: true
+  },
   new: {
     title: "New",
     columnId: null,
@@ -718,6 +789,7 @@ let dragColumn = null;
 let lastAfter = null;
 let dragTask = null;
 let dragTaskColumn = null;
+let dragTaskStatusValue = null;
 let lastTaskAfter = null;
 let lastTaskContainer = null;
 let dragTrashTaskId = null;
@@ -749,12 +821,13 @@ const getColumnCreateVariant = (type) => {
   return COLUMN_CREATE_VARIANTS[key] || COLUMN_CREATE_VARIANTS.new;
 };
 
-const RESERVED_STATUS_COLUMN_IDS = new Set(["progress", "done", "overdue"]);
+const RESERVED_STATUS_COLUMN_IDS = new Set(["todo", "progress", "done", "overdue"]);
 
 const generateColumnId = () => `column-${Date.now()}-${Math.floor(Math.random() * 1000)}-${Math.floor(Math.random() * 1000)}`;
 
 const getColumnTypeFromColumnId = (columnId) => {
   const id = normalizeToken(columnId).toLowerCase();
+  if (id === "todo") return "todo";
   if (id === "progress") return "inprogress";
   if (id === "done") return "done";
   if (id === "overdue") return "overdue";
@@ -762,6 +835,10 @@ const getColumnTypeFromColumnId = (columnId) => {
 };
 
 const inferColumnType = (column) => {
+  const fromId = getColumnTypeFromColumnId(column?.dataset?.columnId);
+  if (fromId !== "new") {
+    return fromId;
+  }
   const explicitType = normalizeToken(column?.dataset?.columnType).toLowerCase();
   if (COLUMN_CREATE_VARIANTS[explicitType]) {
     return explicitType;
@@ -803,6 +880,10 @@ const ensureColumnMetadata = (column) => {
 };
 
 const normalizeStoredColumnType = (rawType, rawColumnId) => {
+  const fromId = getColumnTypeFromColumnId(rawColumnId);
+  if (fromId !== "new") {
+    return fromId;
+  }
   const type = normalizeToken(rawType).toLowerCase();
   if (COLUMN_CREATE_VARIANTS[type]) {
     return type;
@@ -896,9 +977,9 @@ const restoreBoardColumnsLayout = () => {
 
   if (!columnsWrap.querySelector(".column")) {
     const fallback = createColumn({
-      title: "To do",
+      title: "To Do",
       columnId: "todo",
-      columnType: "new"
+      columnType: "todo"
     });
     fallback.style.setProperty("--delay", "0ms");
     columnsWrap.appendChild(fallback);
@@ -945,6 +1026,7 @@ const openAddColumnMenu = () => {
 };
 
 const toggleAddColumnMenu = () => {
+  if (!canManageColumns()) return;
   if (isAddColumnMenuOpen) {
     closeAddColumnMenu();
     return;
@@ -953,6 +1035,7 @@ const toggleAddColumnMenu = () => {
 };
 
 const removeColumn = (column) => {
+  if (!canManageColumns()) return;
   if (!column) return;
   const finalize = () => {
     column.remove();
@@ -1258,14 +1341,21 @@ const loadUsersFromApi = async () => {
       void loadTasksFromApi();
 
       const actorId = getActorUserId();
-      const canManage = isAdmin()
-        && Number.isFinite(Number(actorId))
-        && Number(u.id) !== Number(actorId)
-        && u.role !== "Owner";
+      if (Number.isFinite(Number(actorId)) && Number(u.id) === Number(actorId)) {
+        // Do not open mini-menu for the current user.
+        closeUserMiniMenu();
+        return;
+      }
+      const actorRole = toWorkspaceRole(currentWorkspaceRole);
+      const targetRole = toWorkspaceRole(u.role);
+
+      const canToggleAdmin = actorRole === "Owner" && targetRole !== "Owner";
+      const canRemove = (actorRole === "Owner" && targetRole !== "Owner")
+        || (actorRole === "Admin" && targetRole === "Member");
 
       openUserMiniMenu(item, u, {
-        canToggleAdmin: canManage,
-        canRemove: canManage
+        canToggleAdmin,
+        canRemove
       });
     });
     userList.appendChild(item);
@@ -1552,6 +1642,8 @@ const setWorkspaceContext = (space) => {
     userAddSection.hidden = !isAdmin();
   }
 
+  refreshBoardPermissionsUi();
+
   if (changed) {
     tagsLoaded = false;
     tagList = [];
@@ -1600,6 +1692,7 @@ const openWorkspace = async (space) => {
 
   setWorkspaceContext(space);
   restoreBoardColumnsLayout();
+  refreshBoardPermissionsUi();
   setAppScreen("board");
   await loadTagsFromApi();
   await loadUsersFromApi();
@@ -1766,90 +1859,82 @@ const buildUserMiniMenu = (member, options) => {
   });
   actions.appendChild(profileBtn);
 
-  const toggleAdminBtn = document.createElement("button");
-  toggleAdminBtn.type = "button";
-  toggleAdminBtn.className = "ghost-btn";
   const currentRole = normalizeToken(member?.role) || "Member";
-  toggleAdminBtn.textContent = currentRole === "Admin" ? "Забрать администратора" : "Дать администратора";
 
-  if (!options?.canToggleAdmin) {
-    toggleAdminBtn.disabled = true;
-    toggleAdminBtn.title = "Недоступно";
+  if (options?.canToggleAdmin) {
+    const toggleAdminBtn = document.createElement("button");
+    toggleAdminBtn.type = "button";
+    toggleAdminBtn.className = "ghost-btn";
+    toggleAdminBtn.textContent = currentRole === "Admin" ? "Забрать администратора" : "Дать администратора";
+    toggleAdminBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void (async () => {
+        const userId = Number(member?.id);
+        if (!Number.isFinite(userId) || !currentWorkspaceId) return;
+        const nextRoleValue = currentRole === "Admin" ? WORKSPACE_ROLE_VALUES.Member : WORKSPACE_ROLE_VALUES.Admin;
+
+        setUserMiniMenuBusy(menu, true);
+        const updated = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Изменение роли участника", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body: JSON.stringify({ userId, role: nextRoleValue })
+        });
+        setUserMiniMenuBusy(menu, false);
+
+        if (!updated) {
+          return;
+        }
+        closeUserMiniMenu();
+        await loadUsersFromApi();
+      })();
+    });
+    actions.appendChild(toggleAdminBtn);
   }
 
-  toggleAdminBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (toggleAdminBtn.disabled) return;
-    void (async () => {
-      const userId = Number(member?.id);
-      if (!Number.isFinite(userId) || !currentWorkspaceId) return;
-      const nextRoleValue = currentRole === "Admin" ? WORKSPACE_ROLE_VALUES.Member : WORKSPACE_ROLE_VALUES.Admin;
+  if (options?.canRemove) {
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "danger-btn";
+    removeBtn.textContent = "Удалить";
 
-      setUserMiniMenuBusy(menu, true);
-      const updated = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Изменение роли участника", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json"
-        },
-        body: JSON.stringify({ userId, role: nextRoleValue })
-      });
-      setUserMiniMenuBusy(menu, false);
+    removeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void (async () => {
+        const userId = Number(member?.id);
+        if (!Number.isFinite(userId) || !currentWorkspaceId) return;
 
-      if (!updated) {
-        return;
-      }
-      closeUserMiniMenu();
-      await loadUsersFromApi();
-    })();
-  });
-  actions.appendChild(toggleAdminBtn);
+        const displayName = normalizeToken(member?.name) || normalizeToken(member?.email) || `#${userId}`;
+        const confirmed = await openConfirmModal({
+          kicker: "Удаление участника",
+          title: `Удалить "${displayName}"?`,
+          message: "Пользователь потеряет доступ к задачам этого проекта.",
+          confirmText: "Удалить"
+        });
+        if (confirmed !== true) return;
 
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.className = "danger-btn";
-  removeBtn.textContent = "Удалить";
+        setUserMiniMenuBusy(menu, true);
+        const response = await apiFetch(buildApiUrl(`/spaces/${currentWorkspaceId}/members/${userId}`), {
+          method: "DELETE"
+        });
+        setUserMiniMenuBusy(menu, false);
 
-  if (!options?.canRemove) {
-    removeBtn.disabled = true;
-    removeBtn.title = "Недоступно";
+        if (!response.ok) {
+          await handleApiError(response, "Удаление участника");
+          return;
+        }
+
+        closeUserMiniMenu();
+        await loadUsersFromApi();
+        await loadTasksFromApi();
+      })();
+    });
+    actions.appendChild(removeBtn);
   }
-
-  removeBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (removeBtn.disabled) return;
-    void (async () => {
-      const userId = Number(member?.id);
-      if (!Number.isFinite(userId) || !currentWorkspaceId) return;
-
-      const displayName = normalizeToken(member?.name) || normalizeToken(member?.email) || `#${userId}`;
-      const confirmed = await openConfirmModal({
-        kicker: "Удаление участника",
-        title: `Удалить "${displayName}"?`,
-        message: "Пользователь потеряет доступ к задачам этого проекта.",
-        confirmText: "Удалить"
-      });
-      if (confirmed !== true) return;
-
-      setUserMiniMenuBusy(menu, true);
-      const response = await apiFetch(buildApiUrl(`/spaces/${currentWorkspaceId}/members/${userId}`), {
-        method: "DELETE"
-      });
-      setUserMiniMenuBusy(menu, false);
-
-      if (!response.ok) {
-        await handleApiError(response, "Удаление участника");
-        return;
-      }
-
-      closeUserMiniMenu();
-      await loadUsersFromApi();
-      await loadTasksFromApi();
-    })();
-  });
-  actions.appendChild(removeBtn);
 
   menu.append(header, actions);
   return menu;
@@ -2125,8 +2210,21 @@ const renderTagOptions = () => {
 const setTaskStatusMode = (mode, statusValue) => {
   if (!taskStatus) return;
   const nextStatus = toStatusValue(statusValue);
+
+  // Overdue is derived from due date; users cannot set it manually.
+  const overdueOption = taskStatus.querySelector('option[value="4"]');
+  if (overdueOption instanceof HTMLOptionElement) {
+    overdueOption.disabled = true;
+  }
+
   taskStatus.value = String(nextStatus);
-  taskStatus.disabled = mode !== "edit";
+  if (mode !== "edit") {
+    taskStatus.disabled = true;
+    return;
+  }
+
+  // Prevent changing status from/to Overdue.
+  taskStatus.disabled = nextStatus === 4;
 };
 
 const setTaskModalMode = (mode, title) => {
@@ -2147,6 +2245,7 @@ const setTaskModalMode = (mode, title) => {
 };
 
 const openTaskModal = (column) => {
+  if (!canCreateTasks()) return;
   if (!taskModal || !taskForm) return;
   editingTaskId = null;
   editingTaskCard = null;
@@ -2261,9 +2360,15 @@ const createTaskCard = (taskData) => {
 
   const statusValue = toStatusValue(taskData.statusValue ?? taskData.status);
   const priorityValue = toPriorityValue(taskData.priorityValue ?? taskData.priority);
+  const doneApprovalPending = Boolean(taskData?.doneApprovalPending);
   card.dataset.priority = getPriorityLabel(priorityValue);
   card.dataset.priorityValue = String(priorityValue);
   card.dataset.taskStatus = String(statusValue);
+  if (doneApprovalPending) {
+    card.dataset.doneApproval = "pending";
+  } else {
+    delete card.dataset.doneApproval;
+  }
   if (taskData.id !== undefined && taskData.id !== null) {
     card.dataset.taskId = String(taskData.id);
   }
@@ -2315,6 +2420,19 @@ const createTaskCard = (taskData) => {
   const meta = document.createElement("div");
   meta.className = "task-head-meta";
 
+  const approval = document.createElement("span");
+  approval.className = "task-approval-wait";
+  approval.hidden = !doneApprovalPending;
+  approval.title = "Ожидает подтверждения";
+  approval.setAttribute("aria-label", "Ожидает подтверждения");
+  approval.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 8v5l3 2" />
+      <path d="M12 21a9 9 0 1 0-9-9" />
+      <path d="M3 7v5h5" />
+    </svg>
+  `;
+
   const attachments = document.createElement("span");
   attachments.className = "task-attachment-indicator";
   attachments.hidden = true;
@@ -2325,7 +2443,7 @@ const createTaskCard = (taskData) => {
     <span class="task-attachment-count"></span>
   `;
 
-  meta.append(time, attachments);
+  meta.append(time, approval, attachments);
   head.append(tag, meta);
 
   const title = document.createElement("h3");
@@ -2386,6 +2504,7 @@ const buildFlowTaskPayloadFromTask = (taskData) => {
     description: taskData?.description ? String(taskData.description) : "",
     dueDate: toFlowDueDateIso(taskData?.dueDate),
     statusValue,
+    doneApprovalPending: Boolean(taskData?.doneApprovalPending),
     taskId: taskId ? String(taskId) : "",
     taskKey: taskId
       ? `task:${taskId}`
@@ -2413,6 +2532,11 @@ const createFlowTaskItem = (taskData) => {
   item.dataset.taskDetailNote = payload.detailNote;
   item.dataset.taskDescription = payload.description;
   item.dataset.taskStatus = String(payload.statusValue);
+  if (payload.doneApprovalPending) {
+    item.dataset.doneApproval = "pending";
+  } else {
+    delete item.dataset.doneApproval;
+  }
   if (payload.taskId) {
     item.dataset.taskId = payload.taskId;
   }
@@ -2436,7 +2560,19 @@ const createFlowTaskItem = (taskData) => {
   noteEl.className = "flow-task-note";
   noteEl.textContent = payload.note;
 
-  item.append(tag, title, noteEl);
+  const approval = document.createElement("span");
+  approval.className = "flow-task-pending";
+  approval.hidden = !payload.doneApprovalPending;
+  approval.title = "Ожидает подтверждения";
+  approval.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 8v5l3 2" />
+      <path d="M12 21a9 9 0 1 0-9-9" />
+      <path d="M3 7v5h5" />
+    </svg>
+  `;
+
+  item.append(tag, title, noteEl, approval);
   return item;
 };
 
@@ -2649,6 +2785,9 @@ const normalizeApiTask = (task) => {
   const statusValue = toStatusValue(task?.status);
   const priorityValue = toPriorityValue(task?.priority);
   const tagIds = Array.isArray(task?.tagIds) ? task.tagIds : [];
+  const doneApprovalPending = Boolean(task?.doneApprovalPending);
+  const doneApprovalRequestedByUserId = task?.doneApprovalRequestedByUserId ?? null;
+  const doneApprovalRequestedAtUtc = task?.doneApprovalRequestedAtUtc ?? null;
   const meta = task?.id !== undefined && task?.id !== null ? getStoredTaskMeta(task.id) : null;
   const metaTags = meta?.tags && meta.tags.length ? meta.tags : null;
   const apiTagNames = tagIds
@@ -2661,6 +2800,9 @@ const normalizeApiTask = (task) => {
     description: task?.description || "",
     statusValue,
     priorityValue,
+    doneApprovalPending,
+    doneApprovalRequestedByUserId,
+    doneApprovalRequestedAtUtc,
     assigneeId: task?.assigneeId ?? null,
     dueDate: task?.dueDate,
     tags: metaTags || (apiTagNames.length ? apiTagNames : tagIds.map((id) => `Tag-${id}`)),
@@ -2980,7 +3122,22 @@ const createTaskViaApi = async (uiTaskData) => {
 };
 
 const updateTaskViaApi = async (id, uiTaskData) => {
-  const statusValue = toStatusValue(uiTaskData.statusValue);
+  const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(id)) || null;
+  const beforeStatusValue = toStatusValue(before?.statusValue ?? before?.status);
+
+  let statusValue = toStatusValue(uiTaskData.statusValue);
+  const dueMs = Date.parse(String(uiTaskData.dueDateIso || ""));
+  const restoringFromOverdue = beforeStatusValue === 4
+    && Number.isFinite(dueMs)
+    && dueMs >= Date.now();
+
+  if (restoringFromOverdue) {
+    statusValue = 1;
+  } else if (beforeStatusValue === 4) {
+    statusValue = 4;
+  } else if (statusValue === 4) {
+    statusValue = beforeStatusValue || 1;
+  }
   const tagIds = Array.isArray(uiTaskData.tagIds) ? uiTaskData.tagIds : [];
 
   const assigneeIdParsed = Number.parseInt(String(uiTaskData.assigneeId ?? ""), 10);
@@ -3050,8 +3207,10 @@ const updateTaskViaApi = async (id, uiTaskData) => {
     normalizedTask.tags = tags;
   }
 
-  const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(updatedId)) || null;
-  const historyLines = buildTaskHistoryLines(before, normalizedTask);
+  const beforeForHistory = before && Number(before?.id) === Number(updatedId)
+    ? before
+    : (lastNormalizedTasks.find((t) => Number(t?.id) === Number(updatedId)) || null);
+  const historyLines = buildTaskHistoryLines(beforeForHistory, normalizedTask);
   if (historyLines.length) {
     recordTaskHistory(updatedId, {
       at: Date.now(),
@@ -3097,6 +3256,12 @@ const buildUpdatePayloadFromCard = (card, statusValue) => {
 const updateTaskStatus = async (card, statusValue) => {
   const id = Number.parseInt(card.dataset.taskId || "", 10);
   if (!Number.isFinite(id)) return;
+  const currentStatusValue = toStatusValue(card.dataset.taskStatus);
+  const nextStatusValue = toStatusValue(statusValue);
+  if ((currentStatusValue === 4 && nextStatusValue !== 4) || (currentStatusValue !== 4 && nextStatusValue === 4)) {
+    syncTaskStateToUi();
+    return;
+  }
   const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(id)) || null;
   const payload = buildUpdatePayloadFromCard(card, statusValue);
   const response = await apiFetch(buildApiUrl(`/tasks/${id}`), {
@@ -3194,6 +3359,8 @@ const renderCurrentView = (tasks) => {
 const initColumn = (column) => {
   ensureColumnMetadata(column);
 
+  applyColumnPermissions(column);
+
   const title = column.querySelector(".column-title");
   if (title) {
     title.addEventListener("keydown", (event) => {
@@ -3216,13 +3383,23 @@ const initColumn = (column) => {
 
   const handle = column.querySelector(".column-handle");
   if (handle) {
-    handle.addEventListener("dragstart", onDragStart);
-    handle.addEventListener("dragend", onDragEnd);
+    handle.addEventListener("dragstart", (event) => {
+      if (!canManageColumns()) return;
+      onDragStart(event);
+    });
+    handle.addEventListener("dragend", (event) => {
+      if (!canManageColumns()) return;
+      onDragEnd(event);
+    });
   }
 
   const deleteBtn = column.querySelector(".column-delete");
   if (deleteBtn) {
-    deleteBtn.addEventListener("click", () => removeColumn(column));
+    deleteBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      removeColumn(column);
+    });
   }
 
   const body = column.querySelector(".column-body");
@@ -3265,7 +3442,6 @@ const createColumn = (name) => {
     </header>
     <div class="column-body">
     </div>
-    <button class="add-task" type="button">Создать задачу</button>
   `;
   const body = column.querySelector(".column-body");
   if (body) {
@@ -3276,6 +3452,7 @@ const createColumn = (name) => {
 };
 
 const createColumnFromType = (type) => {
+  if (!canManageColumns()) return;
   if (!columnsWrap) return;
 
   const variant = getColumnCreateVariant(type);
@@ -3422,6 +3599,7 @@ const onTaskDragStart = (event) => {
   if (!(card instanceof Element)) return;
   dragTask = card;
   dragTaskColumn = card.closest(".column");
+  dragTaskStatusValue = toStatusValue(card.dataset.taskStatus);
   dragTrashTaskId = Number.parseInt(card.dataset.taskId || "", 10);
   dragTrashTaskTitle = card.querySelector("h3")?.textContent?.trim() || "";
   card.classList.add("is-dragging");
@@ -3430,6 +3608,71 @@ const onTaskDragStart = (event) => {
     event.dataTransfer.setData("text/plain", card.dataset.taskId || "");
   }
   setTrashZoneVisible(true);
+};
+
+const applyTaskDtoUpdateFromServer = (taskDto) => {
+  if (!taskDto || !Number.isFinite(Number(taskDto.id))) return null;
+  const normalizedTask = normalizeApiTask(taskDto);
+  if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
+    upsertTaskInState(normalizedTask);
+    applyTaskUpsertToUi(normalizedTask);
+  } else {
+    removeTaskFromState(normalizedTask.id);
+    applyTaskRemovalToUi(normalizedTask.id);
+  }
+  return normalizedTask;
+};
+
+const approveTaskDoneViaApi = async (taskId) => {
+  const id = Number(taskId);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  if (!isAdmin()) return null;
+
+  const response = await apiFetch(buildApiUrl(`/tasks/${id}/done-approval/approve`), {
+    method: "POST",
+    headers: { Accept: "application/json" }
+  });
+  if (!response.ok) {
+    await handleApiError(response, "Подтверждение задачи");
+    return null;
+  }
+
+  let updatedTask = null;
+  try {
+    updatedTask = await response.json();
+  } catch {
+    updatedTask = null;
+  }
+
+  const normalized = applyTaskDtoUpdateFromServer(updatedTask);
+  await notificationsController.refreshUnreadCount();
+  return normalized;
+};
+
+const rejectTaskDoneViaApi = async (taskId) => {
+  const id = Number(taskId);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  if (!isAdmin()) return null;
+
+  const response = await apiFetch(buildApiUrl(`/tasks/${id}/done-approval/reject`), {
+    method: "POST",
+    headers: { Accept: "application/json" }
+  });
+  if (!response.ok) {
+    await handleApiError(response, "Отклонение задачи");
+    return null;
+  }
+
+  let updatedTask = null;
+  try {
+    updatedTask = await response.json();
+  } catch {
+    updatedTask = null;
+  }
+
+  const normalized = applyTaskDtoUpdateFromServer(updatedTask);
+  await notificationsController.refreshUnreadCount();
+  return normalized;
 };
 
 const onTaskDragEnd = () => {
@@ -3447,6 +3690,7 @@ const onTaskDragEnd = () => {
   }
   dragTask = null;
   dragTaskColumn = null;
+  dragTaskStatusValue = null;
   lastTaskAfter = null;
   lastTaskContainer = null;
   dragTrashTaskId = null;
@@ -3489,19 +3733,44 @@ const canMoveTasksBetweenColumns = () => {
   return view === "board" || view === "list";
 };
 
+const resolveStatusForColumn = (column) => {
+  if (!(column instanceof Element)) return null;
+  const direct = getStatusForColumnId(normalizeToken(column.dataset.columnId));
+  if (direct) return direct;
+  const type = normalizeToken(column.dataset.columnType).toLowerCase();
+  const variant = getColumnCreateVariant(type);
+  return getStatusForColumnId(variant.columnId);
+};
+
+const isOverdueStatus = (statusValue) => toStatusValue(statusValue) === 4;
+
 const onTaskDragOver = (event) => {
   if (!canMoveTasksBetweenColumns()) return;
   if (!dragTask) return;
-  event.preventDefault();
   const container = event.currentTarget;
   if (!(container instanceof Element)) return;
+
+  const sourceContainer = dragTask.parentElement;
+  const sourceColumn = sourceContainer instanceof Element ? sourceContainer.closest(".column") : null;
+  const targetColumn = container.closest(".column");
+  const sourceStatusValue = dragTaskStatusValue !== null ? dragTaskStatusValue : toStatusValue(dragTask.dataset.taskStatus);
+
+  // Overdue tasks cannot be moved to other columns.
+  if (isOverdueStatus(sourceStatusValue) && sourceColumn && targetColumn && sourceColumn !== targetColumn) {
+    return;
+  }
+
+  // Tasks cannot be manually moved into the Overdue column.
+  const targetStatusValue = resolveStatusForColumn(targetColumn);
+  if (isOverdueStatus(targetStatusValue) && !isOverdueStatus(sourceStatusValue)) {
+    return;
+  }
+
+  event.preventDefault();
   const afterElement = getTaskDragAfterElement(container, event.clientY);
   if (afterElement === lastTaskAfter && container === lastTaskContainer) return;
   lastTaskAfter = afterElement;
   lastTaskContainer = container;
-  const sourceContainer = dragTask.parentElement;
-  const sourceColumn = sourceContainer instanceof Element ? sourceContainer.closest(".column") : null;
-  const targetColumn = container.closest(".column");
   const flipElements = getTaskFlipElements(sourceContainer, container);
   flip(flipElements, () => {
     if (!afterElement) {
@@ -3524,12 +3793,38 @@ const onTaskDrop = (event) => {
   event.preventDefault();
   const targetContainer = event.currentTarget instanceof Element ? event.currentTarget : null;
   const targetColumn = targetContainer?.closest(".column") || null;
+
+  const sourceStatusValue = dragTaskStatusValue !== null ? dragTaskStatusValue : toStatusValue(dragTask.dataset.taskStatus);
+  const targetStatusValue = resolveStatusForColumn(targetColumn);
+
+  // Overdue tasks can only be "restored" by changing the due date.
+  if (isOverdueStatus(sourceStatusValue) && dragTaskColumn && targetColumn && dragTaskColumn !== targetColumn) {
+    syncTaskStateToUi();
+    return;
+  }
+
+  // Don't allow manual status changes to Overdue via drag&drop.
+  if (isOverdueStatus(targetStatusValue) && !isOverdueStatus(sourceStatusValue)) {
+    syncTaskStateToUi();
+    return;
+  }
+
   if (dragTaskColumn && targetColumn && dragTaskColumn !== targetColumn) {
-    const nextStatus =
-      getStatusForColumnId(targetColumn.dataset.columnId)
-      || getStatusForColumnId(getColumnCreateVariant(targetColumn.dataset.columnType).columnId);
+    const nextStatus = targetStatusValue;
     if (nextStatus && dragTask.dataset.taskId) {
       updateTaskCardStatus(dragTask, nextStatus);
+
+      const pending = !isAdmin() && toStatusValue(nextStatus) === 3;
+      if (pending) {
+        dragTask.dataset.doneApproval = "pending";
+      } else {
+        delete dragTask.dataset.doneApproval;
+      }
+      const approvalEl = dragTask.querySelector(".task-approval-wait");
+      if (approvalEl instanceof HTMLElement) {
+        approvalEl.hidden = !pending;
+      }
+
       void updateTaskStatus(dragTask, nextStatus);
     }
   }
@@ -3679,6 +3974,30 @@ if (brandMarkEl) {
     event.preventDefault();
     event.stopPropagation();
     brandToggle?.click();
+  });
+}
+
+if (accountAvatarEl) {
+  accountAvatarEl.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    closeUserMiniMenu();
+    setNotificationsOpen(false);
+    setSettingsOpen(false);
+    setPanelOpen(false);
+
+    const actorId = getActorUserId();
+    if (!Number.isFinite(Number(actorId))) return;
+
+    const member = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === Number(actorId));
+    const fallback = {
+      id: Number(actorId),
+      name: getActorDisplayName(),
+      email: normalizeToken(actorUser?.email) || "-",
+      role: normalizeToken(currentWorkspaceRole) || "Member"
+    };
+    profileModalsController.openProfileModal(member || fallback);
   });
 }
 
@@ -3897,6 +4216,10 @@ document.addEventListener("click", (event) => {
 
 taskDetailController = createTaskDetailController({
   canEditTask: isAdmin,
+  canClearHistory: isAdmin,
+  canManageDoneApproval: isAdmin,
+  approveDone: approveTaskDoneViaApi,
+  rejectDone: rejectTaskDoneViaApi,
   ensureTagsLoaded,
   getTagNameById: (id) => tagById.get(Number(id)) || "",
   getAssigneeNameById: (id) => {
@@ -3907,6 +4230,12 @@ taskDetailController = createTaskDetailController({
   applyTaskBgToCards,
   applyAttachmentCountToCards,
   confirmDestructiveAction: openConfirmModal
+});
+
+window.addEventListener("task:upsert", (event) => {
+  const payload = event?.detail;
+  const dto = payload?.task;
+  applyTaskDtoUpdateFromServer(dto);
 });
 
 document.addEventListener("keydown", (event) => {
@@ -3966,9 +4295,26 @@ if (taskForm) {
     }
     const assigneeId = normalizeToken(taskAssignee?.value);
     const priorityValue = normalizeToken(taskPriority?.value) || `${DEFAULT_PRIORITY_VALUE}`;
-    const statusValue = editingTaskId
+    const requestedStatusValue = editingTaskId
       ? toStatusValue(taskStatus?.value)
       : 1;
+
+    let statusValue = requestedStatusValue;
+    if (editingTaskId && editingTaskCard) {
+      const currentStatusValue = toStatusValue(editingTaskCard.dataset.taskStatus);
+      const dueMs = Date.parse(dueDateIso);
+      const restoringFromOverdue = currentStatusValue === 4
+        && Number.isFinite(dueMs)
+        && dueMs >= Date.now();
+
+      if (restoringFromOverdue) {
+        statusValue = 1;
+      } else if (currentStatusValue === 4) {
+        statusValue = 4;
+      } else if (requestedStatusValue === 4) {
+        statusValue = currentStatusValue;
+      }
+    }
     const tagIds = await resolveTagIdsForTask(tags);
     const taskData = {
       title,
@@ -4243,6 +4589,14 @@ if (taskDetailEditBtn) {
   taskDetailEditBtn.addEventListener("click", taskDetailController.onDetailEditClick);
 }
 
+if (taskDetailApproveBtn) {
+  taskDetailApproveBtn.addEventListener("click", taskDetailController.onApproveDoneClick);
+}
+
+if (taskDetailRejectBtn) {
+  taskDetailRejectBtn.addEventListener("click", taskDetailController.onRejectDoneClick);
+}
+
 if (taskDetailPhotoBtn) {
   taskDetailPhotoBtn.addEventListener("click", taskDetailController.onDetailPhotoClick);
 }
@@ -4429,6 +4783,7 @@ document.addEventListener("click", (event) => {
 refreshUserFilter();
 setLayoutStyle(board?.dataset.style || "columns");
 refreshAddColumnMenuState();
+refreshBoardPermissionsUi();
 updateFlowEmptyState();
 startTaskTimingTicker();
 
