@@ -27,6 +27,12 @@ namespace TaskManager.Domain.Entities
 
         public System.DateTime? CompletedAt { get; set; }
 
+        public bool DoneApprovalPending { get; set; }
+
+        public int? DoneApprovalRequestedByUserId { get; set; }
+
+        public DateTime? DoneApprovalRequestedAtUtc { get; set; }
+
         [Required]
         public TaskItemStatus Status { get; set; } = TaskItemStatus.New;
 

@@ -79,6 +79,11 @@ export const renderTaskInDetail = (options) => {
   const dueLabel = formatDueLabel(task.dueDate, statusValue);
   const urgency = getUrgency(task.dueDate, statusValue);
 
+  const doneApprovalPending = Boolean(task.doneApprovalPending);
+  const canManageDoneApproval = typeof options?.canManageDoneApproval === "function"
+    ? options.canManageDoneApproval
+    : () => false;
+
   if (elements.titleEl) {
     elements.titleEl.textContent = title || `Задача #${taskId}`;
   }
@@ -150,6 +155,22 @@ export const renderTaskInDetail = (options) => {
       elements.photoImgEl.src = photo;
       elements.photoWrapEl.removeAttribute("hidden");
     });
+  }
+
+  if (elements.approvalWrapEl instanceof HTMLElement) {
+    elements.approvalWrapEl.toggleAttribute("hidden", !doneApprovalPending);
+  }
+  if (elements.approvalTextEl instanceof HTMLElement) {
+    elements.approvalTextEl.textContent = doneApprovalPending ? "Ожидает подтверждения выполнения" : "";
+  }
+  if (elements.approvalActionsEl instanceof HTMLElement) {
+    elements.approvalActionsEl.toggleAttribute("hidden", !doneApprovalPending || !canManageDoneApproval());
+  }
+  if (elements.approveBtnEl instanceof HTMLButtonElement) {
+    elements.approveBtnEl.disabled = !doneApprovalPending || !canManageDoneApproval();
+  }
+  if (elements.rejectBtnEl instanceof HTMLButtonElement) {
+    elements.rejectBtnEl.disabled = !doneApprovalPending || !canManageDoneApproval();
   }
 
   return { tagIds, metaTags };

@@ -140,6 +140,12 @@ export const taskDetailHistoryList = document.getElementById("task-detail-histor
 export const taskDetailHistoryEmpty = document.getElementById("task-detail-history-empty");
 export const taskDetailHistoryClearBtn = document.getElementById("task-detail-history-clear");
 
+export const taskDetailApprovalWrap = document.getElementById("task-detail-approval");
+export const taskDetailApprovalTextEl = document.getElementById("task-detail-approval-text");
+export const taskDetailApprovalActions = document.getElementById("task-detail-approval-actions");
+export const taskDetailApproveBtn = document.getElementById("task-detail-approve");
+export const taskDetailRejectBtn = document.getElementById("task-detail-reject");
+
 export const taskAttachBtn = document.getElementById("task-attach-btn");
 export const taskAttachmentsList = document.getElementById("task-attachments-list");
 export const taskAttachmentsEmpty = document.getElementById("task-attachments-empty");

@@ -71,9 +71,27 @@
   border-radius: 12px;
 }
 
+.spaces-notifications-btn:hover {
+  background: rgba(16, 22, 30, 0.65);
+  border-color: var(--stroke);
+  color: var(--text-2);
+  transform: none;
+  box-shadow: none;
+}
+
+body[data-theme="light"] .spaces-notifications-btn:hover {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: rgba(15, 20, 28, 0.12);
+  color: rgba(15, 20, 28, 0.65);
+}
+
 .spaces-notifications-btn svg {
   width: 18px;
   height: 18px;
+}
+
+.spaces-notifications-btn:hover svg {
+  animation: bell-wiggle 0.55s ease;
 }
  
 .spaces-settings-btn {
@@ -85,8 +103,11 @@
 .spaces-settings-btn svg {
   width: 18px;
   height: 18px;
-  fill: currentColor;
-  stroke: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .spaces-account-avatar.has-image {
@@ -290,7 +311,8 @@ body[data-theme="light"] .notifications-panel-inner {
 .settings-nickname-save {
   flex: 0 0 auto;
   white-space: nowrap;
-  padding: 10px 12px;
+  padding: 8px 10px;
+  font-size: 13px;
 }
 
 .settings-nickname-note {

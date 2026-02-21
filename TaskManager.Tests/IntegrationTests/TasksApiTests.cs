@@ -1,12 +1,15 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using System.IO;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
 using TaskManager.Application.DTOs;
+using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
+using TaskManager.Infrastructure.Data;
 using TaskManager.Tests.Helpers;
 using Xunit;
 
@@ -16,6 +19,37 @@ namespace TaskManager.Tests.IntegrationTests
     public class TasksApiTests : TestBase
     {
         public TasksApiTests(WebApplicationFactory<Program> factory) : base(factory) { }
+
+        private async Task<(HttpClient client, int userId)> CreateWorkspaceMemberClientAsync(WorkspaceRole role, string name)
+        {
+            int userId;
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                var user = new User
+                {
+                    Name = name,
+                    Email = $"workspace.{role.ToString().ToLowerInvariant()}.{Guid.NewGuid():N}@example.com",
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                db.Users.Add(user);
+                await db.SaveChangesAsync();
+                userId = user.Id;
+
+                db.WorkspaceMembers.Add(new WorkspaceMember
+                {
+                    WorkspaceId = TestWorkspaceId,
+                    UserId = userId,
+                    Role = role,
+                    AddedAt = DateTime.UtcNow
+                });
+                await db.SaveChangesAsync();
+            }
+
+            return (CreateAuthorizedClient(workspaceId: TestWorkspaceId, userId: userId), userId);
+        }
 
         [Fact]
         public async Task GetTasks_ReturnsSuccessAndList()
@@ -315,6 +349,128 @@ namespace TaskManager.Tests.IntegrationTests
 
             var response = await clientWithoutAuth.GetAsync("/api/Tasks");
             response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+        }
+
+        [Fact]
+        public async Task Member_MarksDone_TaskBecomesPendingAndManagersGetNotification()
+        {
+            var (memberClient, memberUserId) = await CreateWorkspaceMemberClientAsync(WorkspaceRole.Member, "Workspace Member");
+
+            var createDto = TestDataFactory.CreateValidTask(memberUserId);
+            createDto.Title = "Task waiting approval";
+            var createResponse = await _client.PostAsJsonAsync("/api/Tasks", createDto);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+            var created = await createResponse.Content.ReadFromJsonAsync<TaskDto>();
+            created.Should().NotBeNull();
+
+            var updateDto = new UpdateTaskDto
+            {
+                Id = created!.Id,
+                Title = created.Title,
+                Description = created.Description,
+                Status = TaskItemStatus.Done,
+                AssigneeId = created.AssigneeId,
+                DueDate = created.DueDate,
+                Priority = created.Priority,
+                TagIds = created.TagIds
+            };
+
+            var memberUpdate = await memberClient.PutAsJsonAsync($"/api/Tasks/{created.Id}", updateDto);
+            memberUpdate.StatusCode.Should().Be(HttpStatusCode.OK);
+            var updated = await memberUpdate.Content.ReadFromJsonAsync<TaskDto>();
+            updated.Should().NotBeNull();
+            updated!.Status.Should().Be(TaskItemStatus.Done);
+            updated.DoneApprovalPending.Should().BeTrue();
+            updated.DoneApprovalRequestedByUserId.Should().Be(memberUserId);
+            updated.CompletedAt.Should().BeNull();
+
+            var ownerNotifications = await _client.GetAsync("/api/notifications?unreadOnly=true");
+            ownerNotifications.StatusCode.Should().Be(HttpStatusCode.OK);
+            var ownerList = await ownerNotifications.Content.ReadFromJsonAsync<List<NotificationDto>>();
+            ownerList.Should().NotBeNull();
+            ownerList!.Should().Contain(n => n.Type == "task_done_pending_approval" && n.TaskId == created.Id);
+        }
+
+        [Fact]
+        public async Task Owner_ApprovesPendingDone_TaskCompletesAndMemberGetsNotification()
+        {
+            var (memberClient, memberUserId) = await CreateWorkspaceMemberClientAsync(WorkspaceRole.Member, "Workspace Member");
+
+            var createDto = TestDataFactory.CreateValidTask(memberUserId);
+            createDto.Title = "Task approve flow";
+            var createResponse = await _client.PostAsJsonAsync("/api/Tasks", createDto);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+            var created = await createResponse.Content.ReadFromJsonAsync<TaskDto>();
+            created.Should().NotBeNull();
+
+            var memberDone = new UpdateTaskDto
+            {
+                Id = created!.Id,
+                Title = created.Title,
+                Description = created.Description,
+                Status = TaskItemStatus.Done,
+                AssigneeId = created.AssigneeId,
+                DueDate = created.DueDate,
+                Priority = created.Priority,
+                TagIds = created.TagIds
+            };
+            var memberUpdate = await memberClient.PutAsJsonAsync($"/api/Tasks/{created.Id}", memberDone);
+            memberUpdate.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var approveResponse = await _client.PostAsync($"/api/Tasks/{created.Id}/done-approval/approve", content: null);
+            approveResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var approved = await approveResponse.Content.ReadFromJsonAsync<TaskDto>();
+            approved.Should().NotBeNull();
+            approved!.Status.Should().Be(TaskItemStatus.Done);
+            approved.DoneApprovalPending.Should().BeFalse();
+            approved.CompletedAt.Should().NotBeNull();
+
+            var memberNotifications = await memberClient.GetAsync("/api/notifications?unreadOnly=true");
+            memberNotifications.StatusCode.Should().Be(HttpStatusCode.OK);
+            var list = await memberNotifications.Content.ReadFromJsonAsync<List<NotificationDto>>();
+            list.Should().NotBeNull();
+            list!.Should().Contain(n => n.Type == "task_done_approved" && n.TaskId == created.Id);
+        }
+
+        [Fact]
+        public async Task Owner_RejectsPendingDone_TaskReturnsToNewAndMemberGetsNotification()
+        {
+            var (memberClient, memberUserId) = await CreateWorkspaceMemberClientAsync(WorkspaceRole.Member, "Workspace Member");
+
+            var createDto = TestDataFactory.CreateValidTask(memberUserId);
+            createDto.Title = "Task reject flow";
+            var createResponse = await _client.PostAsJsonAsync("/api/Tasks", createDto);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+            var created = await createResponse.Content.ReadFromJsonAsync<TaskDto>();
+            created.Should().NotBeNull();
+
+            var memberDone = new UpdateTaskDto
+            {
+                Id = created!.Id,
+                Title = created.Title,
+                Description = created.Description,
+                Status = TaskItemStatus.Done,
+                AssigneeId = created.AssigneeId,
+                DueDate = created.DueDate,
+                Priority = created.Priority,
+                TagIds = created.TagIds
+            };
+            var memberUpdate = await memberClient.PutAsJsonAsync($"/api/Tasks/{created.Id}", memberDone);
+            memberUpdate.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var rejectResponse = await _client.PostAsync($"/api/Tasks/{created.Id}/done-approval/reject", content: null);
+            rejectResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            var rejected = await rejectResponse.Content.ReadFromJsonAsync<TaskDto>();
+            rejected.Should().NotBeNull();
+            rejected!.Status.Should().Be(TaskItemStatus.New);
+            rejected.DoneApprovalPending.Should().BeFalse();
+            rejected.CompletedAt.Should().BeNull();
+
+            var memberNotifications = await memberClient.GetAsync("/api/notifications?unreadOnly=true");
+            memberNotifications.StatusCode.Should().Be(HttpStatusCode.OK);
+            var list = await memberNotifications.Content.ReadFromJsonAsync<List<NotificationDto>>();
+            list.Should().NotBeNull();
+            list!.Should().Contain(n => n.Type == "task_done_rejected" && n.TaskId == created.Id);
         }
     }
 }

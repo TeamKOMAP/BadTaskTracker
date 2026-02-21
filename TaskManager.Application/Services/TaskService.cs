@@ -11,17 +11,20 @@ namespace TaskManager.Application.Services
         private readonly ITaskRepository _taskRepository;
         private readonly ITagRepository _tagRepository;
         private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
+        private readonly INotificationRepository _notificationRepository;
         private readonly IAttachmentStorage _attachmentStorage;
 
         public TaskService(
             ITaskRepository taskRepository,
             ITagRepository tagRepository,
             IWorkspaceMemberRepository workspaceMemberRepository,
+            INotificationRepository notificationRepository,
             IAttachmentStorage attachmentStorage)
         {
             _taskRepository = taskRepository;
             _tagRepository = tagRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
+            _notificationRepository = notificationRepository;
             _attachmentStorage = attachmentStorage;
         }
 
@@ -118,11 +121,21 @@ namespace TaskManager.Application.Services
             // Валидация
             ValidateUpdateTaskDto(updateTaskDto);
 
+            var actorMember = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId);
+            if (actorMember == null)
+            {
+                throw new ForbiddenException("You are not a member of this workspace");
+            }
+            var isManager = actorMember.Role == WorkspaceRole.Admin || actorMember.Role == WorkspaceRole.Owner;
+
             var task = await _taskRepository.GetByIdAsync(updateTaskDto.Id, workspaceId);
             if (task == null)
             {
                 throw new NotFoundException($"Task with id {updateTaskDto.Id} not found");
             }
+
+            var wasPendingApproval = task.DoneApprovalPending;
+            var pendingRequestedByUserId = task.DoneApprovalRequestedByUserId;
 
             // Проверяем существование пользователя
             if (updateTaskDto.AssigneeId.HasValue)
@@ -147,21 +160,102 @@ namespace TaskManager.Application.Services
 
             task.Title = updateTaskDto.Title;
             task.Description = updateTaskDto.Description;
-            task.Status = updateTaskDto.Status;
             task.AssigneeId = updateTaskDto.AssigneeId;
             task.DueDate = NormalizeIncomingUtc(updateTaskDto.DueDate);
             task.Priority = updateTaskDto.Priority;
             task.UpdatedAt = DateTime.UtcNow;
 
-            // Автоматически устанавливаем CompletedAt при переводе в Done
-            if (updateTaskDto.Status == TaskItemStatus.Done && !task.CompletedAt.HasValue)
+            // Done approval workflow:
+            // - Member can move to Done, but it becomes "pending" until Admin/Owner confirms.
+            // - Admin/Owner can set Done immediately (no pending).
+            if (updateTaskDto.Status == TaskItemStatus.Done)
             {
-                task.CompletedAt = DateTime.UtcNow;
+                task.Status = TaskItemStatus.Done;
+                if (isManager)
+                {
+                    task.DoneApprovalPending = false;
+                    task.DoneApprovalRequestedByUserId = null;
+                    task.DoneApprovalRequestedAtUtc = null;
+                    if (!task.CompletedAt.HasValue)
+                    {
+                        task.CompletedAt = DateTime.UtcNow;
+                    }
+
+                    if (wasPendingApproval && pendingRequestedByUserId.HasValue)
+                    {
+                        var safeTaskTitle = task.Title.Length > 120 ? task.Title[..120] + "..." : task.Title;
+                        await _notificationRepository.AddAsync(new Notification
+                        {
+                            UserId = pendingRequestedByUserId.Value,
+                            Type = "task_done_approved",
+                            Title = "Задача подтверждена",
+                            Message = $"Выполнение задачи \"{safeTaskTitle}\" подтверждено.",
+                            TaskId = task.Id,
+                            WorkspaceId = workspaceId,
+                            ActionUrl = $"/workspace.html?workspaceId={workspaceId}",
+                            IsRead = false,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+                else
+                {
+                    task.DoneApprovalPending = true;
+                    // Only set requester info on first transition to pending.
+                    if (!wasPendingApproval)
+                    {
+                        task.DoneApprovalRequestedByUserId = actorUserId;
+                        task.DoneApprovalRequestedAtUtc = DateTime.UtcNow;
+
+                        var members = await _workspaceMemberRepository.GetMembersAsync(workspaceId);
+                        var managers = members
+                            .Where(m => m.Role == WorkspaceRole.Admin || m.Role == WorkspaceRole.Owner)
+                            .ToList();
+
+                        var actorLabel = actorMember.User?.Name
+                            ?? actorMember.User?.Email
+                            ?? $"User #{actorUserId}";
+
+                        var title = "Задача ждёт подтверждения";
+                        var safeTaskTitle = task.Title.Length > 120 ? task.Title[..120] + "..." : task.Title;
+                        var message = $"{actorLabel} отметил задачу \"{safeTaskTitle}\" как готовую.";
+
+                        var actionUrl = $"/workspace.html?workspaceId={workspaceId}";
+                        var notifications = managers.Select(m => new Notification
+                        {
+                            UserId = m.UserId,
+                            Type = "task_done_pending_approval",
+                            Title = title,
+                            Message = message,
+                            TaskId = task.Id,
+                            WorkspaceId = workspaceId,
+                            ActionUrl = actionUrl,
+                            IsRead = false,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                        await _notificationRepository.AddRangeAsync(notifications);
+                    }
+
+                    // Pending completion does not set CompletedAt.
+                    task.CompletedAt = null;
+                }
             }
-            // Сбрасываем CompletedAt если задача вышла из статуса Done
-            else if (updateTaskDto.Status != TaskItemStatus.Done && task.CompletedAt.HasValue)
+            else
             {
-                task.CompletedAt = null;
+                task.Status = updateTaskDto.Status;
+
+                if (task.DoneApprovalPending)
+                {
+                    task.DoneApprovalPending = false;
+                    task.DoneApprovalRequestedByUserId = null;
+                    task.DoneApprovalRequestedAtUtc = null;
+                }
+
+                // Leaving Done always clears CompletedAt.
+                if (task.CompletedAt.HasValue)
+                {
+                    task.CompletedAt = null;
+                }
             }
 
             if (updateTaskDto.TagIds != null)
@@ -174,6 +268,116 @@ namespace TaskManager.Application.Services
             }
 
             await _taskRepository.UpdateAsync(task);
+            var attachmentCount = await GetAttachmentCountForTaskAsync(task.Id, CancellationToken.None);
+            return MapToDto(task, attachmentCount);
+        }
+
+        public async Task<TaskDto> ApproveTaskDoneAsync(int workspaceId, int actorUserId, int taskId)
+        {
+            var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId);
+            if (member == null)
+            {
+                throw new ForbiddenException("You are not a member of this workspace");
+            }
+            if (member.Role != WorkspaceRole.Admin && member.Role != WorkspaceRole.Owner)
+            {
+                throw new ForbiddenException("Only workspace admins or owners can approve tasks");
+            }
+
+            var task = await _taskRepository.GetByIdAsync(taskId, workspaceId);
+            if (task == null)
+            {
+                throw new NotFoundException($"Task with id {taskId} not found");
+            }
+            if (task.Status != TaskItemStatus.Done || !task.DoneApprovalPending)
+            {
+                throw new ValidationException("Task is not waiting for approval");
+            }
+
+            var requestedByUserId = task.DoneApprovalRequestedByUserId;
+            task.DoneApprovalPending = false;
+            task.DoneApprovalRequestedByUserId = null;
+            task.DoneApprovalRequestedAtUtc = null;
+            task.Status = TaskItemStatus.Done;
+            task.UpdatedAt = DateTime.UtcNow;
+            if (!task.CompletedAt.HasValue)
+            {
+                task.CompletedAt = DateTime.UtcNow;
+            }
+
+            await _taskRepository.UpdateAsync(task);
+
+            if (requestedByUserId.HasValue)
+            {
+                var safeTaskTitle = task.Title.Length > 120 ? task.Title[..120] + "..." : task.Title;
+                await _notificationRepository.AddAsync(new Notification
+                {
+                    UserId = requestedByUserId.Value,
+                    Type = "task_done_approved",
+                    Title = "Задача подтверждена",
+                    Message = $"Выполнение задачи \"{safeTaskTitle}\" подтверждено.",
+                    TaskId = task.Id,
+                    WorkspaceId = workspaceId,
+                    ActionUrl = $"/workspace.html?workspaceId={workspaceId}",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            var attachmentCount = await GetAttachmentCountForTaskAsync(task.Id, CancellationToken.None);
+            return MapToDto(task, attachmentCount);
+        }
+
+        public async Task<TaskDto> RejectTaskDoneAsync(int workspaceId, int actorUserId, int taskId)
+        {
+            var member = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId);
+            if (member == null)
+            {
+                throw new ForbiddenException("You are not a member of this workspace");
+            }
+            if (member.Role != WorkspaceRole.Admin && member.Role != WorkspaceRole.Owner)
+            {
+                throw new ForbiddenException("Only workspace admins or owners can reject tasks");
+            }
+
+            var task = await _taskRepository.GetByIdAsync(taskId, workspaceId);
+            if (task == null)
+            {
+                throw new NotFoundException($"Task with id {taskId} not found");
+            }
+            if (task.Status != TaskItemStatus.Done || !task.DoneApprovalPending)
+            {
+                throw new ValidationException("Task is not waiting for approval");
+            }
+
+            var requestedByUserId = task.DoneApprovalRequestedByUserId;
+
+            task.DoneApprovalPending = false;
+            task.DoneApprovalRequestedByUserId = null;
+            task.DoneApprovalRequestedAtUtc = null;
+            task.Status = TaskItemStatus.New;
+            task.CompletedAt = null;
+            task.UpdatedAt = DateTime.UtcNow;
+
+            await _taskRepository.UpdateAsync(task);
+
+            if (requestedByUserId.HasValue)
+            {
+                var safeTaskTitle = task.Title.Length > 120 ? task.Title[..120] + "..." : task.Title;
+                await _notificationRepository.AddAsync(new Notification
+                {
+                    UserId = requestedByUserId.Value,
+                    Type = "task_done_rejected",
+                    Title = "Задача отклонена",
+                    Message = $"Выполнение задачи \"{safeTaskTitle}\" отклонено. Задача возвращена в To Do.",
+                    TaskId = task.Id,
+                    WorkspaceId = workspaceId,
+                    ActionUrl = $"/workspace.html?workspaceId={workspaceId}",
+                    IsRead = false,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
             var attachmentCount = await GetAttachmentCountForTaskAsync(task.Id, CancellationToken.None);
             return MapToDto(task, attachmentCount);
         }
@@ -293,6 +497,9 @@ namespace TaskManager.Application.Services
                 CreatedAt = AsUtc(task.CreatedAt),
                 UpdatedAt = task.UpdatedAt.HasValue ? AsUtc(task.UpdatedAt.Value) : null,
                 CompletedAt = task.CompletedAt.HasValue ? AsUtc(task.CompletedAt.Value) : null,
+                DoneApprovalPending = task.DoneApprovalPending,
+                DoneApprovalRequestedByUserId = task.DoneApprovalRequestedByUserId,
+                DoneApprovalRequestedAtUtc = task.DoneApprovalRequestedAtUtc.HasValue ? AsUtc(task.DoneApprovalRequestedAtUtc.Value) : null,
                 Priority = task.Priority,
                 TagIds = task.TaskTags.Select(tt => tt.TagId).ToList(),
                 AttachmentCount = Math.Max(0, attachmentCount),

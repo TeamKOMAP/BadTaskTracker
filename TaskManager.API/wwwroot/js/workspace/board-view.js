@@ -109,6 +109,17 @@ export const createBoardViewController = (deps) => {
     existingCard.dataset.priority = getPriorityLabel(priorityValue);
     existingCard.dataset.taskStatus = String(statusValue);
 
+    const doneApprovalPending = Boolean(taskData?.doneApprovalPending);
+    if (doneApprovalPending) {
+      existingCard.dataset.doneApproval = "pending";
+    } else {
+      delete existingCard.dataset.doneApproval;
+    }
+    const approvalEl = existingCard.querySelector(".task-approval-wait");
+    if (approvalEl instanceof HTMLElement) {
+      approvalEl.hidden = !doneApprovalPending;
+    }
+
     const tagIds = Array.isArray(taskData?.tagIds) ? taskData.tagIds : [];
     existingCard.dataset.tagIds = tagIds.join(",");
 
