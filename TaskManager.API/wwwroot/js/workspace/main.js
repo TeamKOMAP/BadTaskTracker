@@ -2151,6 +2151,15 @@ const openTaskModal = (column) => {
   editingTaskId = null;
   editingTaskCard = null;
   setTaskModalMode("create");
+  // Hide status field for task creation; status defaults to "New" on server
+  if (typeof taskStatus === 'object' && taskStatus) {
+    if (taskStatus instanceof HTMLElement) taskStatus.style.display = 'none';
+    if (taskStatus.parentElement instanceof HTMLElement) taskStatus.parentElement.style.display = 'none';
+    const field = taskStatus.closest && taskStatus.closest('.task-field');
+    if (field instanceof HTMLElement) field.style.display = 'none';
+    const altField = taskStatus.closest && taskStatus.closest('.field');
+    if (altField instanceof HTMLElement) altField.style.display = 'none';
+  }
   activeTaskColumn = column || getDefaultColumn();
   taskForm.reset();
   if (taskTagsInput) {
@@ -2182,6 +2191,17 @@ const openTaskModalForEdit = (card) => {
   activeTaskColumn = card.closest(".column") || getDefaultColumn();
 
   taskForm.reset();
+  // Ensure status field is visible when editing
+  if (taskStatus instanceof HTMLElement) {
+    taskStatus.style.display = '';
+  }
+  if (taskStatus?.parentElement instanceof HTMLElement) {
+    taskStatus.parentElement.style.display = '';
+  }
+  const field = taskStatus?.closest && taskStatus.closest('.task-field');
+  if (field instanceof HTMLElement) field.style.display = '';
+  const altField = taskStatus?.closest && taskStatus.closest('.field');
+  if (altField instanceof HTMLElement) altField.style.display = '';
 
   const meta = getStoredTaskMeta(id);
   const title = normalizeToken(card.querySelector("h3")?.textContent);
