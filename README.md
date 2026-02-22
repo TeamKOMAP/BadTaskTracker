@@ -61,8 +61,8 @@ dotnet run --project TaskManager.API
 ```
 
 Приложение будет доступно:
-- **Frontend**: https://localhost:5001
-- **Swagger UI**: https://localhost:5001/swagger
+- **Frontend**: http://localhost:5202
+- **Swagger UI**: http://localhost:5202/swagger
 
 При первом запуске автоматически:
 - Создаётся база данных SQLite (`TaskManager.db`)
@@ -91,6 +91,17 @@ Storage__SecretKey=
 Storage__ForcePathStyle=true
 Storage__LocalRootPath=App_Data/object-storage
 ```
+
+## Deploy на Render (Scenario 1)
+
+В проект уже добавлены артефакты для быстрого production-деплоя с текущей архитектурой:
+
+- `render.yaml` — Blueprint с двумя сервисами (API + private MinIO)
+- `TaskManager.API/Dockerfile` — контейнеризация API
+- `.dockerignore` — исключения для сборки образа
+- `GET /healthz` — endpoint для health check
+
+Подробный пошаговый продакшен-план и чек-листы находятся в `docs/render-scenario1-production.md`.
 
 ## API Endpoints
 
@@ -219,7 +230,7 @@ dotnet test
 
 1. **Rate Limiting** — API использует rate limiting для эндпоинтов email-аутентификации (3 запроса в минуту на IP). При превышении лимита возвращается ошибка 429.
 
-2. **CORS** — В development режиме CORS настроен для localhost. Для продакшена требуется настройка в `appsettings.json`.
+2. **CORS** — CORS-политика в проекте не включена по умолчанию. Для multi-origin frontend в продакшене требуется явная настройка.
 
 3. **SQLite** — Для high-load production рекомендуется переход на PostgreSQL. SQLite не поддерживает параллельные записи и не подходит для высоконагруженных систем.
 
@@ -227,9 +238,9 @@ dotnet test
 
 ### Хранение данных
 
-5. **Файловое хранилище** — Вложения хранятся локально в `wwwroot/uploads/`. Для production рекомендуется использовать облачное хранилище (S3, Azure Blob, MinIO).
+5. **Файловое хранилище** — Аватары и вложения работают через object storage (`Storage:Provider`: Local/S3). Для production рекомендуется S3-совместимое хранилище.
 
-6. **Avatar workspace** — Аватарки рабочих пространств хранятся локально, требуют ручной очистки при удалении workspace.
+6. **Очистка object storage** — При удалении workspace нужно дополнительно учитывать очистку связанных object keys.
 
 ### Email и уведомления
 

@@ -14,6 +14,7 @@
 !.env.example
 TaskManager.API/App_Data/
 TaskManager.API/wwwroot/uploads/
+TaskManager.API/TaskManager.db*
 TaskManager.Infrastructure/TaskManager.db
 
 # Test runtime artifacts

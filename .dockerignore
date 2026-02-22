@@ -1,0 +1,15 @@
+.git
+.github
+.vs
+
+**/bin/
+**/obj/
+
+TaskManager.API/App_Data/
+TaskManager.API/wwwroot/uploads/
+TaskManager.API/TaskManager.db*
+TaskManager.Tests/TestResults/
+
+*.user
+*.suo
+*.log

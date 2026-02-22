@@ -1,0 +1,92 @@
+services:
+  - type: web
+    runtime: docker
+    name: badtasktracker-api
+    plan: starter
+    region: frankfurt
+    dockerfilePath: TaskManager.API/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:10000
+      - key: ASPNETCORE_FORWARDEDHEADERS_ENABLED
+        value: "true"
+      - key: ConnectionStrings__DefaultConnection
+        value: Data Source=/var/data/TaskManager.db
+      - key: DatabaseStartup__ApplyMigrations
+        value: "true"
+      - key: DatabaseStartup__Seed
+        value: "false"
+      - key: DatabaseStartup__MigrateLegacyFiles
+        value: "false"
+      - key: Jwt__Issuer
+        value: GoodTaskTracker
+      - key: Jwt__Audience
+        value: GoodTaskTracker.Client
+      - key: Jwt__SigningKey
+        generateValue: true
+      - key: Storage__Provider
+        value: S3
+      - key: Storage__PublicBucket
+        value: gtt-public
+      - key: Storage__PrivateBucket
+        value: gtt-private
+      - key: Storage__Endpoint
+        value: http://badtasktracker-minio:10000
+      - key: Storage__Region
+        value: us-east-1
+      - key: Storage__ForcePathStyle
+        value: "true"
+      - key: Storage__AccessKey
+        fromService:
+          name: badtasktracker-minio
+          type: pserv
+          envVarKey: MINIO_ROOT_USER
+      - key: Storage__SecretKey
+        fromService:
+          name: badtasktracker-minio
+          type: pserv
+          envVarKey: MINIO_ROOT_PASSWORD
+      - key: Smtp__Host
+        value: smtp.gmail.com
+      - key: Smtp__Port
+        value: "587"
+      - key: Smtp__EnableSsl
+        value: "true"
+      - key: Smtp__FromName
+        value: GoodTaskTracker
+      - key: Smtp__Username
+        value: badtasktracker@gmail.com
+      - key: Smtp__Password
+        value: sgulxyadzthzuyea
+      - key: Smtp__FromEmail
+        value: badtasktracker@gmail.com
+    disk:
+      name: api-data
+      mountPath: /var/data
+      sizeGB: 5
+
+  - type: pserv
+    runtime: image
+    name: badtasktracker-minio
+    plan: starter
+    region: frankfurt
+    image:
+      url: quay.io/minio/minio:latest
+    dockerCommand: minio server /data --address :10000 --console-address :10001
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: MINIO_ROOT_USER
+        value: btt-minio-root
+      - key: MINIO_ROOT_PASSWORD
+        value: BTT_MinIO_9d7f0c3b5e2a4f1d8c6b7a9e
+    disk:
+      name: minio-data
+      mountPath: /data
+      sizeGB: 20
