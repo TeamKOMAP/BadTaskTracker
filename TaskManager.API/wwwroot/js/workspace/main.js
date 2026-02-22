@@ -21,9 +21,14 @@ import {
   boardSearchClearBtn,
   boardSortToggleBtn,
   boardFilterToggleBtn,
+  boardTagsToggleBtn,
   boardSortMenu,
   boardFilterPanel,
+  boardTagsMenu,
   boardFilterResetBtn,
+  boardTagsClearBtn,
+  boardTagsList,
+  boardTagsEmptyEl,
   boardTaskCreateBtn,
   taskGrid,
   taskGridItems,
@@ -63,6 +68,8 @@ import {
   panelWorkspaceEditBtn,
   panelWorkspaceAvatarEl,
   panelWorkspaceAvatarInput,
+  panelWorkspaceDanger,
+  panelWorkspaceDeleteBtn,
   accountAvatarEl,
   accountAvatarTextEl,
   settingsPanel,
@@ -107,7 +114,10 @@ import {
   confirmModalTitleEl,
   confirmModalMessageEl,
   confirmModalCancelBtn,
-  confirmModalAcceptBtn
+  confirmModalAcceptBtn,
+  confirmModalInputWrap,
+  confirmModalInputHintEl,
+  confirmModalInputEl
 } from "./dom.js?v=authflow12";
 
 import {
@@ -656,12 +666,19 @@ const closeToolbarPopovers = () => {
     boardFilterPanel.setAttribute("hidden", "");
     closed = true;
   }
+  if (boardTagsMenu && !boardTagsMenu.hasAttribute("hidden")) {
+    boardTagsMenu.setAttribute("hidden", "");
+    closed = true;
+  }
 
   if (boardSortToggleBtn) {
     boardSortToggleBtn.setAttribute("aria-expanded", "false");
   }
   if (boardFilterToggleBtn) {
     boardFilterToggleBtn.setAttribute("aria-expanded", "false");
+  }
+  if (boardTagsToggleBtn) {
+    boardTagsToggleBtn.setAttribute("aria-expanded", "false");
   }
 
   return closed;
@@ -689,6 +706,16 @@ const refreshToolbarUiState = () => {
         input.checked = toolbarPriorityFilter.has(value);
       }
     });
+  }
+
+  if (boardTagsMenu) {
+    const selected = new Set(Array.from(toolbarTagFilter.values()));
+    Array.from(boardTagsMenu.querySelectorAll(".board-popover-item[data-tag]"))
+      .forEach((btn) => {
+        if (!(btn instanceof HTMLButtonElement)) return;
+        const tag = normalizeTag(btn.dataset.tag);
+        btn.classList.toggle("is-selected", selected.has(tag));
+      });
   }
 };
 
@@ -1638,6 +1665,10 @@ const setWorkspaceContext = (space) => {
     panelWorkspaceEditBtn.title = "Редактировать";
   }
 
+  if (panelWorkspaceDanger) {
+    panelWorkspaceDanger.toggleAttribute("hidden", currentWorkspaceRole !== "Owner");
+  }
+
   if (userAddSection) {
     userAddSection.hidden = !isAdmin();
   }
@@ -2070,12 +2101,36 @@ const parseTrashDragInfo = (dataTransfer) => {
 };
 
 let confirmResolve = null;
+let confirmInputHandler = null;
+let confirmAcceptHandler = null;
+let confirmRequiredToken = "";
 
 const isConfirmModalOpen = () => Boolean(confirmModal && !confirmModal.hasAttribute("hidden"));
 
 const closeConfirmModal = (result = false) => {
   if (!isConfirmModalOpen()) return false;
   confirmModal.setAttribute("hidden", "");
+
+  if (confirmModalInputEl) {
+    confirmModalInputEl.value = "";
+    confirmModalInputEl.removeAttribute("aria-invalid");
+  }
+  if (confirmModalInputWrap) {
+    confirmModalInputWrap.setAttribute("hidden", "");
+  }
+  if (confirmModalAcceptBtn) {
+    confirmModalAcceptBtn.disabled = false;
+  }
+  confirmRequiredToken = "";
+  if (confirmInputHandler && confirmModalInputEl) {
+    confirmModalInputEl.removeEventListener("input", confirmInputHandler);
+  }
+  confirmInputHandler = null;
+  if (confirmAcceptHandler && confirmModalInputEl) {
+    confirmModalInputEl.removeEventListener("keydown", confirmAcceptHandler);
+  }
+  confirmAcceptHandler = null;
+
   if (confirmResolve) {
     const resolve = confirmResolve;
     confirmResolve = null;
@@ -2089,6 +2144,9 @@ const openConfirmModal = (options) => {
   const message = normalizeToken(options?.message) || "Это действие нельзя отменить.";
   const kicker = normalizeToken(options?.kicker) || "Подтвердите действие";
   const confirmText = normalizeToken(options?.confirmText) || "Удалить";
+  const requireText = normalizeToken(options?.requireText);
+  const requireHint = normalizeToken(options?.requireTextHint);
+  const requirePlaceholder = normalizeToken(options?.requireTextPlaceholder) || "";
 
   if (!confirmModal || !confirmModalTitleEl || !confirmModalMessageEl || !confirmModalAcceptBtn || !confirmModalCancelBtn) {
     return Promise.resolve(window.confirm(`${title}\n\n${message}`));
@@ -2106,11 +2164,51 @@ const openConfirmModal = (options) => {
   confirmModalTitleEl.textContent = title;
   confirmModalMessageEl.textContent = message;
   confirmModalAcceptBtn.textContent = confirmText;
+
+  if (confirmModalInputWrap && confirmModalInputEl) {
+    if (requireText) {
+      confirmRequiredToken = requireText.trim().toLowerCase();
+      confirmModalInputWrap.removeAttribute("hidden");
+      confirmModalInputEl.value = "";
+      confirmModalInputEl.placeholder = requirePlaceholder || "Название проекта";
+      if (confirmModalInputHintEl) {
+        confirmModalInputHintEl.textContent = requireHint || `Введите: ${requireText}`;
+      }
+      confirmModalAcceptBtn.disabled = true;
+
+      confirmInputHandler = () => {
+        const inputToken = normalizeToken(confirmModalInputEl.value).trim().toLowerCase();
+        const ok = inputToken && inputToken === confirmRequiredToken;
+        confirmModalAcceptBtn.disabled = !ok;
+        if (ok) {
+          confirmModalInputEl.removeAttribute("aria-invalid");
+        }
+      };
+      confirmAcceptHandler = (event) => {
+        if (event.key !== "Enter") return;
+        if (confirmModalAcceptBtn.disabled) return;
+        event.preventDefault();
+        event.stopPropagation();
+        closeConfirmModal(true);
+      };
+      confirmModalInputEl.addEventListener("input", confirmInputHandler);
+      confirmModalInputEl.addEventListener("keydown", confirmAcceptHandler);
+    } else {
+      confirmModalInputWrap.setAttribute("hidden", "");
+      confirmModalAcceptBtn.disabled = false;
+    }
+  }
+
   confirmModal.removeAttribute("hidden");
 
   window.setTimeout(() => {
     if (isConfirmModalOpen()) {
-      confirmModalCancelBtn.focus();
+      if (requireText && confirmModalInputEl) {
+        confirmModalInputEl.focus();
+        confirmModalInputEl.select();
+      } else {
+        confirmModalCancelBtn.focus();
+      }
     }
   }, 0);
 
@@ -4455,6 +4553,49 @@ if (panelWorkspaceAvatarInput) {
   });
 }
 
+if (panelWorkspaceDeleteBtn) {
+  panelWorkspaceDeleteBtn.addEventListener("click", () => {
+    void (async () => {
+      if (!currentWorkspaceId) return;
+      if (!isOwner()) return;
+
+      const workspaceName = normalizeToken(panelWorkspaceNameEl?.textContent)
+        || normalizeToken(brandTitleEl?.textContent)
+        || "Проект";
+
+      const confirmed = await openConfirmModal({
+        kicker: "Внимание!",
+        title: `Удалить проект "${workspaceName}"?`,
+        message: "Для удаления введите название проекта в поле ниже. Это действие необратимо.",
+        confirmText: "Удалить проект",
+        requireText: workspaceName,
+        requireTextHint: `Введите название проекта: ${workspaceName}`,
+        requireTextPlaceholder: "Название проекта"
+      });
+
+      if (confirmed !== true) return;
+
+      const response = await apiFetch(buildApiUrl(`/spaces/${currentWorkspaceId}`), {
+        method: "DELETE",
+        headers: { Accept: "application/json" }
+      });
+
+      if (!response.ok) {
+        await handleApiError(response, "Удаление проекта");
+        return;
+      }
+
+      try {
+        localStorage.removeItem(STORAGE_WORKSPACE_ID);
+      } catch {
+        // ignore
+      }
+
+      window.location.href = "index.html";
+    })();
+  });
+}
+
 if (settingsNicknameInput) {
   settingsNicknameInput.addEventListener("input", () => {
     clearNicknameStatusMessage();
@@ -4660,9 +4801,63 @@ const openBoardFilterPanel = () => {
   if (!boardFilterPanel || !boardFilterToggleBtn) return;
   if (boardSortMenu) boardSortMenu.setAttribute("hidden", "");
   if (boardSortToggleBtn) boardSortToggleBtn.setAttribute("aria-expanded", "false");
+  if (boardTagsMenu) boardTagsMenu.setAttribute("hidden", "");
+  if (boardTagsToggleBtn) boardTagsToggleBtn.setAttribute("aria-expanded", "false");
   refreshToolbarUiState();
   boardFilterPanel.removeAttribute("hidden");
   boardFilterToggleBtn.setAttribute("aria-expanded", "true");
+};
+
+const renderBoardTagsMenu = () => {
+  if (!boardTagsList || !boardTagsEmptyEl) return;
+  boardTagsList.innerHTML = "";
+
+  const tags = Array.isArray(tagList) ? tagList : [];
+  if (!tags.length) {
+    boardTagsEmptyEl.hidden = false;
+    return;
+  }
+  boardTagsEmptyEl.hidden = true;
+
+  const selected = new Set(Array.from(toolbarTagFilter.values()));
+  const fragment = document.createDocumentFragment();
+  tags.forEach((t) => {
+    const label = normalizeToken(t?.name);
+    const key = normalizeTag(label);
+    if (!key) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "board-popover-item";
+    btn.dataset.tag = key;
+    btn.textContent = `#${label}`;
+    btn.classList.toggle("is-selected", selected.has(key));
+    fragment.appendChild(btn);
+  });
+  boardTagsList.appendChild(fragment);
+};
+
+const openBoardTagsMenu = async () => {
+  if (!boardTagsMenu || !boardTagsToggleBtn) return;
+  if (boardSortMenu) boardSortMenu.setAttribute("hidden", "");
+  if (boardSortToggleBtn) boardSortToggleBtn.setAttribute("aria-expanded", "false");
+  if (boardFilterPanel) boardFilterPanel.setAttribute("hidden", "");
+  if (boardFilterToggleBtn) boardFilterToggleBtn.setAttribute("aria-expanded", "false");
+
+  await ensureTagsLoaded();
+  renderBoardTagsMenu();
+  refreshToolbarUiState();
+  boardTagsMenu.removeAttribute("hidden");
+  boardTagsToggleBtn.setAttribute("aria-expanded", "true");
+};
+
+const toggleBoardTagsMenu = () => {
+  if (!boardTagsMenu || !boardTagsToggleBtn) return;
+  const open = !boardTagsMenu.hasAttribute("hidden");
+  if (open) {
+    closeToolbarPopovers();
+  } else {
+    void openBoardTagsMenu();
+  }
 };
 
 const toggleBoardFilterPanel = () => {
@@ -4674,6 +4869,44 @@ const toggleBoardFilterPanel = () => {
     openBoardFilterPanel();
   }
 };
+
+if (boardTagsToggleBtn) {
+  boardTagsToggleBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleBoardTagsMenu();
+  });
+}
+
+if (boardTagsClearBtn) {
+  boardTagsClearBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toolbarTagFilter.clear();
+    refreshToolbarUiState();
+    syncTaskStateToUi();
+  });
+}
+
+if (boardTagsList) {
+  boardTagsList.addEventListener("click", (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest(".board-popover-item[data-tag]")
+      : null;
+    if (!(target instanceof HTMLButtonElement)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const tag = normalizeTag(target.dataset.tag);
+    if (!tag) return;
+    if (toolbarTagFilter.has(tag)) {
+      toolbarTagFilter.delete(tag);
+    } else {
+      toolbarTagFilter.add(tag);
+    }
+    refreshToolbarUiState();
+    syncTaskStateToUi();
+  });
+}
 
 if (boardSearchInput) {
   boardSearchInput.addEventListener("input", () => {
@@ -4773,8 +5006,10 @@ document.addEventListener("click", (event) => {
   }
   if (target.closest("#board-sort-menu")
     || target.closest("#board-filter-panel")
+    || target.closest("#board-tags-menu")
     || target.closest("#board-sort-toggle")
-    || target.closest("#board-filter-toggle")) {
+    || target.closest("#board-filter-toggle")
+    || target.closest("#board-tags-toggle")) {
     return;
   }
   closeToolbarPopovers();

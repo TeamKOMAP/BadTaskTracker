@@ -177,7 +177,7 @@ button {
 .page {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 28px 24px 48px;
+  padding: 28px 24px 0;
   position: relative;
   z-index: 1;
   flex: 1 1 auto;

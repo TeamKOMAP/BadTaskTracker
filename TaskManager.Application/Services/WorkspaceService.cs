@@ -3,6 +3,8 @@ using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
+using Microsoft.Extensions.Logging;
+using System.Net;
 
 namespace TaskManager.Application.Services
 {
@@ -12,17 +14,26 @@ namespace TaskManager.Application.Services
         private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
         private readonly IUserRepository _userRepository;
         private readonly ITaskRepository _taskRepository;
+        private readonly INotificationRepository _notificationRepository;
+        private readonly IEmailSender _emailSender;
+        private readonly ILogger<WorkspaceService> _logger;
 
         public WorkspaceService(
             IWorkspaceRepository workspaceRepository,
             IWorkspaceMemberRepository workspaceMemberRepository,
             IUserRepository userRepository,
-            ITaskRepository taskRepository)
+            ITaskRepository taskRepository,
+            INotificationRepository notificationRepository,
+            IEmailSender emailSender,
+            ILogger<WorkspaceService> logger)
         {
             _workspaceRepository = workspaceRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
             _userRepository = userRepository;
             _taskRepository = taskRepository;
+            _notificationRepository = notificationRepository;
+            _emailSender = emailSender;
+            _logger = logger;
         }
 
         public async Task<IEnumerable<WorkspaceDto>> GetWorkspacesAsync(int actorUserId)
@@ -249,7 +260,105 @@ namespace TaskManager.Application.Services
                 throw new ForbiddenException("Workspace admin can only remove members");
             }
 
+            var now = DateTime.UtcNow;
+            var workspaceName = member.Workspace?.Name
+                ?? (await _workspaceRepository.GetByIdAsync(workspaceId))?.Name
+                ?? "Проект";
+
+            var actorLabel = actorMember.User?.Name
+                ?? actorMember.User?.Email
+                ?? $"User #{actorUserId}";
+
+            var removedEmail = member.User?.Email;
+            var removedName = member.User?.Name;
+
             await _workspaceMemberRepository.RemoveAsync(member);
+
+            // In-app notification for the removed user.
+            try
+            {
+                var safeWorkspaceName = workspaceName.Length > 120 ? workspaceName[..120] + "..." : workspaceName;
+                var safeActorLabel = actorLabel.Length > 120 ? actorLabel[..120] + "..." : actorLabel;
+                await _notificationRepository.AddAsync(new Notification
+                {
+                    UserId = memberUserId,
+                    Type = "workspace_member_removed",
+                    Title = "Вы удалены из проекта",
+                    Message = $"{safeActorLabel} удалил вас из проекта \"{safeWorkspaceName}\".",
+                    WorkspaceId = workspaceId,
+                    ActionUrl = "index.html",
+                    IsRead = false,
+                    CreatedAt = now
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to create workspace removal notification. WorkspaceId={WorkspaceId}, UserId={UserId}", workspaceId, memberUserId);
+            }
+
+            // Email notification (best-effort).
+            if (!string.IsNullOrWhiteSpace(removedEmail))
+            {
+                try
+                {
+                    var subject = $"Вы удалены из проекта: {workspaceName}";
+                    await _emailSender.SendAsync(
+                        removedEmail,
+                        subject,
+                        BuildRemovedFromWorkspaceEmailBody(workspaceName, actorLabel, removedName));
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to send workspace removal email. WorkspaceId={WorkspaceId}, To={Email}", workspaceId, removedEmail);
+                }
+            }
+        }
+
+        public async Task DeleteWorkspaceAsync(int actorUserId, int workspaceId)
+        {
+            var workspace = await _workspaceRepository.GetByIdAsync(workspaceId)
+                ?? throw new NotFoundException($"Workspace with id {workspaceId} not found");
+
+            var actorMember = await _workspaceMemberRepository.GetMemberAsync(workspaceId, actorUserId)
+                ?? throw new ForbiddenException("You are not a member of this workspace");
+
+            if (actorMember.Role != WorkspaceRole.Owner)
+            {
+                throw new ForbiddenException("Only workspace owner can delete the workspace");
+            }
+
+            await _workspaceRepository.DeleteAsync(workspace);
+        }
+
+        private static string BuildRemovedFromWorkspaceEmailBody(string workspaceName, string removedBy, string? recipientName)
+        {
+            var safeWorkspace = string.IsNullOrWhiteSpace(workspaceName) ? "проект" : workspaceName.Trim();
+            var safeActor = string.IsNullOrWhiteSpace(removedBy) ? "Администратор" : removedBy.Trim();
+            var safeRecipient = string.IsNullOrWhiteSpace(recipientName) ? "" : recipientName.Trim();
+
+            var workspaceHtml = WebUtility.HtmlEncode(safeWorkspace);
+            var actorHtml = WebUtility.HtmlEncode(safeActor);
+            var recipientHtml = WebUtility.HtmlEncode(safeRecipient);
+            var greeting = string.IsNullOrWhiteSpace(safeRecipient) ? "" : $"<p style=\"margin: 0 0 12px;\">Привет, <strong>{recipientHtml}</strong>.</p>";
+
+            return $"""
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f6f8fa; margin: 0; padding: 20px;">
+  <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.12);">
+    <div style="background: linear-gradient(135deg, #ef4444 0%, #f59e0b 100%); color: #071017; padding: 20px 24px;">
+      <h1 style="margin: 0; font-size: 20px; font-weight: 700;">Доступ к проекту удален</h1>
+    </div>
+    <div style="padding: 24px; color: #2b3240;">
+      {greeting}
+      <p style="margin: 0 0 12px;">Пользователь <strong>{actorHtml}</strong> удалил вас из проекта <strong>{workspaceHtml}</strong>.</p>
+      <p style="margin: 0; color: #6b7280; font-size: 13px;">Если вы считаете, что это ошибка, свяжитесь с владельцем проекта.</p>
+    </div>
+  </div>
+</body>
+</html>
+""";
         }
 
         private async Task EnsureMemberAsync(int workspaceId, int actorUserId)

@@ -13,5 +13,7 @@ namespace TaskManager.Application.Interfaces
         Task<IEnumerable<WorkspaceMemberDto>> GetMembersAsync(int actorUserId, int workspaceId);
         Task<WorkspaceMemberDto> AddMemberAsync(int actorUserId, int workspaceId, AddWorkspaceMemberDto dto);
         Task RemoveMemberAsync(int actorUserId, int workspaceId, int memberUserId);
+
+        Task DeleteWorkspaceAsync(int actorUserId, int workspaceId);
     }
 }

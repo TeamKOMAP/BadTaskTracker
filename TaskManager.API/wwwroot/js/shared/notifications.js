@@ -15,6 +15,7 @@ const NOTIFICATION_TYPE_META = {
   task_done_approved: { icon: "✅", kind: "approved" },
   task_done_rejected: { icon: "❌", kind: "rejected" },
   workspace_invite_received: { icon: "👤", kind: "invite" },
+  workspace_member_removed: { icon: "🚪", kind: "workspace" },
   workspace_deleted: { icon: "⚠️", kind: "workspace" }
 };
 
@@ -39,9 +40,17 @@ const escapeHtml = (value) => {
     .replace(/'/g, "&#39;");
 };
 
+const parseUtcIsoDate = (iso) => {
+  const token = normalizeToken(iso);
+  if (!token) return null;
+  const hasTimeZone = /([zZ]|[+-]\d{2}:\d{2})$/.test(token);
+  const date = new Date(hasTimeZone ? token : `${token}Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
 const formatRelativeTime = (iso) => {
-  const date = iso ? new Date(iso) : null;
-  if (!date || Number.isNaN(date.getTime())) return "";
+  const date = parseUtcIsoDate(iso);
+  if (!date) return "";
 
   const diffMs = Date.now() - date.getTime();
   const diffSeconds = Math.floor(diffMs / 1000);
