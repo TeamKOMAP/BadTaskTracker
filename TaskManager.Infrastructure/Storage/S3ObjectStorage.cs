@@ -63,16 +63,21 @@ namespace TaskManager.Infrastructure.Storage
                 content.Position = 0;
             }
 
-            await _s3Client.PutObjectAsync(new PutObjectRequest
+            try
             {
-                BucketName = normalizedBucket,
-                Key = normalizedObjectKey,
-                InputStream = content,
-                ContentType = string.IsNullOrWhiteSpace(contentType)
-                    ? "application/octet-stream"
-                    : contentType,
-                AutoCloseStream = false
-            }, cancellationToken);
+                await PutObjectAsync(normalizedBucket, normalizedObjectKey, content, contentType, cancellationToken);
+            }
+            catch (AmazonS3Exception ex)
+                when (string.Equals(ex.ErrorCode, "NoSuchBucket", StringComparison.OrdinalIgnoreCase))
+            {
+                await InvalidateBucketAndEnsureExistsAsync(normalizedBucket, cancellationToken);
+                if (content.CanSeek)
+                {
+                    content.Position = 0;
+                }
+
+                await PutObjectAsync(normalizedBucket, normalizedObjectKey, content, contentType, cancellationToken);
+            }
         }
 
         public async Task<Stream?> OpenReadAsync(
@@ -161,6 +166,40 @@ namespace TaskManager.Infrastructure.Storage
             {
                 _bucketGate.Release();
             }
+        }
+
+        private async Task InvalidateBucketAndEnsureExistsAsync(string bucket, CancellationToken cancellationToken)
+        {
+            await _bucketGate.WaitAsync(cancellationToken);
+            try
+            {
+                _knownBuckets.Remove(bucket);
+            }
+            finally
+            {
+                _bucketGate.Release();
+            }
+
+            await EnsureBucketExistsAsync(bucket, cancellationToken);
+        }
+
+        private Task PutObjectAsync(
+            string bucket,
+            string objectKey,
+            Stream content,
+            string contentType,
+            CancellationToken cancellationToken)
+        {
+            return _s3Client.PutObjectAsync(new PutObjectRequest
+            {
+                BucketName = bucket,
+                Key = objectKey,
+                InputStream = content,
+                ContentType = string.IsNullOrWhiteSpace(contentType)
+                    ? "application/octet-stream"
+                    : contentType,
+                AutoCloseStream = false
+            }, cancellationToken);
         }
 
         private static string NormalizeBucket(string? bucket)

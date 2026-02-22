@@ -1638,7 +1638,7 @@ const setWorkspaceContext = (space) => {
   if (panelWorkspaceAvatarEl) {
     if (avatarPath) {
       panelWorkspaceAvatarEl.classList.add("has-image");
-      panelWorkspaceAvatarEl.style.backgroundImage = `url("${encodeURI(avatarPath).replace(/"/g, "%22")}")`;
+      panelWorkspaceAvatarEl.style.backgroundImage = `url("${avatarPath.replace(/"/g, "%22")}")`;
       panelWorkspaceAvatarEl.textContent = "";
     } else {
       panelWorkspaceAvatarEl.classList.remove("has-image");
@@ -1650,7 +1650,7 @@ const setWorkspaceContext = (space) => {
   if (brandMarkEl) {
     if (avatarPath) {
       brandMarkEl.classList.add("has-image");
-      brandMarkEl.style.backgroundImage = `url("${encodeURI(avatarPath).replace(/"/g, "%22")}")`;
+      brandMarkEl.style.backgroundImage = `url("${avatarPath.replace(/"/g, "%22")}")`;
       brandMarkEl.textContent = "";
     } else {
       brandMarkEl.classList.remove("has-image");

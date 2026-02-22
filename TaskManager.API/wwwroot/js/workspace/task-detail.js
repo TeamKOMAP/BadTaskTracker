@@ -314,7 +314,7 @@ export const createTaskDetailController = (deps) => {
       taskId,
       listElement: taskAttachmentsList,
       emptyElement: taskAttachmentsEmpty,
-      isAdmin,
+      isAdmin: canEditTask,
       applyAttachmentCountToCards,
       onDownload: async (info) => {
         if (!info?.taskId || !info?.id) return;
