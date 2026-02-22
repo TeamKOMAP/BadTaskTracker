@@ -5,7 +5,6 @@ export const createProfileModalsController = ({
   handleApiError,
   normalizeToken,
   toInitials,
-  getStoredAccountAvatar,
   applyAccountAvatarToElement,
   getRoleLabel,
   statusLabels,
@@ -427,10 +426,10 @@ export const createProfileModalsController = ({
     const name = normalizeToken(member?.name) || "Пользователь";
     const email = normalizeToken(member?.email) || "";
     const initials = toInitials(name || email, "U");
-    const storedAvatar = getStoredAccountAvatar(id);
+    const avatarPath = normalizeToken(member?.avatarPath);
 
     if (avatarModalTitleEl) avatarModalTitleEl.textContent = name;
-    applyAccountAvatarToElement(avatarModalAvatarEl, avatarModalAvatarTextEl, initials, storedAvatar);
+    applyAccountAvatarToElement(avatarModalAvatarEl, avatarModalAvatarTextEl, initials, avatarPath);
 
     avatarModal.removeAttribute("hidden");
     window.setTimeout(() => {
@@ -455,19 +454,20 @@ export const createProfileModalsController = ({
     const email = normalizeToken(member?.email) || "-";
     const role = normalizeToken(member?.role) || "Member";
     const initials = toInitials(name || email, "U");
-    const storedAvatar = getStoredAccountAvatar(id);
+    const avatarPath = normalizeToken(member?.avatarPath);
 
     activeProfileMember = {
       id,
       name,
       email,
-      role
+      role,
+      avatarPath
     };
 
     if (profileUserNameEl) profileUserNameEl.textContent = name;
     if (profileUserEmailEl) profileUserEmailEl.textContent = email;
     if (profileUserRoleEl) profileUserRoleEl.textContent = getRoleLabel(role);
-    applyAccountAvatarToElement(profileAvatarEl, profileAvatarTextEl, initials, storedAvatar);
+    applyAccountAvatarToElement(profileAvatarEl, profileAvatarTextEl, initials, avatarPath);
 
     profileModal.removeAttribute("hidden");
     void renderProfileReports(activeProfileMember);

@@ -84,7 +84,16 @@ namespace TaskManager.Application.Services
             return MapWorkspace(full, actorUserId);
         }
 
-        public async Task<WorkspaceDto> SetAvatarAsync(int actorUserId, int workspaceId, string avatarPath)
+        public async Task<string?> GetAvatarObjectKeyAsync(int actorUserId, int workspaceId)
+        {
+            var workspace = await _workspaceRepository.GetByIdAsync(workspaceId)
+                ?? throw new NotFoundException($"Workspace with id {workspaceId} not found");
+
+            await EnsureMemberAsync(workspaceId, actorUserId);
+            return workspace.AvatarObjectKey;
+        }
+
+        public async Task<WorkspaceDto> SetAvatarAsync(int actorUserId, int workspaceId, string avatarPath, string avatarObjectKey)
         {
             var workspace = await _workspaceRepository.GetByIdAsync(workspaceId)
                 ?? throw new NotFoundException($"Workspace with id {workspaceId} not found");
@@ -98,6 +107,7 @@ namespace TaskManager.Application.Services
             }
 
             workspace.AvatarPath = avatarPath;
+            workspace.AvatarObjectKey = avatarObjectKey;
             await _workspaceRepository.UpdateAsync(workspace);
 
             var updated = await _workspaceRepository.GetByIdAsync(workspaceId)
@@ -120,6 +130,7 @@ namespace TaskManager.Application.Services
             }
 
             workspace.AvatarPath = null;
+            workspace.AvatarObjectKey = null;
             await _workspaceRepository.UpdateAsync(workspace);
 
             var updated = await _workspaceRepository.GetByIdAsync(workspaceId)
@@ -174,6 +185,7 @@ namespace TaskManager.Application.Services
                     UserId = m.UserId,
                     Name = m.User.Name,
                     Email = m.User.Email,
+                    AvatarPath = m.User.AvatarPath,
                     Role = m.Role,
                     AddedAt = m.AddedAt,
                     TaskCount = counts.TryGetValue(m.UserId, out var taskCount) ? taskCount : 0
@@ -232,6 +244,7 @@ namespace TaskManager.Application.Services
                 UserId = user.Id,
                 Name = user.Name,
                 Email = user.Email,
+                AvatarPath = user.AvatarPath,
                 Role = existing.Role,
                 AddedAt = existing.AddedAt
             };

@@ -55,6 +55,7 @@ namespace TaskManager.Application.DTOs
         public string Name { get; set; } = string.Empty;
         public string Email { get; set; } = string.Empty;
         public string TimeZoneId { get; set; } = "UTC";
+        public string? AvatarPath { get; set; }
         public DateTime? NicknameChangeAvailableAtUtc { get; set; }
     }
 

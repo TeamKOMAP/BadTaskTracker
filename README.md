@@ -78,6 +78,20 @@ Smtp__Password=your-app-password
 Smtp__FromEmail=your-email@gmail.com
 ```
 
+### Настройка хранилища (Local / MinIO / S3)
+
+```env
+Storage__Provider=Local
+Storage__PublicBucket=gtt-public
+Storage__PrivateBucket=gtt-private
+Storage__Endpoint=
+Storage__Region=us-east-1
+Storage__AccessKey=
+Storage__SecretKey=
+Storage__ForcePathStyle=true
+Storage__LocalRootPath=App_Data/object-storage
+```
+
 ## API Endpoints
 
 ### Аутентификация

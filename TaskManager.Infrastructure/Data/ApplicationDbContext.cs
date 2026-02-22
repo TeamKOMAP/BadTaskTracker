@@ -19,6 +19,7 @@ namespace TaskManager.Infrastructure.Data
         public DbSet<EmailAuthCode> EmailAuthCodes { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<WorkspaceInvitation> WorkspaceInvitations { get; set; }
+        public DbSet<TaskAttachment> TaskAttachments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -30,6 +31,8 @@ namespace TaskManager.Infrastructure.Data
                 entity.Property(u => u.Name).IsRequired().HasMaxLength(100);
                 entity.Property(u => u.Email).IsRequired().HasMaxLength(100);
                 entity.Property(u => u.TimeZoneId).IsRequired().HasMaxLength(100).HasDefaultValue("UTC");
+                entity.Property(u => u.AvatarPath).HasMaxLength(400);
+                entity.Property(u => u.AvatarObjectKey).HasMaxLength(500);
                 entity.Property(u => u.NicknameChangedAtUtc);
                 entity.HasIndex(u => u.Email).IsUnique();
                 entity.Property(u => u.CreatedAt).HasDefaultValueSql("datetime('now')");
@@ -40,6 +43,7 @@ namespace TaskManager.Infrastructure.Data
                 entity.HasKey(w => w.Id);
                 entity.Property(w => w.Name).IsRequired().HasMaxLength(120);
                 entity.Property(w => w.AvatarPath).HasMaxLength(400);
+                entity.Property(w => w.AvatarObjectKey).HasMaxLength(500);
                 entity.Property(w => w.CreatedAt).HasDefaultValueSql("datetime('now')");
 
                 entity.HasOne(w => w.CreatedByUser)
@@ -110,6 +114,23 @@ namespace TaskManager.Infrastructure.Data
                 entity.HasIndex(t => new { t.WorkspaceId, t.DueDate });
                 entity.HasIndex(t => t.CreatedAt);
                 entity.HasIndex(t => t.CompletedAt);
+            });
+
+            modelBuilder.Entity<TaskAttachment>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.Id).HasMaxLength(64);
+                entity.Property(a => a.ObjectKey).IsRequired().HasMaxLength(500);
+                entity.Property(a => a.FileName).IsRequired().HasMaxLength(255);
+                entity.Property(a => a.ContentType).IsRequired().HasMaxLength(150);
+                entity.Property(a => a.UploadedAtUtc).IsRequired();
+
+                entity.HasOne(a => a.Task)
+                    .WithMany(t => t.Attachments)
+                    .HasForeignKey(a => a.TaskId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(a => new { a.TaskId, a.UploadedAtUtc });
             });
 
             modelBuilder.Entity<Tag>(entity =>
