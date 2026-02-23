@@ -1,0 +1,240 @@
+.invites {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.invite-card {
+  border: 1px solid var(--stroke);
+  border-radius: 22px;
+  background: rgba(10, 15, 22, 0.45);
+  box-shadow: 0 18px 34px rgba(6, 11, 18, 0.35);
+  overflow: hidden;
+}
+
+body[data-theme="light"] .invite-card {
+  background: rgba(255, 255, 255, 0.74);
+  border-color: rgba(15, 20, 28, 0.14);
+  box-shadow: 0 14px 28px rgba(15, 20, 28, 0.10);
+}
+
+.invite-head {
+  padding: 16px 18px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-bottom: 1px solid var(--stroke);
+}
+
+.invite-title {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.invite-sub {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.invite-body {
+  padding: 14px 18px 18px;
+}
+
+.invite-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.invite-item {
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  background: rgba(16, 22, 30, 0.50);
+  padding: 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+body[data-theme="light"] .invite-item {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.invite-item.is-finished {
+  opacity: 0.75;
+}
+
+.invite-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  font-size: 20px;
+  background: rgba(68, 210, 199, 0.18);
+  color: rgba(68, 210, 199, 0.96);
+}
+
+.invite-content {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.invite-content h3 {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 16px;
+  font-weight: 650;
+  color: var(--text-1);
+}
+
+.invite-text {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.invite-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.invite-role {
+  border: 1px solid var(--stroke);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--text-2);
+  font-size: 11px;
+}
+
+.invite-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.invite-action-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(12, 18, 26, 0.78);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: transform 0.2s ease, border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+}
+
+.invite-action-btn svg {
+  width: 16px;
+  height: 16px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.invite-action-btn:hover {
+  transform: translateY(-1px);
+}
+
+.invite-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.invite-action-btn--accept {
+  color: rgba(74, 222, 128, 0.96);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.invite-action-btn--accept:hover {
+  border-color: rgba(74, 222, 128, 0.55);
+  background: rgba(74, 222, 128, 0.12);
+}
+
+.invite-action-btn--decline {
+  color: rgba(248, 113, 113, 0.96);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+
+.invite-action-btn--decline:hover {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.invite-status {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 700;
+}
+
+.invite-status.is-accepted {
+  color: rgba(74, 222, 128, 0.95);
+}
+
+.invite-status.is-declined,
+.invite-status.is-expired {
+  color: rgba(248, 113, 113, 0.95);
+}
+
+.invite-empty {
+  border: 1px dashed var(--stroke);
+  border-radius: 16px;
+  padding: 14px;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.invites-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  padding: 10px 12px;
+  background: rgba(10, 14, 20, 0.92);
+  color: var(--text-1);
+  font-size: 13px;
+  box-shadow: 0 18px 34px rgba(6, 11, 18, 0.45);
+  z-index: 10;
+  max-width: min(520px, 92vw);
+}
+
+body[data-theme="light"] .invites-toast {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 28px rgba(15, 20, 28, 0.12);
+}
+
+@media (max-width: 720px) {
+  .invite-item {
+    flex-wrap: wrap;
+  }
+
+  .invite-actions {
+    margin-left: 52px;
+  }
+}

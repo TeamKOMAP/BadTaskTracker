@@ -69,6 +69,12 @@ namespace TaskManager.Infrastructure.Repositories
             return user;
         }
 
+        public async Task UpdateAsync(User user, CancellationToken cancellationToken = default)
+        {
+            _context.Users.Update(user);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
         public Task<int> GetTaskCountAsync(int userId)
         {
             return _context.Tasks

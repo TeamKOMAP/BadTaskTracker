@@ -27,6 +27,12 @@ namespace TaskManager.Domain.Entities
 
         public System.DateTime? CompletedAt { get; set; }
 
+        public bool DoneApprovalPending { get; set; }
+
+        public int? DoneApprovalRequestedByUserId { get; set; }
+
+        public DateTime? DoneApprovalRequestedAtUtc { get; set; }
+
         [Required]
         public TaskItemStatus Status { get; set; } = TaskItemStatus.New;
 
@@ -38,6 +44,7 @@ namespace TaskManager.Domain.Entities
         public virtual User? Assignee { get; set; }
         public virtual Workspace Workspace { get; set; } = null!;
         public virtual System.Collections.Generic.ICollection<TaskTag> TaskTags { get; set; } = new System.Collections.Generic.List<TaskTag>();
+        public virtual System.Collections.Generic.ICollection<TaskAttachment> Attachments { get; set; } = new System.Collections.Generic.List<TaskAttachment>();
 
         [NotMapped]
         public System.Collections.Generic.IEnumerable<Tag> Tags => TaskTags.Select(tt => tt.Tag);

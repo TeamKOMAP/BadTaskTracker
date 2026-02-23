@@ -23,9 +23,11 @@ export const setTheme = (theme) => {
 
 const taskBgScopedKey = (workspaceId, taskId) => `gtt-taskbg:${workspaceId}:${taskId}`;
 const taskMetaScopedKey = (workspaceId, taskId) => `gtt-taskmeta:${workspaceId}:${taskId}`;
+const taskHistoryScopedKey = (workspaceId, taskId) => `gtt-taskhistory:${workspaceId}:${taskId}`;
 const taskBgLegacyKey = (taskId) => `gtt-taskbg:${taskId}`;
 const taskMetaLegacyKey = (taskId) => `gtt-taskmeta:${taskId}`;
 const workspaceColumnsKey = (workspaceId) => `gtt-columns:${workspaceId}`;
+const workspaceFlowMapKey = (workspaceId) => `gtt-flowmap:${workspaceId}`;
 
 const normalizeTaskId = (taskId) => {
   const parsed = Number.parseInt(String(taskId ?? ""), 10);
@@ -52,6 +54,125 @@ const normalizeColumnType = (value) => {
     return token;
   }
   return "new";
+};
+
+const clampNumber = (value, min, max, fallback = 0) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, parsed));
+};
+
+const normalizeFlowColor = (value) => {
+  const token = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(token)) {
+    return token.toLowerCase();
+  }
+  if (/^#[0-9a-fA-F]{3}$/.test(token)) {
+    const short = token.slice(1).toLowerCase();
+    return `#${short[0]}${short[0]}${short[1]}${short[1]}${short[2]}${short[2]}`;
+  }
+  return "";
+};
+
+const normalizeFlowNodeState = (item) => {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+
+  const nodeId = String(item.nodeId || "").trim().slice(0, 120);
+  if (!nodeId) {
+    return null;
+  }
+
+  const taskIdRaw = normalizeTaskId(item.taskId);
+  const taskId = taskIdRaw ? taskIdRaw : null;
+  const taskKey = String(item.taskKey || "").trim().slice(0, 240);
+  const left = clampNumber(item.left ?? item.x, -50000, 50000, 16);
+  const top = clampNumber(item.top ?? item.y, -50000, 50000, 16);
+  const customColor = normalizeFlowColor(item.customColor);
+
+  return {
+    nodeId,
+    taskId,
+    taskKey,
+    left,
+    top,
+    customColor
+  };
+};
+
+const normalizeFlowConnectionState = (item) => {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+
+  const from = String(item.from || "").trim().slice(0, 120);
+  const to = String(item.to || "").trim().slice(0, 120);
+  if (!from || !to || from === to) {
+    return null;
+  }
+
+  return { from, to };
+};
+
+const normalizeFlowViewportState = (viewport) => {
+  if (!viewport || typeof viewport !== "object") {
+    return {
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0
+    };
+  }
+
+  return {
+    scale: clampNumber(viewport.scale, 0.3, 1.8, 1),
+    offsetX: clampNumber(viewport.offsetX, -50000, 50000, 0),
+    offsetY: clampNumber(viewport.offsetY, -50000, 50000, 0)
+  };
+};
+
+const normalizeFlowMapState = (state) => {
+  if (!state || typeof state !== "object") {
+    return {
+      nodes: [],
+      connections: [],
+      viewport: {
+        scale: 1,
+        offsetX: 0,
+        offsetY: 0
+      }
+    };
+  }
+
+  const nodes = Array.isArray(state.nodes)
+    ? state.nodes.map(normalizeFlowNodeState).filter(Boolean).slice(0, 1000)
+    : [];
+
+  const nodeIds = new Set(nodes.map((node) => node.nodeId));
+
+  const seenConnections = new Set();
+  const connections = Array.isArray(state.connections)
+    ? state.connections
+      .map(normalizeFlowConnectionState)
+      .filter((entry) => entry && nodeIds.has(entry.from) && nodeIds.has(entry.to))
+      .filter((entry) => {
+        const key = `${entry.from}=>${entry.to}`;
+        if (seenConnections.has(key)) {
+          return false;
+        }
+        seenConnections.add(key);
+        return true;
+      })
+      .slice(0, 3000)
+    : [];
+
+  return {
+    nodes,
+    connections,
+    viewport: normalizeFlowViewportState(state.viewport)
+  };
 };
 
 export const getStoredTaskMeta = (id) => {
@@ -153,6 +274,75 @@ export const clearStoredTaskBg = (id) => {
 export const clearStoredTaskArtifacts = (id) => {
   clearStoredTaskMeta(id);
   clearStoredTaskBg(id);
+  clearStoredTaskHistory(id);
+};
+
+const normalizeHistoryEntry = (entry) => {
+  if (!entry || typeof entry !== "object") return null;
+  const at = Number(entry.at);
+  const title = String(entry.title || "").trim().slice(0, 200);
+  const source = String(entry.source || "").trim().slice(0, 120);
+  const lines = Array.isArray(entry.lines)
+    ? entry.lines.map((line) => String(line || "").trim()).filter(Boolean).slice(0, 20)
+    : [];
+  if (!Number.isFinite(at) || at <= 0) return null;
+  if (!title && !lines.length) return null;
+  return {
+    at,
+    title,
+    source,
+    lines
+  };
+};
+
+export const getStoredTaskHistory = (id) => {
+  const taskId = normalizeTaskId(id);
+  const workspaceId = resolveCurrentWorkspaceId();
+  if (!taskId || !workspaceId) return [];
+
+  try {
+    const raw = localStorage.getItem(taskHistoryScopedKey(workspaceId, taskId));
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map(normalizeHistoryEntry)
+      .filter(Boolean)
+      .slice(0, 200);
+  } catch {
+    return [];
+  }
+};
+
+export const appendStoredTaskHistory = (id, entry) => {
+  const taskId = normalizeTaskId(id);
+  const workspaceId = resolveCurrentWorkspaceId();
+  if (!taskId || !workspaceId) return;
+
+  try {
+    const normalized = normalizeHistoryEntry(entry);
+    if (!normalized) return;
+
+    const current = getStoredTaskHistory(taskId);
+    const next = [normalized, ...current].slice(0, 200);
+    localStorage.setItem(taskHistoryScopedKey(workspaceId, taskId), JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+};
+
+export const clearStoredTaskHistory = (id) => {
+  const taskId = normalizeTaskId(id);
+  if (!taskId) return;
+
+  try {
+    const workspaceId = resolveCurrentWorkspaceId();
+    if (workspaceId) {
+      localStorage.removeItem(taskHistoryScopedKey(workspaceId, taskId));
+    }
+  } catch {
+    // ignore
+  }
 };
 export const getStoredWorkspaceColumns = (workspaceId) => {
   const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
@@ -242,6 +432,52 @@ export const clearStoredWorkspaceColumns = (workspaceId) => {
 
   try {
     localStorage.removeItem(workspaceColumnsKey(normalizedWorkspaceId));
+  } catch {
+    // ignore
+  }
+};
+
+export const getStoredWorkspaceFlowMap = (workspaceId) => {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  if (!normalizedWorkspaceId) {
+    return null;
+  }
+
+  try {
+    const raw = localStorage.getItem(workspaceFlowMapKey(normalizedWorkspaceId));
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    return normalizeFlowMapState(parsed);
+  } catch {
+    return null;
+  }
+};
+
+export const setStoredWorkspaceFlowMap = (workspaceId, state) => {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  if (!normalizedWorkspaceId) {
+    return;
+  }
+
+  try {
+    const normalized = normalizeFlowMapState(state);
+    localStorage.setItem(workspaceFlowMapKey(normalizedWorkspaceId), JSON.stringify(normalized));
+  } catch {
+    // ignore
+  }
+};
+
+export const clearStoredWorkspaceFlowMap = (workspaceId) => {
+  const normalizedWorkspaceId = normalizeWorkspaceId(workspaceId);
+  if (!normalizedWorkspaceId) {
+    return;
+  }
+
+  try {
+    localStorage.removeItem(workspaceFlowMapKey(normalizedWorkspaceId));
   } catch {
     // ignore
   }

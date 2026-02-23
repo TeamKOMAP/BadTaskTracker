@@ -18,6 +18,8 @@ namespace TaskManager.Infrastructure.Data
         public DbSet<TaskTag> TaskTags { get; set; }
         public DbSet<EmailAuthCode> EmailAuthCodes { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<WorkspaceInvitation> WorkspaceInvitations { get; set; }
+        public DbSet<TaskAttachment> TaskAttachments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -28,6 +30,10 @@ namespace TaskManager.Infrastructure.Data
                 entity.HasKey(u => u.Id);
                 entity.Property(u => u.Name).IsRequired().HasMaxLength(100);
                 entity.Property(u => u.Email).IsRequired().HasMaxLength(100);
+                entity.Property(u => u.TimeZoneId).IsRequired().HasMaxLength(100).HasDefaultValue("UTC");
+                entity.Property(u => u.AvatarPath).HasMaxLength(400);
+                entity.Property(u => u.AvatarObjectKey).HasMaxLength(500);
+                entity.Property(u => u.NicknameChangedAtUtc);
                 entity.HasIndex(u => u.Email).IsUnique();
                 entity.Property(u => u.CreatedAt).HasDefaultValueSql("datetime('now')");
             });
@@ -37,6 +43,7 @@ namespace TaskManager.Infrastructure.Data
                 entity.HasKey(w => w.Id);
                 entity.Property(w => w.Name).IsRequired().HasMaxLength(120);
                 entity.Property(w => w.AvatarPath).HasMaxLength(400);
+                entity.Property(w => w.AvatarObjectKey).HasMaxLength(500);
                 entity.Property(w => w.CreatedAt).HasDefaultValueSql("datetime('now')");
 
                 entity.HasOne(w => w.CreatedByUser)
@@ -109,6 +116,23 @@ namespace TaskManager.Infrastructure.Data
                 entity.HasIndex(t => t.CompletedAt);
             });
 
+            modelBuilder.Entity<TaskAttachment>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.Id).HasMaxLength(64);
+                entity.Property(a => a.ObjectKey).IsRequired().HasMaxLength(500);
+                entity.Property(a => a.FileName).IsRequired().HasMaxLength(255);
+                entity.Property(a => a.ContentType).IsRequired().HasMaxLength(150);
+                entity.Property(a => a.UploadedAtUtc).IsRequired();
+
+                entity.HasOne(a => a.Task)
+                    .WithMany(t => t.Attachments)
+                    .HasForeignKey(a => a.TaskId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(a => new { a.TaskId, a.UploadedAtUtc });
+            });
+
             modelBuilder.Entity<Tag>(entity =>
             {
                 entity.HasKey(t => t.Id);
@@ -174,6 +198,9 @@ namespace TaskManager.Infrastructure.Data
                     .IsRequired()
                     .HasMaxLength(1000);
 
+                entity.Property(n => n.ActionUrl)
+                    .HasMaxLength(300);
+
                 entity.Property(n => n.CreatedAt)
                     .HasDefaultValueSql("datetime('now')");
 
@@ -187,9 +214,55 @@ namespace TaskManager.Infrastructure.Data
                     .HasForeignKey(n => n.TaskId)
                     .OnDelete(DeleteBehavior.SetNull);
 
+                entity.HasOne(n => n.Workspace)
+                    .WithMany()
+                    .HasForeignKey(n => n.WorkspaceId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
                 entity.HasIndex(n => n.UserId);
                 entity.HasIndex(n => new { n.UserId, n.IsRead });
+                entity.HasIndex(n => n.WorkspaceId);
                 entity.HasIndex(n => n.CreatedAt);
+            });
+
+            modelBuilder.Entity<WorkspaceInvitation>(entity =>
+            {
+                entity.HasKey(i => i.Id);
+
+                entity.Property(i => i.InvitedEmail)
+                    .IsRequired()
+                    .HasMaxLength(100);
+
+                entity.Property(i => i.Role)
+                    .IsRequired()
+                    .HasConversion<int>();
+
+                entity.Property(i => i.Status)
+                    .IsRequired()
+                    .HasConversion<int>();
+
+                entity.Property(i => i.CreatedAtUtc).IsRequired();
+                entity.Property(i => i.ExpiresAtUtc).IsRequired();
+
+                entity.HasOne(i => i.Workspace)
+                    .WithMany()
+                    .HasForeignKey(i => i.WorkspaceId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(i => i.InvitedByUser)
+                    .WithMany()
+                    .HasForeignKey(i => i.InvitedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(i => i.InvitedUser)
+                    .WithMany()
+                    .HasForeignKey(i => i.InvitedUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(i => new { i.WorkspaceId, i.InvitedEmail, i.Status });
+                entity.HasIndex(i => new { i.InvitedUserId, i.Status });
+                entity.HasIndex(i => i.ExpiresAtUtc);
+                entity.HasIndex(i => i.CreatedAtUtc);
             });
         }
     }

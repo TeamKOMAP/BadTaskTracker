@@ -1,0 +1,145 @@
+# Render Production Plan (Scenario 1)
+
+This runbook targets a fast production launch with the current architecture:
+
+- API: ASP.NET Core + SQLite (disk-backed)
+- Object storage: MinIO private service (disk-backed)
+- Deployment model: Render Blueprint (`render.yaml`)
+
+## 1. Target Architecture
+
+- `badtasktracker-api` (Render `web` service)
+  - Docker image from `TaskManager.API/Dockerfile`
+  - Public endpoint (`*.onrender.com`)
+  - Persistent disk mounted to `/var/data`
+  - SQLite DB file: `/var/data/TaskManager.db`
+  - Health endpoint: `/healthz`
+- `badtasktracker-minio` (Render `pserv` private service)
+  - Docker image: `quay.io/minio/minio:latest`
+  - Private endpoint on Render internal network
+  - Persistent disk mounted to `/data`
+  - MinIO API port: `10000`
+  - MinIO console port: `10001`
+
+## 2. Pre-Deploy Checklist
+
+1. Confirm branch is stable and merged to `dev`.
+2. Ensure CI passes (`dotnet build`, `dotnet test`).
+3. Rotate production secrets before public release:
+   - `Email__HttpApi__ApiKey`
+   - `Email__HttpApi__FromEmail`
+   - `MINIO_ROOT_USER`
+   - `MINIO_ROOT_PASSWORD`
+4. Decide migration mode:
+   - Fresh environment: keep `DatabaseStartup__MigrateLegacyFiles=false`
+   - Existing legacy file migration: temporarily enable `true`
+
+## 3. First Deployment on Render
+
+1. Push `render.yaml` to the deployment branch.
+2. In Render Dashboard, create a **Blueprint** from the repository.
+3. Verify env values from `render.yaml` were applied as expected.
+4. Wait until both services are healthy:
+   - API health check: `GET /healthz`
+   - MinIO service status: running and reachable internally
+
+## 4. Mandatory Production Variables
+
+Configured in `render.yaml`:
+
+- Runtime/network:
+  - `PORT=10000`
+  - `ASPNETCORE_ENVIRONMENT=Production`
+  - `ASPNETCORE_URLS=http://0.0.0.0:10000`
+  - `ASPNETCORE_FORWARDEDHEADERS_ENABLED=true`
+- Database:
+  - `ConnectionStrings__DefaultConnection=Data Source=/var/data/TaskManager.db`
+  - `DatabaseStartup__ApplyMigrations=true`
+  - `DatabaseStartup__Seed=false`
+  - `DatabaseStartup__MigrateLegacyFiles=false`
+- JWT:
+  - `Jwt__Issuer=GoodTaskTracker`
+  - `Jwt__Audience=GoodTaskTracker.Client`
+  - `Jwt__SigningKey` set in `render.yaml` (rotate after first deploy)
+- Email (HTTP API):
+  - `Email__Provider=HttpApi`
+  - `Email__HttpApi__Provider=Resend`
+  - `Email__HttpApi__BaseUrl=https://api.resend.com`
+  - `Email__HttpApi__SendPath=/emails`
+  - `Email__HttpApi__ApiKey` set in Render dashboard
+  - `Email__HttpApi__FromEmail` set in Render dashboard (verified sender)
+  - `Email__HttpApi__FromName=BadTaskTracker`
+- Storage:
+  - `Storage__Provider=S3`
+  - `Storage__Endpoint=http://badtasktracker-minio:10000`
+  - `Storage__PublicBucket=gtt-public`
+  - `Storage__PrivateBucket=gtt-private`
+  - `Storage__ForcePathStyle=true`
+  - `Storage__AccessKey` from MinIO env
+  - `Storage__SecretKey` from MinIO env
+
+## 5. Data Migration Paths
+
+### A) Fresh production (recommended for first launch)
+
+- Keep `DatabaseStartup__MigrateLegacyFiles=false`.
+- Start with empty SQLite and empty buckets.
+
+### B) Migrate existing local environment
+
+1. Copy SQLite file to API disk path (`/var/data/TaskManager.db`).
+2. Copy existing MinIO object data to new MinIO service (or re-upload through app flows).
+3. If you still have old legacy files (`wwwroot/uploads`, `App_Data/attachments`), temporarily set:
+   - `DatabaseStartup__MigrateLegacyFiles=true`
+4. Redeploy once.
+5. Verify migrated avatars/attachments.
+6. Set `DatabaseStartup__MigrateLegacyFiles=false` and redeploy.
+
+## 6. Post-Deploy Smoke Tests
+
+Run these checks in order:
+
+1. Auth:
+   - request email code
+   - verify code
+   - open workspace page
+2. Avatars:
+   - upload user avatar
+   - upload workspace avatar
+   - delete both avatars
+3. Attachments:
+   - upload attachment
+   - download attachment
+   - delete attachment
+4. Core flows:
+   - create/update/delete task
+   - reports endpoints
+   - invites flow
+
+## 7. Operations and Reliability
+
+- Persistent disks disable zero-downtime deploys; short downtime on deploy is expected.
+- Keep a single API instance while using SQLite disk.
+- Backup strategy:
+  - Render disk snapshots (API + MinIO)
+  - additional periodic export of MinIO objects
+- Monitoring:
+  - `5xx` and `429` rates
+  - failed avatar/attachment uploads
+  - health endpoint latency
+
+## 8. Rollback Plan
+
+1. Roll back API to previous deploy from Render dashboard.
+2. If data corruption occurred:
+   - restore API disk snapshot
+   - restore MinIO disk snapshot
+3. Re-run smoke tests before reopening traffic.
+
+## 9. Next Evolution (after quick launch)
+
+Move to target architecture:
+
+- Render Postgres instead of SQLite disk
+- external S3/R2 instead of self-hosted MinIO
+- separate background worker for scheduled jobs

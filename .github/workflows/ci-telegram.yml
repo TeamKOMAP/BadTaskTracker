@@ -1,14 +1,39 @@
-name: 🚀 CI/CD with Telegram
+name: CI/CD with Telegram
 
 on:
   push:
-    branches: [ main, develop, helpme, feature/* ]
+    branches: [ main, dev, feature/* ]
   pull_request:
-    branches: [ main, develop, helpme ]
+    branches: [ main, dev ]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    
+    env:
+      DatabaseStartup__ApplyMigrations: false
+      DatabaseStartup__Seed: false
+    
+    outputs:
+      build_status: ${{ steps.build.outcome }}
+      unit_total: ${{ steps.unit-tests.outputs.total }}
+      unit_passed: ${{ steps.unit-tests.outputs.passed }}
+      unit_failed: ${{ steps.unit-tests.outputs.failed }}
+      auth_total: ${{ steps.auth-tests.outputs.total }}
+      auth_passed: ${{ steps.auth-tests.outputs.passed }}
+      auth_failed: ${{ steps.auth-tests.outputs.failed }}
+      tasks_total: ${{ steps.tasks-tests.outputs.total }}
+      tasks_passed: ${{ steps.tasks-tests.outputs.passed }}
+      tasks_failed: ${{ steps.tasks-tests.outputs.failed }}
+      reports_total: ${{ steps.reports-tests.outputs.total }}
+      reports_passed: ${{ steps.reports-tests.outputs.passed }}
+      reports_failed: ${{ steps.reports-tests.outputs.failed }}
+      invites_total: ${{ steps.invites-tests.outputs.total }}
+      invites_passed: ${{ steps.invites-tests.outputs.passed }}
+      invites_failed: ${{ steps.invites-tests.outputs.failed }}
+      other_total: ${{ steps.other-tests.outputs.total }}
+      other_passed: ${{ steps.other-tests.outputs.passed }}
+      other_failed: ${{ steps.other-tests.outputs.failed }}
     
     steps:
     - uses: actions/checkout@v4
@@ -22,27 +47,102 @@ jobs:
       run: dotnet restore
     
     - name: Build
+      id: build
       run: dotnet build --no-restore --configuration Release
     
-    - name: Test
-      run: dotnet test --verbosity normal
-      continue-on-error: true
+    - name: Unit Tests
+      id: unit-tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Unit" \
+          --verbosity normal 2>&1 | tee output.txt || true
+        
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
     
+    - name: Auth Tests
+      id: auth-tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Auth" \
+          --verbosity normal 2>&1 | tee output.txt || true
+        
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+    
+    - name: Tasks Tests
+      id: tasks-tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Tasks" \
+          --verbosity normal 2>&1 | tee output.txt || true
+        
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+    
+    - name: Reports Tests
+      id: reports-tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Reports" \
+          --verbosity normal 2>&1 | tee output.txt || true
+        
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+    
+    - name: Invites Tests
+      id: invites-tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Invites" \
+          --verbosity normal 2>&1 | tee output.txt || true
+        
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+    
+    - name: Other Tests
+      id: other-tests
+      run: |
+        dotnet test --no-build --configuration Release \
+          --filter "Category=Other" \
+          --verbosity normal 2>&1 | tee output.txt || true
+        
+        echo "total=$(grep -oP 'Total tests:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "passed=$(grep -oP 'Passed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+        echo "failed=$(grep -oP 'Failed:\s*\K\d+' output.txt || echo "0")" >> $GITHUB_OUTPUT
+
+  notify-telegram:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
     - name: Notify Telegram
-      if: always()
       uses: appleboy/telegram-action@master
       with:
         to: ${{ secrets.TELEGRAM_CHAT_ID }}
         token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         format: markdown
         message: |
-          ${{ job.status == 'success' && '✅ УСПЕХ' || '❌ ПРОВАЛ' }}
+          ${{ needs.build-and-test.outputs.unit_failed == '0' && needs.build-and-test.outputs.auth_failed == '0' && needs.build-and-test.outputs.tasks_failed == '0' && needs.build-and-test.outputs.reports_failed == '0' && needs.build-and-test.outputs.invites_failed == '0' && needs.build-and-test.outputs.other_failed == '0' && needs.build-and-test.outputs.build_status == 'success' && '✅ ВСЕ ТЕСТЫ ПРОЙДЕНЫ' || '❌ ЕСТЬ ПРОБЛЕМЫ' }}
           
-          ${{ github.repository }}
-          ${{ github.event_name == 'pull_request' && '🔀 PR' || '🔨 Push' }} to ${{ github.ref_name }}
+          📁 ${{ github.repository }}
+          ${{ github.event_name == 'pull_request' && '🔀 PR' || '🔨' }} to ${{ github.ref_name }}
           
-          👤 ${{ github.actor }} | 🔖 ${{ github.sha }}[:7]
+          👤 ${{ github.actor }}
+          
+          📦 *Unit:* ${{ needs.build-and-test.outputs.unit_passed }}/${{ needs.build-and-test.outputs.unit_total }}${{ needs.build-and-test.outputs.unit_failed != '0' && ' ❌' || '' }}
+          🔐 *Auth:* ${{ needs.build-and-test.outputs.auth_passed }}/${{ needs.build-and-test.outputs.auth_total }}${{ needs.build-and-test.outputs.auth_failed != '0' && ' ❌' || '' }}
+          📝 *Tasks:* ${{ needs.build-and-test.outputs.tasks_passed }}/${{ needs.build-and-test.outputs.tasks_total }}${{ needs.build-and-test.outputs.tasks_failed != '0' && ' ❌' || '' }}
+          📊 *Reports:* ${{ needs.build-and-test.outputs.reports_passed }}/${{ needs.build-and-test.outputs.reports_total }}${{ needs.build-and-test.outputs.reports_failed != '0' && ' ❌' || '' }}
+          📧 *Invites:* ${{ needs.build-and-test.outputs.invites_passed }}/${{ needs.build-and-test.outputs.invites_total }}${{ needs.build-and-test.outputs.invites_failed != '0' && ' ❌' || '' }}
+          🔧 *Other:* ${{ needs.build-and-test.outputs.other_passed }}/${{ needs.build-and-test.outputs.other_total }}${{ needs.build-and-test.outputs.other_failed != '0' && ' ❌' || '' }}
           
           📝 ${{ github.event.head_commit.message || github.event.pull_request.title }}
           
-          [Actions](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+          📄 [Лог сборки](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})

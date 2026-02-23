@@ -5,6 +5,7 @@ using Xunit;
 
 namespace TaskManager.Tests.UnitTests
 {
+    [Trait("Category", "Unit")]
     public class TaskItemIsOverdueTests
     {
         [Fact]

@@ -25,5 +25,27 @@ namespace TaskManager.Application.Interfaces
         Task<StatusSummaryDto> GetStatusSummaryAsync(int workspaceId, DateTime utcNow, CancellationToken cancellationToken = default);
         Task<IReadOnlyList<OverdueTaskAssigneeRowDto>> GetOverdueTaskRowsAsync(int workspaceId, DateTime utcNow, CancellationToken cancellationToken = default);
         Task<AverageCompletionTimeDto> GetAverageCompletionTimeStatsAsync(int workspaceId, CancellationToken cancellationToken = default);
+        
+        /// <summary>
+        /// Gets tasks that need deadline notifications (due soon and notification not sent yet).
+        /// </summary>
+        /// <param name="rangeStartUtc">Start of due date range.</param>
+        /// <param name="rangeEndUtc">End of due date range.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>List of tasks with assignees that need notifications.</returns>
+        Task<IEnumerable<TaskItem>> GetTasksForDeadlineNotificationAsync(
+            DateTime rangeStartUtc,
+            DateTime rangeEndUtc,
+            CancellationToken cancellationToken = default);
+        
+        /// <summary>
+        /// Marks tasks as having deadline notification sent.
+        /// </summary>
+        /// <param name="taskIds">IDs of tasks to mark.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>Number of tasks updated.</returns>
+        Task<int> MarkDeadlineNotificationsSentAsync(
+            IEnumerable<int> taskIds,
+            CancellationToken cancellationToken = default);
     }
 }

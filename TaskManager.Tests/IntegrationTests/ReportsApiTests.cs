@@ -12,6 +12,7 @@ using Xunit;
 
 namespace TaskManager.Tests.IntegrationTests
 {
+    [Trait("Category", "Reports")]
     public class ReportsApiTests : TestBase
     {
         public ReportsApiTests(WebApplicationFactory<Program> factory) : base(factory) { }

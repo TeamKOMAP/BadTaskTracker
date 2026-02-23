@@ -235,3 +235,23 @@ body[data-theme="light"] .auth-inline-alert {
     width: 100%;
   }
 }
+.auth-page .ghost-btn.is-disabled,
+.auth-page .ghost-btn[aria-disabled="true"],
+.auth-page .ghost-btn:disabled,
+.auth-page .ghost-btn[disabled] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+  color: var(--text-3);
+  border-color: var(--stroke);
+  background: rgba(16, 22, 30, 0.35);
+  box-shadow: none;
+  transform: none;
+}
+
+body[data-theme="light"] .auth-page .ghost-btn.is-disabled,
+body[data-theme="light"] .auth-page .ghost-btn[aria-disabled="true"],
+body[data-theme="light"] .auth-page .ghost-btn:disabled,
+body[data-theme="light"] .auth-page .ghost-btn[disabled] {
+  background: rgba(255, 255, 255, 0.55);
+}

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GoodTaskTracker - Приглашения</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css?v=base6">
+  <link rel="stylesheet" href="css/components.css?v=comp2">
+  <link rel="stylesheet" href="css/workspace.css?v=perf60">
+  <link rel="stylesheet" href="css/invites.css?v=inv1">
+</head>
+
+<body data-theme="dark">
+  <div class="app-shell" id="app-shell">
+    <div class="page">
+      <header class="topbar">
+        <div class="brand-stack">
+          <button class="brand-mark" id="invites-avatar" type="button" aria-label="Иконка приглашений">IN</button>
+          <div class="brand" aria-label="Приглашения">
+            <div class="brand-text">
+              <span class="brand-kicker">Уведомления</span>
+              <span class="brand-title" id="invites-title">Приглашения в проекты</span>
+            </div>
+          </div>
+          <a class="spaces-back-link" id="invites-back" href="index.html" aria-label="Назад">&lt; Назад</a>
+        </div>
+
+        <div class="topbar-right">
+          <div class="reports-meta">
+            <span class="user-label">Аккаунт</span>
+            <span class="user-name" id="invites-account">-</span>
+          </div>
+        </div>
+      </header>
+
+      <main class="invites" aria-label="Список приглашений">
+        <section class="invite-card" aria-label="Входящие приглашения">
+          <header class="invite-head">
+            <h2 class="invite-title">Входящие приглашения</h2>
+            <span class="invite-sub">Примите или отклоните приглашение</span>
+          </header>
+          <div class="invite-body">
+            <div class="invite-list" id="invites-list"></div>
+            <div class="invite-empty" id="invites-empty" hidden>У вас нет активных приглашений.</div>
+          </div>
+        </section>
+      </main>
+
+      <div class="invites-toast" id="invites-toast" hidden></div>
+
+      <footer class="app-footer" aria-label="Футер">
+        <div class="app-footer-bar">
+          <a class="app-footer-gh" href="https://github.com/TeamKOMAP/BadTaskTracker" target="_blank" rel="noopener noreferrer" aria-label="GitHub TeamKOMAP" title="GitHub">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 2C6.477 2 2 6.498 2 12.053c0 4.445 2.865 8.214 6.839 9.545.5.094.682-.217.682-.482 0-.238-.009-.868-.014-1.704-2.782.61-3.369-1.35-3.369-1.35-.455-1.168-1.11-1.48-1.11-1.48-.908-.628.069-.616.069-.616 1.003.071 1.531 1.036 1.531 1.036.892 1.54 2.341 1.095 2.91.837.091-.65.35-1.095.636-1.347-2.22-.255-4.555-1.12-4.555-4.986 0-1.101.39-2.002 1.029-2.706-.103-.255-.446-1.283.098-2.673 0 0 .84-.27 2.75 1.034a9.4 9.4 0 0 1 2.504-.34c.85.004 1.705.116 2.504.34 1.909-1.304 2.748-1.034 2.748-1.034.546 1.39.203 2.418.1 2.673.64.704 1.028 1.605 1.028 2.706 0 3.876-2.339 4.728-4.566 4.978.36.312.68.929.68 1.873 0 1.352-.012 2.443-.012 2.775 0 .268.18.58.688.481A10.01 10.01 0 0 0 22 12.053C22 6.498 17.523 2 12 2z"/>
+            </svg>
+          </a>
+          <span>Copyright © 2026</span>
+          <span>made by <a href="https://github.com/TeamKOMAP" target="_blank" rel="noopener noreferrer">тЮМЕНЬ</a></span>
+        </div>
+      </footer>
+    </div>
+  </div>
+
+  <script type="module" src="js/invites/main.js?v=inv3"></script>
+</body>
+</html>

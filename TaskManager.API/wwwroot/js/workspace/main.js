@@ -15,13 +15,36 @@ import {
   styleSwitch,
   styleToggleTitleEl,
   styleToggleSubEl,
+  boardToolbar,
+  boardSearchInput,
+  boardSearchTags,
+  boardSearchClearBtn,
+  boardSortToggleBtn,
+  boardFilterToggleBtn,
+  boardTagsToggleBtn,
+  boardSortMenu,
+  boardFilterPanel,
+  boardTagsMenu,
+  boardFilterResetBtn,
+  boardTagsClearBtn,
+  boardTagsList,
+  boardTagsEmptyEl,
+  boardTaskCreateBtn,
+  taskGrid,
+  taskGridItems,
+  taskGridEmptyEl,
+  taskGridSubEl,
   taskTrashZone,
   flowLayout,
   flowCanvas,
+  flowScene,
   flowLinks,
+  flowNodesLayer,
   flowDropzone,
   flowListItems,
   flowAddTaskBtn,
+  flowClearBtn,
+  flowClearMenu,
   calendarLayout,
   taskModal,
   taskForm,
@@ -39,11 +62,14 @@ import {
   userEmpty,
   userAddInput,
   userAddBtn,
+  userAddSection,
   panelWorkspace,
   panelWorkspaceNameEl,
   panelWorkspaceEditBtn,
   panelWorkspaceAvatarEl,
   panelWorkspaceAvatarInput,
+  panelWorkspaceDanger,
+  panelWorkspaceDeleteBtn,
   accountAvatarEl,
   accountAvatarTextEl,
   settingsPanel,
@@ -51,8 +77,13 @@ import {
   notificationsPanel,
   notificationsToggleBtn,
   notificationsCloseBtn,
+  notificationsList,
+  notificationsEmpty,
+  notificationsMarkAllBtn,
   logoutBtn,
   settingsNicknameInput,
+  settingsNicknameSaveBtn,
+  settingsNicknameCooldownEl,
   settingsAvatarPreview,
   settingsAvatarPreviewTextEl,
   settingsAvatarInput,
@@ -69,8 +100,12 @@ import {
   taskFormSubmitBtn,
   taskDetailModal,
   taskDetailEditBtn,
+  taskDetailApproveBtn,
+  taskDetailRejectBtn,
   taskDetailPhotoBtn,
   taskDetailPhotoClearBtn,
+  taskDetailHistoryToggleBtn,
+  taskDetailHistoryClearBtn,
   taskAttachBtn,
   taskAttachmentsInput,
   taskBgInput,
@@ -79,8 +114,11 @@ import {
   confirmModalTitleEl,
   confirmModalMessageEl,
   confirmModalCancelBtn,
-  confirmModalAcceptBtn
-} from "./dom.js?v=authflow3";
+  confirmModalAcceptBtn,
+  confirmModalInputWrap,
+  confirmModalInputHintEl,
+  confirmModalInputEl
+} from "./dom.js?v=authflow12";
 
 import {
   buildApiUrl,
@@ -102,11 +140,10 @@ import {
   URGENCY
 } from "../shared/constants.js";
 import { navigateToSpacesPage } from "../shared/navigation.js";
-import { normalizeToken, normalizeEmail, toInitials, toWorkspaceRole, clampValue } from "../shared/utils.js";
+import { normalizeToken, toInitials, toWorkspaceRole, clampValue } from "../shared/utils.js";
 import { getRoleLabel } from "../shared/roles.js?v=auth1";
+import { createNotificationsPanelController } from "../shared/notifications.js?v=notif3";
 import {
-  getStoredAccountNickname,
-  setStoredAccountNickname,
   getStoredAccountAvatar,
   setStoredAccountAvatar,
   applyAccountAvatarToElement
@@ -125,28 +162,34 @@ import {
   getUrgency,
   formatDurationShort,
   formatDueLabel,
+  formatCardDueLabel,
   parseTagIds,
   addUniqueToken,
   parseTags,
   buildTaskKey,
   buildFlowNote,
   getCalendarBucketId
-} from "./helpers.js?v=authflow3";
+} from "./helpers.js?v=authflow7";
 import {
   getPreferredTheme,
   setTheme,
   getStoredTaskMeta,
   setStoredTaskMeta,
   getStoredTaskBg,
+  appendStoredTaskHistory,
   clearStoredTaskArtifacts,
   getStoredWorkspaceColumns,
-  setStoredWorkspaceColumns
-} from "./storage.js?v=authflow2";
-import { createBoardViewController } from "./board-view.js?v=perf1";
-import { createCalendarViewController } from "./calendar-view.js?v=perf1";
-import { createPriorityViewController } from "./priority-view.js?v=perf2";
-import { createFlowEditorController } from "./flow-editor.js?v=perf1";
-import { createTaskDetailController } from "./task-detail.js?v=perf8";
+  setStoredWorkspaceColumns,
+  getStoredWorkspaceFlowMap,
+  setStoredWorkspaceFlowMap
+} from "./storage.js?v=authflow7";
+import { createBoardViewController } from "./board-view.js?v=perf2";
+import { createCalendarViewController } from "./calendar-view.js?v=perf2";
+import { createPriorityViewController } from "./priority-view.js?v=perf3";
+import { createFlowEditorController } from "./flow-editor.js?v=perf6";
+import { createTaskDetailController } from "./task-detail.js?v=perf14";
+import { createInviteControls } from "./invite-controls.js?v=invctrl1";
+import { createProfileModalsController } from "./profile-modals.js?v=profile2";
 
 let lastNormalizedTasks = [];
 
@@ -154,6 +197,22 @@ let currentAssigneeIdFilter = null;
 let currentUserId = null;
 let currentWorkspaceId = null;
 let currentWorkspaceRole = "Member";
+
+const notificationsController = createNotificationsPanelController({
+  toggleBtn: notificationsToggleBtn,
+  listEl: notificationsList,
+  emptyEl: notificationsEmpty,
+  markAllBtn: notificationsMarkAllBtn,
+  returnTo: "workspace",
+  resolveWorkspaceId: () => currentWorkspaceId
+});
+
+let toolbarQuery = "";
+let toolbarSort = "smart";
+const toolbarStatusFilter = new Set();
+const toolbarPriorityFilter = new Set();
+const toolbarTagFilter = new Set();
+let toolbarSearchDebounceId = null;
 
 let panelWorkspaceEditing = false;
 
@@ -186,6 +245,92 @@ const setWorkspaceEditing = (editing) => {
   }
 };
 let actorUser = null;
+let nicknameSaveInFlight = false;
+let nicknameCooldownEndsAt = 0;
+let nicknameCooldownTimerHandle = null;
+let nicknameStatusMessage = "";
+let nicknameStatusIsError = false;
+
+let workspaceMembers = [];
+
+let inviteControls = null;
+let taskDetailController = null;
+
+const canCreateTasks = () => isAdmin();
+
+const canManageColumns = () => isAdmin();
+
+const applyColumnPermissions = (column) => {
+  if (!(column instanceof Element)) return;
+  const canManage = canManageColumns();
+
+  const handle = column.querySelector(".column-handle");
+  if (handle instanceof HTMLButtonElement) {
+    handle.draggable = canManage;
+    handle.toggleAttribute("hidden", !canManage);
+  }
+
+  const title = column.querySelector(".column-title");
+  if (title instanceof HTMLElement) {
+    title.setAttribute("contenteditable", canManage ? "true" : "false");
+  }
+
+  const deleteBtn = column.querySelector(".column-delete");
+  if (deleteBtn instanceof HTMLButtonElement) {
+    deleteBtn.disabled = !canManage;
+    deleteBtn.toggleAttribute("hidden", !canManage);
+  }
+};
+
+const refreshBoardPermissionsUi = () => {
+  const canCreate = canCreateTasks();
+  const canColumns = canManageColumns();
+
+  const toolbarRight = boardToolbar?.querySelector?.(".board-toolbar-right");
+  if (toolbarRight instanceof HTMLElement) {
+    toolbarRight.toggleAttribute("hidden", !canCreate && !canColumns);
+  }
+
+  if (boardTaskCreateBtn instanceof HTMLButtonElement) {
+    boardTaskCreateBtn.toggleAttribute("hidden", !canCreate);
+    boardTaskCreateBtn.disabled = !canCreate;
+  }
+
+  if (flowAddTaskBtn instanceof HTMLButtonElement) {
+    flowAddTaskBtn.toggleAttribute("hidden", !canCreate);
+    flowAddTaskBtn.disabled = !canCreate;
+  }
+
+  if (addColumnControl instanceof HTMLElement) {
+    addColumnControl.toggleAttribute("hidden", !canColumns);
+  }
+  if (addColumnBtn instanceof HTMLButtonElement) {
+    addColumnBtn.toggleAttribute("hidden", !canColumns);
+    addColumnBtn.disabled = !canColumns;
+  }
+  if (addColumnMenu instanceof HTMLElement && !canColumns) {
+    addColumnMenu.setAttribute("hidden", "");
+  }
+  if (!canColumns) {
+    closeAddColumnMenu();
+  }
+
+  if (columnsWrap) {
+    Array.from(columnsWrap.querySelectorAll(".column")).forEach(applyColumnPermissions);
+  }
+};
+
+const refreshInviteControlsState = () => {
+  inviteControls?.refresh();
+};
+
+const truncateLabel = (value, maxLen) => {
+  const text = String(value || "");
+  const max = Number.isFinite(Number(maxLen)) ? Number(maxLen) : 24;
+  if (text.length <= max) return text;
+  if (max <= 1) return text.slice(0, 1);
+  return `${text.slice(0, Math.max(1, max - 3)).trim()}...`;
+};
 
 let tagsLoaded = false;
 let tagList = [];
@@ -198,7 +343,451 @@ const getActorUserId = () => {
   return Number.isFinite(id) && id > 0 ? id : null;
 };
 
+const getToolbarQueryTokens = () => {
+  return normalizeToken(toolbarQuery)
+    .toLowerCase()
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+};
+
+const normalizeTag = (value) => {
+  const raw = normalizeToken(value);
+  if (!raw) return "";
+  return raw.replace(/^#+/, "").trim().toLowerCase();
+};
+
+const getTaskNormalizedTags = (taskData) => {
+  const tags = Array.isArray(taskData?.tags) ? taskData.tags : [];
+  const set = new Set();
+  tags.forEach((t) => {
+    const token = normalizeTag(t);
+    if (token) set.add(token);
+  });
+  return set;
+};
+
+const getAssigneeLabelById = (assigneeId) => {
+  const id = Number.parseInt(String(assigneeId ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return "";
+
+  const match = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === id);
+  if (!match) return "";
+  return normalizeToken(match.name) || "";
+};
+
+const PRIORITY_HISTORY_LABELS = {
+  1: "Низкий",
+  2: "Средний",
+  3: "Высокий"
+};
+
+const formatPriorityForHistory = (value) => {
+  const key = toPriorityValue(value);
+  return PRIORITY_HISTORY_LABELS[key] || "Средний";
+};
+
+const formatDueForHistory = (iso) => {
+  const token = normalizeToken(iso);
+  if (!token) return "Без срока";
+  const date = new Date(token);
+  if (Number.isNaN(date.getTime())) return "Без срока";
+  return date.toLocaleString([], {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+};
+
+const buildTaskHistoryLines = (before, after) => {
+  const lines = [];
+  if (!before || !after) return lines;
+
+  const beforeTitle = normalizeToken(before.title);
+  const afterTitle = normalizeToken(after.title);
+  if (beforeTitle !== afterTitle && (beforeTitle || afterTitle)) {
+    lines.push(`Название: ${beforeTitle || "-"} -> ${afterTitle || "-"}`);
+  }
+
+  const beforeDesc = normalizeToken(before.description);
+  const afterDesc = normalizeToken(after.description);
+  if (beforeDesc !== afterDesc) {
+    lines.push("Описание: изменено");
+  }
+
+  const beforeStatus = toStatusValue(before.statusValue ?? before.status);
+  const afterStatus = toStatusValue(after.statusValue ?? after.status);
+  if (beforeStatus !== afterStatus) {
+    lines.push(`Статус: ${(STATUS_LABELS[beforeStatus] || "-")} -> ${(STATUS_LABELS[afterStatus] || "-")}`);
+  }
+
+  const beforePriority = toPriorityValue(before.priorityValue ?? before.priority);
+  const afterPriority = toPriorityValue(after.priorityValue ?? after.priority);
+  if (beforePriority !== afterPriority) {
+    lines.push(`Приоритет: ${formatPriorityForHistory(beforePriority)} -> ${formatPriorityForHistory(afterPriority)}`);
+  }
+
+  const beforeAssigneeId = Number.parseInt(String(before.assigneeId ?? ""), 10);
+  const afterAssigneeId = Number.parseInt(String(after.assigneeId ?? ""), 10);
+  const beforeAssigneeLabel = Number.isFinite(beforeAssigneeId) && beforeAssigneeId > 0 ? getAssigneeLabelById(beforeAssigneeId) : "Все";
+  const afterAssigneeLabel = Number.isFinite(afterAssigneeId) && afterAssigneeId > 0 ? getAssigneeLabelById(afterAssigneeId) : "Все";
+  if (beforeAssigneeId !== afterAssigneeId) {
+    lines.push(`Исполнитель: ${beforeAssigneeLabel || "-"} -> ${afterAssigneeLabel || "-"}`);
+  }
+
+  const beforeDue = normalizeToken(before.dueDate);
+  const afterDue = normalizeToken(after.dueDate);
+  if (beforeDue !== afterDue) {
+    lines.push(`Срок: ${formatDueForHistory(beforeDue)} -> ${formatDueForHistory(afterDue)}`);
+  }
+
+  const beforeTags = new Set((Array.isArray(before.tags) ? before.tags : []).map((t) => normalizeToken(t)).filter(Boolean));
+  const afterTags = new Set((Array.isArray(after.tags) ? after.tags : []).map((t) => normalizeToken(t)).filter(Boolean));
+  const added = Array.from(afterTags).filter((t) => !beforeTags.has(t));
+  const removed = Array.from(beforeTags).filter((t) => !afterTags.has(t));
+  if (added.length || removed.length) {
+    if (added.length) lines.push(`Теги: +${added.join(", ")}`);
+    if (removed.length) lines.push(`Теги: -${removed.join(", ")}`);
+  }
+
+  const beforeAttach = Number(before.attachmentCount) || 0;
+  const afterAttach = Number(after.attachmentCount) || 0;
+  if (beforeAttach !== afterAttach) {
+    lines.push(`Вложения: ${beforeAttach} -> ${afterAttach}`);
+  }
+
+  return lines;
+};
+
+const recordTaskHistory = (taskId, entry) => {
+  const id = Number.parseInt(String(taskId ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return;
+  appendStoredTaskHistory(id, entry);
+  if (typeof taskDetailController?.notifyTaskHistoryChanged === "function") {
+    taskDetailController.notifyTaskHistoryChanged(id);
+  }
+};
+
+const isTaskMatchingToolbarFilters = (taskData) => {
+  if (!taskData) return false;
+
+  const tokens = getToolbarQueryTokens();
+  if (tokens.length) {
+    const title = normalizeToken(taskData.title).toLowerCase();
+    const description = normalizeToken(taskData.description).toLowerCase();
+    const tags = (Array.isArray(taskData.tags) ? taskData.tags : [])
+      .map((t) => normalizeToken(t).toLowerCase())
+      .filter(Boolean)
+      .join(" ");
+    const assignee = getAssigneeLabelById(taskData.assigneeId).toLowerCase();
+    const haystack = `${title} ${description} ${tags} ${assignee}`.trim();
+    const matches = tokens.every((token) => haystack.includes(token));
+    if (!matches) return false;
+  }
+
+  if (toolbarTagFilter.size) {
+    const tagSet = getTaskNormalizedTags(taskData);
+    for (const tag of toolbarTagFilter) {
+      if (!tagSet.has(tag)) {
+        return false;
+      }
+    }
+  }
+
+  const statusValue = toStatusValue(taskData.statusValue ?? taskData.status);
+  if (toolbarStatusFilter.size && !toolbarStatusFilter.has(statusValue)) {
+    return false;
+  }
+
+  const priorityValue = toPriorityValue(taskData.priorityValue ?? taskData.priority);
+  if (toolbarPriorityFilter.size && !toolbarPriorityFilter.has(priorityValue)) {
+    return false;
+  }
+
+  return true;
+};
+
+const isToolbarFilteringActive = () => {
+  return Boolean(getToolbarQueryTokens().length)
+    || toolbarStatusFilter.size > 0
+    || toolbarPriorityFilter.size > 0
+    || toolbarTagFilter.size > 0
+    || (normalizeToken(toolbarSort) && toolbarSort !== "smart");
+};
+
+const isToolbarSearchOrFilterActive = () => {
+  return Boolean(getToolbarQueryTokens().length)
+    || toolbarStatusFilter.size > 0
+    || toolbarPriorityFilter.size > 0
+    || toolbarTagFilter.size > 0;
+};
+
+const renderToolbarTagFilterUi = () => {
+  if (!boardSearchTags) return;
+  boardSearchTags.innerHTML = "";
+  const tags = Array.from(toolbarTagFilter.values());
+  if (!tags.length) return;
+
+  const fragment = document.createDocumentFragment();
+  tags.forEach((tag) => {
+    const pill = document.createElement("span");
+    pill.className = "board-search-tag";
+    pill.dataset.tag = tag;
+    const label = document.createElement("span");
+    label.textContent = tag;
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "board-search-tag-remove";
+    remove.setAttribute("aria-label", `Убрать тег ${tag}`);
+    remove.title = "Убрать";
+    remove.innerHTML = `
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 7l10 10M17 7L7 17" />
+      </svg>
+    `;
+    remove.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      toolbarTagFilter.delete(tag);
+      syncTaskStateToUi();
+    });
+
+    pill.append(label, remove);
+    fragment.appendChild(pill);
+  });
+  boardSearchTags.appendChild(fragment);
+};
+
+const refreshSearchClearUi = () => {
+  if (!boardSearchClearBtn) return;
+  const active = Boolean(normalizeToken(boardSearchInput?.value))
+    || toolbarTagFilter.size > 0;
+  boardSearchClearBtn.toggleAttribute("hidden", !active);
+};
+
+const setGridOverlayActive = (active) => {
+  if (!board) return;
+  const next = Boolean(active);
+  if (next) {
+    board.dataset.overlay = "grid";
+    if (taskGrid) taskGrid.removeAttribute("hidden");
+  } else {
+    delete board.dataset.overlay;
+    if (taskGrid) taskGrid.setAttribute("hidden", "");
+  }
+};
+
+const renderTaskGridView = (tasks) => {
+  if (!taskGridItems || !taskGridEmptyEl) return;
+  taskGridItems.innerHTML = "";
+  taskGridEmptyEl.hidden = true;
+
+  const list = Array.isArray(tasks) ? tasks : [];
+  if (taskGridSubEl) {
+    taskGridSubEl.textContent = `${list.length} задач`;
+  }
+  if (!list.length) {
+    taskGridEmptyEl.hidden = false;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  list.forEach((taskData) => {
+    const card = createTaskCard(taskData);
+    if (!(card instanceof Element)) return;
+    fragment.appendChild(card);
+  });
+  taskGridItems.appendChild(fragment);
+};
+
+const getDueTime = (task) => {
+  const due = task?.dueDate ? new Date(task.dueDate) : null;
+  const time = due && !Number.isNaN(due.getTime()) ? due.getTime() : Number.POSITIVE_INFINITY;
+  return time;
+};
+
+const compareTasks = (a, b, sortId) => {
+  const mode = normalizeToken(sortId) || "smart";
+  if (mode === "title") {
+    return String(a?.title || "").localeCompare(String(b?.title || ""));
+  }
+
+  if (mode === "priority") {
+    const ap = toPriorityValue(a?.priorityValue ?? a?.priority);
+    const bp = toPriorityValue(b?.priorityValue ?? b?.priority);
+    if (ap !== bp) return bp - ap;
+    const ad = getDueTime(a);
+    const bd = getDueTime(b);
+    if (ad !== bd) return ad - bd;
+    return String(a?.title || "").localeCompare(String(b?.title || ""));
+  }
+
+  if (mode === "due") {
+    const ad = getDueTime(a);
+    const bd = getDueTime(b);
+    if (ad !== bd) return ad - bd;
+    const ap = toPriorityValue(a?.priorityValue ?? a?.priority);
+    const bp = toPriorityValue(b?.priorityValue ?? b?.priority);
+    if (ap !== bp) return bp - ap;
+    return String(a?.title || "").localeCompare(String(b?.title || ""));
+  }
+
+  // smart
+  const ad = getDueTime(a);
+  const bd = getDueTime(b);
+  if (ad !== bd) return ad - bd;
+  const ap = toPriorityValue(a?.priorityValue ?? a?.priority);
+  const bp = toPriorityValue(b?.priorityValue ?? b?.priority);
+  if (ap !== bp) return bp - ap;
+  return String(a?.title || "").localeCompare(String(b?.title || ""));
+};
+
+const compareTasksForToolbar = (a, b) => compareTasks(a, b, toolbarSort);
+
+const getVisibleSortedTasks = (tasks) => {
+  const source = Array.isArray(tasks) ? tasks : lastNormalizedTasks;
+  const filtered = source
+    .filter((task) => isTaskVisibleWithCurrentFilters(task))
+    .filter((task) => isTaskMatchingToolbarFilters(task));
+  return filtered.slice().sort(compareTasksForToolbar);
+};
+
+const closeToolbarPopovers = () => {
+  let closed = false;
+
+  if (boardSortMenu && !boardSortMenu.hasAttribute("hidden")) {
+    boardSortMenu.setAttribute("hidden", "");
+    closed = true;
+  }
+  if (boardFilterPanel && !boardFilterPanel.hasAttribute("hidden")) {
+    boardFilterPanel.setAttribute("hidden", "");
+    closed = true;
+  }
+  if (boardTagsMenu && !boardTagsMenu.hasAttribute("hidden")) {
+    boardTagsMenu.setAttribute("hidden", "");
+    closed = true;
+  }
+
+  if (boardSortToggleBtn) {
+    boardSortToggleBtn.setAttribute("aria-expanded", "false");
+  }
+  if (boardFilterToggleBtn) {
+    boardFilterToggleBtn.setAttribute("aria-expanded", "false");
+  }
+  if (boardTagsToggleBtn) {
+    boardTagsToggleBtn.setAttribute("aria-expanded", "false");
+  }
+
+  return closed;
+};
+
+const refreshToolbarUiState = () => {
+  renderToolbarTagFilterUi();
+  refreshSearchClearUi();
+  if (boardSortMenu) {
+    Array.from(boardSortMenu.querySelectorAll(".board-popover-item[data-sort]")).forEach((btn) => {
+      const id = normalizeToken(btn.dataset.sort) || "smart";
+      btn.classList.toggle("is-selected", id === toolbarSort);
+    });
+  }
+
+  if (boardFilterPanel) {
+    Array.from(boardFilterPanel.querySelectorAll('input[type="checkbox"][data-filter]')).forEach((input) => {
+      if (!(input instanceof HTMLInputElement)) return;
+      const kind = normalizeToken(input.dataset.filter);
+      const value = Number.parseInt(normalizeToken(input.value), 10);
+      if (!Number.isFinite(value)) return;
+      if (kind === "status") {
+        input.checked = toolbarStatusFilter.has(value);
+      } else if (kind === "priority") {
+        input.checked = toolbarPriorityFilter.has(value);
+      }
+    });
+  }
+
+  if (boardTagsMenu) {
+    const selected = new Set(Array.from(toolbarTagFilter.values()));
+    Array.from(boardTagsMenu.querySelectorAll(".board-popover-item[data-tag]"))
+      .forEach((btn) => {
+        if (!(btn instanceof HTMLButtonElement)) return;
+        const tag = normalizeTag(btn.dataset.tag);
+        btn.classList.toggle("is-selected", selected.has(tag));
+      });
+  }
+};
+
+const renderAssigneeOptions = (options) => {
+  if (!taskAssignee) return;
+  if (!(taskAssignee instanceof HTMLSelectElement)) return;
+
+  const selected = normalizeToken(options?.selectedValue ?? taskAssignee.value);
+  const defaultToActor = options?.defaultToActor === true;
+  const actorId = getActorUserId();
+
+  const list = Array.isArray(workspaceMembers) ? workspaceMembers : [];
+  const members = list
+    .filter((item) => Number.isFinite(Number(item?.id)) && Number(item.id) > 0)
+    .map((item) => ({
+      id: Number(item.id),
+      name: normalizeToken(item.name),
+      email: normalizeToken(item.email),
+      role: normalizeToken(item.role)
+    }))
+    .filter((item) => item.email);
+
+  members.sort((a, b) => {
+    if (actorId && a.id === actorId) return -1;
+    if (actorId && b.id === actorId) return 1;
+    const an = a.name || a.email;
+    const bn = b.name || b.email;
+    return String(an).localeCompare(String(bn));
+  });
+
+  const values = new Set([""]);
+  members.forEach((m) => values.add(String(m.id)));
+
+  taskAssignee.innerHTML = "";
+
+  const unassignedOption = document.createElement("option");
+  unassignedOption.value = "";
+  unassignedOption.textContent = "Все";
+  taskAssignee.appendChild(unassignedOption);
+
+  members.forEach((m) => {
+    const fullLabel = normalizeToken(m.name) || normalizeToken(m.email) || "Без имени";
+    const label = truncateLabel(fullLabel, 24);
+    const option = document.createElement("option");
+    option.value = String(m.id);
+    option.textContent = label;
+    option.title = fullLabel;
+    taskAssignee.appendChild(option);
+  });
+
+  if (selected && !values.has(selected)) {
+    const unknown = document.createElement("option");
+    unknown.value = selected;
+    unknown.textContent = "Неизвестный участник";
+    taskAssignee.appendChild(unknown);
+    values.add(selected);
+  }
+
+  if (defaultToActor && actorId && values.has(String(actorId))) {
+    taskAssignee.value = String(actorId);
+    return;
+  }
+
+  taskAssignee.value = values.has(selected) ? selected : "";
+};
+
 const COLUMN_CREATE_VARIANTS = {
+  todo: {
+    title: "To Do",
+    columnId: "todo",
+    specialized: true
+  },
   new: {
     title: "New",
     columnId: null,
@@ -221,25 +810,23 @@ const COLUMN_CREATE_VARIANTS = {
   }
 };
 
-const FLOW_STATUS_LABELS = {
-  1: "New",
-  2: "In Progress",
-  3: "Done",
-  4: "Overdue"
-};
-
-const getFlowStatusLabel = (statusValue) => FLOW_STATUS_LABELS[toStatusValue(statusValue)] || FLOW_STATUS_LABELS[1];
+const getFlowStatusLabel = (statusValue) => STATUS_LABELS[toStatusValue(statusValue)] || STATUS_LABELS[1];
 
 let dragColumn = null;
 let lastAfter = null;
 let dragTask = null;
 let dragTaskColumn = null;
+let dragTaskStatusValue = null;
 let lastTaskAfter = null;
 let lastTaskContainer = null;
+let dragTrashTaskId = null;
+let dragTrashTaskTitle = "";
 let activeTaskColumn = null;
 let editingTaskId = null;
 let editingTaskCard = null;
 let isAddColumnMenuOpen = false;
+let isFlowClearMenuOpen = false;
+
 
 const setColumnDelays = () => {
   if (!columnsWrap) return;
@@ -261,12 +848,13 @@ const getColumnCreateVariant = (type) => {
   return COLUMN_CREATE_VARIANTS[key] || COLUMN_CREATE_VARIANTS.new;
 };
 
-const RESERVED_STATUS_COLUMN_IDS = new Set(["progress", "done", "overdue"]);
+const RESERVED_STATUS_COLUMN_IDS = new Set(["todo", "progress", "done", "overdue"]);
 
 const generateColumnId = () => `column-${Date.now()}-${Math.floor(Math.random() * 1000)}-${Math.floor(Math.random() * 1000)}`;
 
 const getColumnTypeFromColumnId = (columnId) => {
   const id = normalizeToken(columnId).toLowerCase();
+  if (id === "todo") return "todo";
   if (id === "progress") return "inprogress";
   if (id === "done") return "done";
   if (id === "overdue") return "overdue";
@@ -274,6 +862,10 @@ const getColumnTypeFromColumnId = (columnId) => {
 };
 
 const inferColumnType = (column) => {
+  const fromId = getColumnTypeFromColumnId(column?.dataset?.columnId);
+  if (fromId !== "new") {
+    return fromId;
+  }
   const explicitType = normalizeToken(column?.dataset?.columnType).toLowerCase();
   if (COLUMN_CREATE_VARIANTS[explicitType]) {
     return explicitType;
@@ -315,6 +907,10 @@ const ensureColumnMetadata = (column) => {
 };
 
 const normalizeStoredColumnType = (rawType, rawColumnId) => {
+  const fromId = getColumnTypeFromColumnId(rawColumnId);
+  if (fromId !== "new") {
+    return fromId;
+  }
   const type = normalizeToken(rawType).toLowerCase();
   if (COLUMN_CREATE_VARIANTS[type]) {
     return type;
@@ -408,9 +1004,9 @@ const restoreBoardColumnsLayout = () => {
 
   if (!columnsWrap.querySelector(".column")) {
     const fallback = createColumn({
-      title: "To do",
+      title: "To Do",
       columnId: "todo",
-      columnType: "new"
+      columnType: "todo"
     });
     fallback.style.setProperty("--delay", "0ms");
     columnsWrap.appendChild(fallback);
@@ -457,6 +1053,7 @@ const openAddColumnMenu = () => {
 };
 
 const toggleAddColumnMenu = () => {
+  if (!canManageColumns()) return;
   if (isAddColumnMenuOpen) {
     closeAddColumnMenu();
     return;
@@ -465,6 +1062,7 @@ const toggleAddColumnMenu = () => {
 };
 
 const removeColumn = (column) => {
+  if (!canManageColumns()) return;
   if (!column) return;
   const finalize = () => {
     column.remove();
@@ -501,11 +1099,11 @@ const setLayoutStyle = (style) => {
   if (styleToggle) {
     styleToggle.setAttribute("aria-pressed", nextStyle === "flow" ? "true" : "false");
     if (nextStyle === "flow") {
-      styleToggle.setAttribute("aria-label", "Переключить на Columns Board");
-      styleToggle.setAttribute("title", "Переключить на Columns Board");
+      styleToggle.setAttribute("aria-label", "Переключить на колонки");
+      styleToggle.setAttribute("title", "Переключить на колонки");
     } else {
-      styleToggle.setAttribute("aria-label", "Переключить на Flow Map");
-      styleToggle.setAttribute("title", "Переключить на Flow Map");
+      styleToggle.setAttribute("aria-label", "Переключить на карту потока");
+      styleToggle.setAttribute("title", "Переключить на карту потока");
     }
   }
 
@@ -514,24 +1112,20 @@ const setLayoutStyle = (style) => {
   }
 
   if (styleToggleTitleEl) {
-    styleToggleTitleEl.textContent = nextStyle === "flow" ? "Flow Map" : "Columns Board";
+    styleToggleTitleEl.textContent = nextStyle === "flow" ? "Карта потока" : "Колонки";
   }
 
   if (styleToggleSubEl) {
     styleToggleSubEl.textContent = "Нажмите, чтобы переключить";
   }
 
-  if (viewToggle) {
-    viewToggle.toggleAttribute("hidden", nextStyle === "flow");
+  if (nextStyle === "flow" && calendarLayout) {
+    calendarLayout.setAttribute("aria-hidden", "true");
+    calendarLayout.innerHTML = "";
   }
 
-  if (nextStyle === "flow") {
-    // Flow and Calendar/List share the same page; force board view so calendar doesn't linger.
-    setBoardView("board");
-    if (calendarLayout) {
-      calendarLayout.setAttribute("aria-hidden", "true");
-      calendarLayout.innerHTML = "";
-    }
+  if (nextStyle !== "flow") {
+    setFlowClearMenuOpen(false);
   }
 
   requestAnimationFrame(() => {
@@ -542,16 +1136,26 @@ const setLayoutStyle = (style) => {
 const setBoardView = (view) => {
   if (!board) return;
   closeAddColumnMenu();
+
   const next = view === "calendar"
     ? "calendar"
-    : (view === "priority" ? "priority" : (view === "list" ? "list" : "board"));
-  board.dataset.view = next;
+    : (view === "priority" ? "priority" : (view === "list" ? "list" : (view === "flow" ? "flow" : "board")));
+
+  if (next === "flow") {
+    setLayoutStyle("flow");
+    board.dataset.view = "flow";
+  } else {
+    setLayoutStyle("columns");
+    board.dataset.view = next;
+  }
+
   viewButtons.forEach((btn) => {
     const isActive = (btn.dataset.view || "board") === next;
     btn.classList.toggle("is-active", isActive);
     btn.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
-  renderCurrentView();
+  closeToolbarPopovers();
+  syncTaskStateToUi();
 };
 
 const isPanelOpen = () => appShell?.classList.contains("is-panel-open");
@@ -668,6 +1272,7 @@ const buildUserItemFromApi = (user, options) => {
   const name = normalizeToken(user?.name) || "Без имени";
   const email = normalizeToken(user?.email);
   const role = toWorkspaceRole(user?.role);
+  const avatarPath = normalizeToken(user?.avatarPath);
 
   const item = buildUserItem(name, email, { role });
   item.dataset.userId = Number.isFinite(id) ? String(id) : "";
@@ -678,8 +1283,7 @@ const buildUserItemFromApi = (user, options) => {
   const avatarEl = item.querySelector(".user-avatar");
   if (avatarEl) {
     const letter = (name || "U").trim().charAt(0) || "U";
-    const storedAvatar = getStoredAccountAvatar(id);
-    applyAccountAvatarToElement(avatarEl, null, letter.toUpperCase(), storedAvatar);
+    applyAccountAvatarToElement(avatarEl, null, letter.toUpperCase(), avatarPath);
   }
 
   return item;
@@ -722,8 +1326,7 @@ const loadUsersFromApi = async () => {
   });
   if (!Array.isArray(users) || !userList) return;
 
-  if (userAddBtn) userAddBtn.disabled = !isAdmin();
-  if (userAddInput) userAddInput.disabled = !isAdmin();
+  refreshInviteControlsState();
 
   userList.innerHTML = "";
   closeUserMiniMenu();
@@ -738,44 +1341,53 @@ const loadUsersFromApi = async () => {
   });
   userList.appendChild(allItem);
 
-  users
+  const members = users
     .map((u) => ({
       id: Number(u.userId ?? u.id),
-      name: (() => {
-        const id = Number(u.userId ?? u.id);
-        const apiName = normalizeToken(u.name);
-        if (id === getActorUserId()) {
-          const storedNickname = normalizeToken(getStoredAccountNickname(id));
-          const fallbackName = apiName && apiName.toLowerCase() !== "system" ? apiName : "Без имени";
-          return storedNickname || fallbackName;
-        }
-        return apiName;
-      })(),
+      name: normalizeToken(u.name) || normalizeToken(u.email) || "Без имени",
       email: normalizeToken(u.email),
+      avatarPath: normalizeToken(u.avatarPath),
       role: toWorkspaceRole(u.role),
       taskCount: Number(u.taskCount || 0)
     }))
     .filter((u) => Number.isFinite(u.id) && u.name && u.email)
-    .sort((a, b) => a.name.localeCompare(b.name))
-    .forEach((u) => {
-      const item = buildUserItemFromApi(u);
-      item.addEventListener("click", () => {
-        setCurrentUser(u);
-        void loadTasksFromApi();
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-        const actorId = getActorUserId();
-        const canManage = isAdmin()
-          && Number.isFinite(Number(actorId))
-          && Number(u.id) !== Number(actorId)
-          && u.role !== "Owner";
+  workspaceMembers = members;
+  renderAssigneeOptions();
 
-        openUserMiniMenu(item, u, {
-          canToggleAdmin: canManage,
-          canRemove: canManage
-        });
+  if (taskModal && !taskModal.hasAttribute("hidden") && !editingTaskId && taskAssignee instanceof HTMLSelectElement) {
+    if (!normalizeToken(taskAssignee.value)) {
+      renderAssigneeOptions({ defaultToActor: true });
+    }
+  }
+
+  members.forEach((u) => {
+    const item = buildUserItemFromApi(u);
+    item.addEventListener("click", () => {
+      setCurrentUser(u);
+      void loadTasksFromApi();
+
+      const actorId = getActorUserId();
+      if (Number.isFinite(Number(actorId)) && Number(u.id) === Number(actorId)) {
+        // Do not open mini-menu for the current user.
+        closeUserMiniMenu();
+        return;
+      }
+      const actorRole = toWorkspaceRole(currentWorkspaceRole);
+      const targetRole = toWorkspaceRole(u.role);
+
+      const canToggleAdmin = actorRole === "Owner" && targetRole !== "Owner";
+      const canRemove = (actorRole === "Owner" && targetRole !== "Owner")
+        || (actorRole === "Admin" && targetRole === "Member");
+
+      openUserMiniMenu(item, u, {
+        canToggleAdmin,
+        canRemove
       });
-      userList.appendChild(item);
     });
+    userList.appendChild(item);
+  });
 
   refreshUserFilter();
   const preservedId = Number(currentUserId);
@@ -793,7 +1405,7 @@ const loadUsersFromApi = async () => {
   }
 };
 
-const updateMyMemberItem = (displayName, email) => {
+const updateMyMemberItem = (displayName, email, avatarPath) => {
   const actorId = getActorUserId();
   if (!Number.isFinite(Number(actorId))) return;
   if (!userList) return;
@@ -809,24 +1421,158 @@ const updateMyMemberItem = (displayName, email) => {
   const avatar = item.querySelector(".user-avatar");
   if (avatar) {
     const letter = safeName.trim().charAt(0) || "U";
-    const storedAvatar = getStoredAccountAvatar(actorId);
-    applyAccountAvatarToElement(avatar, null, letter.toUpperCase(), storedAvatar);
+    applyAccountAvatarToElement(avatar, null, letter.toUpperCase(), normalizeToken(avatarPath));
   }
 
   const role = item.dataset.userRole || "";
   item.dataset.userKey = `${actorId} ${safeName} ${safeEmail} ${role}`.toLowerCase();
   refreshUserFilter();
+
+  if (Array.isArray(workspaceMembers) && Number.isFinite(Number(actorId))) {
+    const nextMembers = workspaceMembers.map((member) => {
+      const id = Number(member?.id);
+      if (!Number.isFinite(id) || id !== Number(actorId)) return member;
+      return {
+        ...member,
+        name: safeName,
+        email: safeEmail,
+        avatarPath: normalizeToken(avatarPath)
+      };
+    });
+    workspaceMembers = nextMembers;
+    renderAssigneeOptions();
+  }
+};
+
+const parseApiErrorMessage = async (response, fallback) => {
+  try {
+    const payload = await response.json();
+    const message = normalizeToken(payload?.error || payload?.title);
+    if (message) return message;
+  } catch {
+    // ignore parse errors
+  }
+  return fallback;
+};
+
+const getActorDisplayName = () => {
+  const apiName = normalizeToken(actorUser?.name);
+  if (apiName && apiName.toLowerCase() !== "system") {
+    return apiName;
+  }
+  return "Без имени";
+};
+
+const formatCooldownTime = (totalSeconds) => {
+  const safe = Math.max(0, Number(totalSeconds) || 0);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+};
+
+const getNicknameCooldownRemainingSeconds = () => {
+  if (!Number.isFinite(nicknameCooldownEndsAt) || nicknameCooldownEndsAt <= 0) return 0;
+  return Math.max(0, Math.ceil((nicknameCooldownEndsAt - Date.now()) / 1000));
+};
+
+const stopNicknameCooldownTimer = () => {
+  if (nicknameCooldownTimerHandle) {
+    window.clearInterval(nicknameCooldownTimerHandle);
+    nicknameCooldownTimerHandle = null;
+  }
+};
+
+const setNicknameStatusMessage = (message, isError = false) => {
+  nicknameStatusMessage = normalizeToken(message);
+  nicknameStatusIsError = !!isError;
+};
+
+const clearNicknameStatusMessage = () => {
+  nicknameStatusMessage = "";
+  nicknameStatusIsError = false;
+};
+
+const renderNicknameStatus = () => {
+  if (!settingsNicknameCooldownEl) return;
+
+  const remaining = getNicknameCooldownRemainingSeconds();
+  if (remaining > 0) {
+    settingsNicknameCooldownEl.textContent = `Следующая смена ника через ${formatCooldownTime(remaining)}`;
+    settingsNicknameCooldownEl.classList.remove("is-error");
+    settingsNicknameCooldownEl.removeAttribute("hidden");
+    return;
+  }
+
+  if (nicknameStatusMessage) {
+    settingsNicknameCooldownEl.textContent = nicknameStatusMessage;
+    settingsNicknameCooldownEl.classList.toggle("is-error", nicknameStatusIsError);
+    settingsNicknameCooldownEl.removeAttribute("hidden");
+    return;
+  }
+
+  settingsNicknameCooldownEl.textContent = "";
+  settingsNicknameCooldownEl.classList.remove("is-error");
+  settingsNicknameCooldownEl.setAttribute("hidden", "");
+};
+
+const refreshNicknameControls = () => {
+  const canUseNicknameSettings = Number.isFinite(Number(getActorUserId()));
+  const remaining = getNicknameCooldownRemainingSeconds();
+  const isCooldownActive = remaining > 0;
+  const currentDisplayName = getActorDisplayName();
+  const draftNickname = normalizeToken(settingsNicknameInput?.value);
+  const isDirty = draftNickname !== normalizeToken(currentDisplayName);
+  const hasDraft = draftNickname.length > 0;
+
+  if (settingsNicknameInput) {
+    settingsNicknameInput.disabled = !canUseNicknameSettings || nicknameSaveInFlight || isCooldownActive;
+  }
+
+  if (settingsNicknameSaveBtn) {
+    settingsNicknameSaveBtn.disabled = !canUseNicknameSettings
+      || nicknameSaveInFlight
+      || isCooldownActive
+      || !hasDraft
+      || !isDirty;
+    settingsNicknameSaveBtn.textContent = nicknameSaveInFlight ? "Сохраняем..." : "Сохранить";
+  }
+
+  renderNicknameStatus();
+};
+
+const syncNicknameCooldownFromActor = () => {
+  const raw = normalizeToken(actorUser?.nicknameChangeAvailableAtUtc);
+  const nextAllowedAt = raw ? Date.parse(raw) : Number.NaN;
+  if (Number.isFinite(nextAllowedAt) && nextAllowedAt > Date.now()) {
+    nicknameCooldownEndsAt = nextAllowedAt;
+  } else {
+    nicknameCooldownEndsAt = 0;
+  }
+
+  if (getNicknameCooldownRemainingSeconds() > 0) {
+    if (!nicknameCooldownTimerHandle) {
+      nicknameCooldownTimerHandle = window.setInterval(() => {
+        if (getNicknameCooldownRemainingSeconds() <= 0) {
+          nicknameCooldownEndsAt = 0;
+          stopNicknameCooldownTimer();
+          clearNicknameStatusMessage();
+        }
+        refreshNicknameControls();
+      }, 1000);
+    }
+  } else {
+    stopNicknameCooldownTimer();
+  }
 };
 
 const updateActorUi = () => {
   const email = actorUser?.email || "account@example.com";
   const id = getActorUserId();
-  const storedNickname = id ? normalizeToken(getStoredAccountNickname(id)) : "";
-  const apiName = normalizeToken(actorUser?.name);
-  const fallbackName = apiName && apiName.toLowerCase() !== "system" ? apiName : "Без имени";
-  const displayName = storedNickname || fallbackName;
+  const displayName = getActorDisplayName();
   const initials = toInitials(displayName, email);
-  const avatarDataUrl = id ? getStoredAccountAvatar(id) : "";
+  const avatarPath = normalizeToken(actorUser?.avatarPath);
 
   if (userNameEl) {
     userNameEl.textContent = displayName || email;
@@ -837,14 +1583,16 @@ const updateActorUi = () => {
     }
   }
 
-  applyAccountAvatarToElement(accountAvatarEl, accountAvatarTextEl, initials, avatarDataUrl);
-  applyAccountAvatarToElement(settingsAvatarPreview, settingsAvatarPreviewTextEl, initials, avatarDataUrl);
+  applyAccountAvatarToElement(accountAvatarEl, accountAvatarTextEl, initials, avatarPath);
+  applyAccountAvatarToElement(settingsAvatarPreview, settingsAvatarPreviewTextEl, initials, avatarPath);
 
-  updateMyMemberItem(displayName, email);
+  updateMyMemberItem(displayName, email, avatarPath);
 
   if (settingsNicknameInput && document.activeElement !== settingsNicknameInput) {
-    settingsNicknameInput.value = storedNickname;
+    settingsNicknameInput.value = displayName;
   }
+
+  refreshNicknameControls();
 };
 
 const setActorUser = (user) => {
@@ -854,8 +1602,12 @@ const setActorUser = (user) => {
   actorUser = {
     id,
     name: normalizeToken(user.name) || `Пользователь ${id}`,
-    email: normalizeToken(user.email) || `user${id}@local`
+    email: normalizeToken(user.email) || `user${id}@local`,
+    avatarPath: normalizeToken(user.avatarPath),
+    nicknameChangeAvailableAtUtc: normalizeToken(user.nicknameChangeAvailableAtUtc)
   };
+
+  syncNicknameCooldownFromActor();
   updateActorUi();
 };
 
@@ -886,7 +1638,7 @@ const setWorkspaceContext = (space) => {
   if (panelWorkspaceAvatarEl) {
     if (avatarPath) {
       panelWorkspaceAvatarEl.classList.add("has-image");
-      panelWorkspaceAvatarEl.style.backgroundImage = `url("${encodeURI(avatarPath).replace(/"/g, "%22")}")`;
+      panelWorkspaceAvatarEl.style.backgroundImage = `url("${avatarPath.replace(/"/g, "%22")}")`;
       panelWorkspaceAvatarEl.textContent = "";
     } else {
       panelWorkspaceAvatarEl.classList.remove("has-image");
@@ -898,7 +1650,7 @@ const setWorkspaceContext = (space) => {
   if (brandMarkEl) {
     if (avatarPath) {
       brandMarkEl.classList.add("has-image");
-      brandMarkEl.style.backgroundImage = `url("${encodeURI(avatarPath).replace(/"/g, "%22")}")`;
+      brandMarkEl.style.backgroundImage = `url("${avatarPath.replace(/"/g, "%22")}")`;
       brandMarkEl.textContent = "";
     } else {
       brandMarkEl.classList.remove("has-image");
@@ -907,14 +1659,23 @@ const setWorkspaceContext = (space) => {
     }
   }
 
-  if (userAddBtn) userAddBtn.disabled = !isAdmin();
-  if (userAddInput) userAddInput.disabled = !isAdmin();
+  refreshInviteControlsState();
 
   if (panelWorkspaceEditBtn) {
-    panelWorkspaceEditBtn.disabled = !isAdmin();
-    panelWorkspaceEditBtn.title = isAdmin() ? "Редактировать" : "Только администраторы могут редактировать";
+    panelWorkspaceEditBtn.hidden = !isAdmin();
+    panelWorkspaceEditBtn.disabled = false;
+    panelWorkspaceEditBtn.title = "Редактировать";
   }
 
+  if (panelWorkspaceDanger) {
+    panelWorkspaceDanger.toggleAttribute("hidden", currentWorkspaceRole !== "Owner");
+  }
+
+  if (userAddSection) {
+    userAddSection.hidden = !isAdmin();
+  }
+
+  refreshBoardPermissionsUi();
 
   if (changed) {
     tagsLoaded = false;
@@ -950,7 +1711,57 @@ const loadCurrentUserFromApi = async () => {
   }
 
   actorUser = null;
+  nicknameCooldownEndsAt = 0;
+  stopNicknameCooldownTimer();
+  clearNicknameStatusMessage();
   updateActorUi();
+};
+
+const migrateLegacyAvatarIfNeeded = async () => {
+  const id = getActorUserId();
+  if (!id) return;
+
+  if (normalizeToken(actorUser?.avatarPath)) {
+    setStoredAccountAvatar(id, "");
+    return;
+  }
+
+  const legacyAvatar = getStoredAccountAvatar(id);
+  if (!legacyAvatar || !legacyAvatar.startsWith("data:image/")) {
+    return;
+  }
+
+  try {
+    const legacyBlob = await fetch(legacyAvatar).then((response) => response.blob());
+    if (!legacyBlob || legacyBlob.size <= 0) return;
+
+    const ext = legacyBlob.type === "image/png"
+      ? "png"
+      : legacyBlob.type === "image/webp"
+        ? "webp"
+        : "jpg";
+
+    const form = new FormData();
+    form.append("file", legacyBlob, `legacy-avatar.${ext}`);
+
+    const response = await apiFetch(buildApiUrl("/auth/avatar"), {
+      method: "POST",
+      body: form
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const updated = await response.json();
+    if (updated?.id) {
+      setActorUser(updated);
+      setStoredAccountAvatar(id, "");
+      await loadUsersFromApi();
+    }
+  } catch {
+    // ignore one-time migration errors
+  }
 };
 
 const openWorkspace = async (space) => {
@@ -961,6 +1772,7 @@ const openWorkspace = async (space) => {
 
   setWorkspaceContext(space);
   restoreBoardColumnsLayout();
+  refreshBoardPermissionsUi();
   setAppScreen("board");
   await loadTagsFromApi();
   await loadUsersFromApi();
@@ -977,6 +1789,10 @@ const applyTaskBgToCards = (id, dataUrl) => {
     card.classList.add("has-photo");
     card.style.setProperty("--task-photo", `url('${dataUrl.replace(/'/g, "%27")}')`);
   });
+
+  if (flowEditorController && typeof flowEditorController.applyTaskPhoto === "function") {
+    flowEditorController.applyTaskPhoto(id, dataUrl || "");
+  }
 };
 
 const buildUserItem = (nickname, email, options) => {
@@ -1038,103 +1854,18 @@ const closeUserMiniMenu = () => {
   activeUserMiniMenuAnchor = null;
 };
 
-const profileModal = document.getElementById("profile-modal");
-const profileUserNameEl = document.getElementById("profile-user-name");
-const profileAvatarEl = document.getElementById("profile-avatar");
-const profileAvatarTextEl = document.getElementById("profile-avatar-text");
-const profileUserEmailEl = document.getElementById("profile-user-email");
-const profileUserRoleEl = document.getElementById("profile-user-role");
-
-const avatarModal = document.getElementById("avatar-modal");
-const avatarModalTitleEl = document.getElementById("avatar-modal-title");
-const avatarModalAvatarEl = document.getElementById("avatar-modal-avatar");
-const avatarModalAvatarTextEl = document.getElementById("avatar-modal-avatar-text");
-
-let activeProfileMember = null;
-
-const isProfileModalOpen = () => Boolean(profileModal && !profileModal.hasAttribute("hidden"));
-
-const closeProfileModal = () => {
-  if (!isProfileModalOpen()) return false;
-  profileModal.setAttribute("hidden", "");
-  activeProfileMember = null;
-  return true;
-};
-
-const isAvatarModalOpen = () => Boolean(avatarModal && !avatarModal.hasAttribute("hidden"));
-
-const closeAvatarModal = () => {
-  if (!isAvatarModalOpen()) return false;
-  avatarModal.setAttribute("hidden", "");
-  return true;
-};
-
-const openAvatarModal = (member) => {
-  if (!avatarModal || !avatarModalAvatarEl) return;
-
-  const id = Number(member?.id);
-  const name = normalizeToken(member?.name) || "Пользователь";
-  const email = normalizeToken(member?.email) || "";
-  const initials = toInitials(name || email, "U");
-  const storedAvatar = getStoredAccountAvatar(id);
-
-  if (avatarModalTitleEl) avatarModalTitleEl.textContent = name;
-  applyAccountAvatarToElement(avatarModalAvatarEl, avatarModalAvatarTextEl, initials, storedAvatar);
-
-  avatarModal.removeAttribute("hidden");
-  window.setTimeout(() => {
-    const btn = avatarModal.querySelector("button[data-close-avatar]");
-    if (btn instanceof HTMLElement) {
-      btn.focus();
-    }
-  }, 0);
-};
-
-const openProfileModal = (member) => {
-  if (!profileModal) {
-    const name = normalizeToken(member?.name) || "Пользователь";
-    const email = normalizeToken(member?.email) || "-";
-    const role = normalizeToken(member?.role) || "Member";
-    window.alert(`${name}\n\nПочта: ${email}\nРоль: ${getRoleLabel(role)}`);
-    return;
-  }
-
-  const id = Number(member?.id);
-  const name = normalizeToken(member?.name) || "Пользователь";
-  const email = normalizeToken(member?.email) || "-";
-  const role = normalizeToken(member?.role) || "Member";
-  const initials = toInitials(name || email, "U");
-  const storedAvatar = getStoredAccountAvatar(id);
-
-  activeProfileMember = {
-    id,
-    name,
-    email,
-    role
-  };
-
-  if (profileUserNameEl) profileUserNameEl.textContent = name;
-  if (profileUserEmailEl) profileUserEmailEl.textContent = email;
-  if (profileUserRoleEl) profileUserRoleEl.textContent = getRoleLabel(role);
-  applyAccountAvatarToElement(profileAvatarEl, profileAvatarTextEl, initials, storedAvatar);
-
-  profileModal.removeAttribute("hidden");
-  window.setTimeout(() => {
-    const btn = profileModal.querySelector("button[data-close-profile]");
-    if (btn instanceof HTMLElement) {
-      btn.focus();
-    }
-  }, 0);
-};
-
-if (profileAvatarEl) {
-  profileAvatarEl.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (!activeProfileMember) return;
-    openAvatarModal(activeProfileMember);
-  });
-}
+const profileModalsController = createProfileModalsController({
+  getWorkspaceId: () => currentWorkspaceId,
+  buildApiUrl,
+  apiFetch,
+  handleApiError,
+  normalizeToken,
+  toInitials,
+  applyAccountAvatarToElement,
+  getRoleLabel,
+  statusLabels: STATUS_LABELS,
+  toStatusValue
+});
 
 const WORKSPACE_ROLE_VALUES = {
   Member: 1,
@@ -1203,94 +1934,86 @@ const buildUserMiniMenu = (member, options) => {
     event.preventDefault();
     event.stopPropagation();
     closeUserMiniMenu();
-    openProfileModal(member);
+    profileModalsController.openProfileModal(member);
   });
   actions.appendChild(profileBtn);
 
-  const toggleAdminBtn = document.createElement("button");
-  toggleAdminBtn.type = "button";
-  toggleAdminBtn.className = "ghost-btn";
   const currentRole = normalizeToken(member?.role) || "Member";
-  toggleAdminBtn.textContent = currentRole === "Admin" ? "Забрать администратора" : "Дать администратора";
 
-  if (!options?.canToggleAdmin) {
-    toggleAdminBtn.disabled = true;
-    toggleAdminBtn.title = "Недоступно";
+  if (options?.canToggleAdmin) {
+    const toggleAdminBtn = document.createElement("button");
+    toggleAdminBtn.type = "button";
+    toggleAdminBtn.className = "ghost-btn";
+    toggleAdminBtn.textContent = currentRole === "Admin" ? "Забрать администратора" : "Дать администратора";
+    toggleAdminBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void (async () => {
+        const userId = Number(member?.id);
+        if (!Number.isFinite(userId) || !currentWorkspaceId) return;
+        const nextRoleValue = currentRole === "Admin" ? WORKSPACE_ROLE_VALUES.Member : WORKSPACE_ROLE_VALUES.Admin;
+
+        setUserMiniMenuBusy(menu, true);
+        const updated = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Изменение роли участника", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body: JSON.stringify({ userId, role: nextRoleValue })
+        });
+        setUserMiniMenuBusy(menu, false);
+
+        if (!updated) {
+          return;
+        }
+        closeUserMiniMenu();
+        await loadUsersFromApi();
+      })();
+    });
+    actions.appendChild(toggleAdminBtn);
   }
 
-  toggleAdminBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (toggleAdminBtn.disabled) return;
-    void (async () => {
-      const userId = Number(member?.id);
-      if (!Number.isFinite(userId) || !currentWorkspaceId) return;
-      const nextRoleValue = currentRole === "Admin" ? WORKSPACE_ROLE_VALUES.Member : WORKSPACE_ROLE_VALUES.Admin;
+  if (options?.canRemove) {
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "danger-btn";
+    removeBtn.textContent = "Удалить";
 
-      setUserMiniMenuBusy(menu, true);
-      const updated = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Изменение роли участника", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json"
-        },
-        body: JSON.stringify({ userId, role: nextRoleValue })
-      });
-      setUserMiniMenuBusy(menu, false);
+    removeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void (async () => {
+        const userId = Number(member?.id);
+        if (!Number.isFinite(userId) || !currentWorkspaceId) return;
 
-      if (!updated) {
-        return;
-      }
-      closeUserMiniMenu();
-      await loadUsersFromApi();
-    })();
-  });
-  actions.appendChild(toggleAdminBtn);
+        const displayName = normalizeToken(member?.name) || normalizeToken(member?.email) || `#${userId}`;
+        const confirmed = await openConfirmModal({
+          kicker: "Удаление участника",
+          title: `Удалить "${displayName}"?`,
+          message: "Пользователь потеряет доступ к задачам этого проекта.",
+          confirmText: "Удалить"
+        });
+        if (confirmed !== true) return;
 
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.className = "danger-btn";
-  removeBtn.textContent = "Удалить";
+        setUserMiniMenuBusy(menu, true);
+        const response = await apiFetch(buildApiUrl(`/spaces/${currentWorkspaceId}/members/${userId}`), {
+          method: "DELETE"
+        });
+        setUserMiniMenuBusy(menu, false);
 
-  if (!options?.canRemove) {
-    removeBtn.disabled = true;
-    removeBtn.title = "Недоступно";
+        if (!response.ok) {
+          await handleApiError(response, "Удаление участника");
+          return;
+        }
+
+        closeUserMiniMenu();
+        await loadUsersFromApi();
+        await loadTasksFromApi();
+      })();
+    });
+    actions.appendChild(removeBtn);
   }
-
-  removeBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    if (removeBtn.disabled) return;
-    void (async () => {
-      const userId = Number(member?.id);
-      if (!Number.isFinite(userId) || !currentWorkspaceId) return;
-
-      const displayName = normalizeToken(member?.name) || normalizeToken(member?.email) || `#${userId}`;
-      const confirmed = await openConfirmModal({
-        kicker: "Удаление участника",
-        title: `Удалить "${displayName}"?`,
-        message: "Пользователь потеряет доступ к задачам этого проекта.",
-        confirmText: "Удалить"
-      });
-      if (confirmed !== true) return;
-
-      setUserMiniMenuBusy(menu, true);
-      const response = await apiFetch(buildApiUrl(`/spaces/${currentWorkspaceId}/members/${userId}`), {
-        method: "DELETE"
-      });
-      setUserMiniMenuBusy(menu, false);
-
-      if (!response.ok) {
-        await handleApiError(response, "Удаление участника");
-        return;
-      }
-
-      closeUserMiniMenu();
-      await loadUsersFromApi();
-      await loadTasksFromApi();
-    })();
-  });
-  actions.appendChild(removeBtn);
 
   menu.append(header, actions);
   return menu;
@@ -1370,11 +2093,11 @@ const applyAttachmentCountToCards = (id, count) => {
 
 const isAdmin = () => MANAGE_ROLES.has(String(currentWorkspaceRole || ""));
 
+const isOwner = () => String(currentWorkspaceRole || "") === "Owner";
+
 const shouldShowTrashZone = () => {
   if (!taskTrashZone || !board) return false;
   if (!isAdmin()) return false;
-  if (board.dataset.style !== "columns") return false;
-  if (board.dataset.view === "calendar" || board.dataset.view === "priority") return false;
   return true;
 };
 
@@ -1386,6 +2109,9 @@ const setTrashZoneVisible = (visible) => {
   if (styleSwitch) {
     styleSwitch.classList.toggle("has-trash-zone", show);
   }
+  if (boardToolbar) {
+    boardToolbar.classList.toggle("is-trash-mode", show);
+  }
   if (!show) {
     taskTrashZone.classList.remove("is-over");
   }
@@ -1396,13 +2122,63 @@ const setTrashZoneOver = (over) => {
   taskTrashZone.classList.toggle("is-over", Boolean(over));
 };
 
+const parseTrashDragInfo = (dataTransfer) => {
+  if (!dataTransfer) return { id: null, title: "" };
+  const raw = String(dataTransfer.getData("text/plain") || "").trim();
+  if (!raw) return { id: null, title: "" };
+
+  try {
+    const payload = JSON.parse(raw);
+    if (payload && typeof payload === "object") {
+      const id = Number.parseInt(String(payload.taskId ?? payload.id ?? ""), 10);
+      const title = normalizeToken(payload.title);
+      return {
+        id: Number.isFinite(id) && id > 0 ? id : null,
+        title
+      };
+    }
+  } catch {
+    // ignore
+  }
+
+  const id = Number.parseInt(raw, 10);
+  return {
+    id: Number.isFinite(id) && id > 0 ? id : null,
+    title: ""
+  };
+};
+
 let confirmResolve = null;
+let confirmInputHandler = null;
+let confirmAcceptHandler = null;
+let confirmRequiredToken = "";
 
 const isConfirmModalOpen = () => Boolean(confirmModal && !confirmModal.hasAttribute("hidden"));
 
 const closeConfirmModal = (result = false) => {
   if (!isConfirmModalOpen()) return false;
   confirmModal.setAttribute("hidden", "");
+
+  if (confirmModalInputEl) {
+    confirmModalInputEl.value = "";
+    confirmModalInputEl.removeAttribute("aria-invalid");
+  }
+  if (confirmModalInputWrap) {
+    confirmModalInputWrap.setAttribute("hidden", "");
+  }
+  if (confirmModalAcceptBtn) {
+    confirmModalAcceptBtn.disabled = false;
+  }
+  confirmRequiredToken = "";
+  if (confirmInputHandler && confirmModalInputEl) {
+    confirmModalInputEl.removeEventListener("input", confirmInputHandler);
+  }
+  confirmInputHandler = null;
+  if (confirmAcceptHandler && confirmModalInputEl) {
+    confirmModalInputEl.removeEventListener("keydown", confirmAcceptHandler);
+  }
+  confirmAcceptHandler = null;
+
   if (confirmResolve) {
     const resolve = confirmResolve;
     confirmResolve = null;
@@ -1416,6 +2192,9 @@ const openConfirmModal = (options) => {
   const message = normalizeToken(options?.message) || "Это действие нельзя отменить.";
   const kicker = normalizeToken(options?.kicker) || "Подтвердите действие";
   const confirmText = normalizeToken(options?.confirmText) || "Удалить";
+  const requireText = normalizeToken(options?.requireText);
+  const requireHint = normalizeToken(options?.requireTextHint);
+  const requirePlaceholder = normalizeToken(options?.requireTextPlaceholder) || "";
 
   if (!confirmModal || !confirmModalTitleEl || !confirmModalMessageEl || !confirmModalAcceptBtn || !confirmModalCancelBtn) {
     return Promise.resolve(window.confirm(`${title}\n\n${message}`));
@@ -1433,17 +2212,98 @@ const openConfirmModal = (options) => {
   confirmModalTitleEl.textContent = title;
   confirmModalMessageEl.textContent = message;
   confirmModalAcceptBtn.textContent = confirmText;
+
+  if (confirmModalInputWrap && confirmModalInputEl) {
+    if (requireText) {
+      confirmRequiredToken = requireText.trim().toLowerCase();
+      confirmModalInputWrap.removeAttribute("hidden");
+      confirmModalInputEl.value = "";
+      confirmModalInputEl.placeholder = requirePlaceholder || "Название проекта";
+      if (confirmModalInputHintEl) {
+        confirmModalInputHintEl.textContent = requireHint || `Введите: ${requireText}`;
+      }
+      confirmModalAcceptBtn.disabled = true;
+
+      confirmInputHandler = () => {
+        const inputToken = normalizeToken(confirmModalInputEl.value).trim().toLowerCase();
+        const ok = inputToken && inputToken === confirmRequiredToken;
+        confirmModalAcceptBtn.disabled = !ok;
+        if (ok) {
+          confirmModalInputEl.removeAttribute("aria-invalid");
+        }
+      };
+      confirmAcceptHandler = (event) => {
+        if (event.key !== "Enter") return;
+        if (confirmModalAcceptBtn.disabled) return;
+        event.preventDefault();
+        event.stopPropagation();
+        closeConfirmModal(true);
+      };
+      confirmModalInputEl.addEventListener("input", confirmInputHandler);
+      confirmModalInputEl.addEventListener("keydown", confirmAcceptHandler);
+    } else {
+      confirmModalInputWrap.setAttribute("hidden", "");
+      confirmModalAcceptBtn.disabled = false;
+    }
+  }
+
   confirmModal.removeAttribute("hidden");
 
   window.setTimeout(() => {
     if (isConfirmModalOpen()) {
-      confirmModalCancelBtn.focus();
+      if (requireText && confirmModalInputEl) {
+        confirmModalInputEl.focus();
+        confirmModalInputEl.select();
+      } else {
+        confirmModalCancelBtn.focus();
+      }
     }
   }, 0);
 
   return new Promise((resolve) => {
     confirmResolve = resolve;
   });
+};
+
+const setFlowClearMenuOpen = (open) => {
+  if (!flowClearMenu || !flowClearBtn) {
+    isFlowClearMenuOpen = false;
+    return;
+  }
+
+  isFlowClearMenuOpen = Boolean(open);
+  flowClearMenu.toggleAttribute("hidden", !isFlowClearMenuOpen);
+  flowClearBtn.setAttribute("aria-expanded", isFlowClearMenuOpen ? "true" : "false");
+};
+
+const runFlowClearAction = async (action) => {
+  const type = normalizeToken(action).toLowerCase();
+  if (!type) return;
+
+  if (type === "all") {
+    const confirmed = await openConfirmModal({
+      kicker: "Карта потока",
+      title: "Очистить всю карту потока?",
+      message: "Будут удалены все узлы и связи на карте. Задачи в проекте останутся.",
+      confirmText: "Очистить карту"
+    });
+    if (confirmed === true) {
+      clearFlowBoard();
+    }
+    return;
+  }
+
+  if (type === "links") {
+    const confirmed = await openConfirmModal({
+      kicker: "Карта потока",
+      title: "Удалить все стрелки?",
+      message: "Узлы останутся на месте. Будут удалены только связи между ними.",
+      confirmText: "Удалить стрелки"
+    });
+    if (confirmed === true) {
+      clearFlowLinks();
+    }
+  }
 };
 
 const collectTagOptions = () => {
@@ -1496,8 +2356,21 @@ const renderTagOptions = () => {
 const setTaskStatusMode = (mode, statusValue) => {
   if (!taskStatus) return;
   const nextStatus = toStatusValue(statusValue);
+
+  // Overdue is derived from due date; users cannot set it manually.
+  const overdueOption = taskStatus.querySelector('option[value="4"]');
+  if (overdueOption instanceof HTMLOptionElement) {
+    overdueOption.disabled = true;
+  }
+
   taskStatus.value = String(nextStatus);
-  taskStatus.disabled = mode !== "edit";
+  if (mode !== "edit") {
+    taskStatus.disabled = true;
+    return;
+  }
+
+  // Prevent changing status from/to Overdue.
+  taskStatus.disabled = nextStatus === 4;
 };
 
 const setTaskModalMode = (mode, title) => {
@@ -1518,10 +2391,20 @@ const setTaskModalMode = (mode, title) => {
 };
 
 const openTaskModal = (column) => {
+  if (!canCreateTasks()) return;
   if (!taskModal || !taskForm) return;
   editingTaskId = null;
   editingTaskCard = null;
   setTaskModalMode("create");
+  // Hide status field for task creation; status defaults to "New" on server
+  if (typeof taskStatus === 'object' && taskStatus) {
+    if (taskStatus instanceof HTMLElement) taskStatus.style.display = 'none';
+    if (taskStatus.parentElement instanceof HTMLElement) taskStatus.parentElement.style.display = 'none';
+    const field = taskStatus.closest && taskStatus.closest('.task-field');
+    if (field instanceof HTMLElement) field.style.display = 'none';
+    const altField = taskStatus.closest && taskStatus.closest('.field');
+    if (altField instanceof HTMLElement) altField.style.display = 'none';
+  }
   activeTaskColumn = column || getDefaultColumn();
   taskForm.reset();
   if (taskTagsInput) {
@@ -1531,10 +2414,7 @@ const openTaskModal = (column) => {
     taskDue.value = getDefaultDueDateLocalValue();
   }
   if (taskAssignee) {
-    const actorId = getActorUserId();
-    taskAssignee.value = currentUserId
-      ? String(currentUserId)
-      : (actorId ? String(actorId) : "");
+    renderAssigneeOptions({ defaultToActor: true });
   }
   setTaskStatusMode("create", 1);
   renderTagOptions();
@@ -1556,6 +2436,17 @@ const openTaskModalForEdit = (card) => {
   activeTaskColumn = card.closest(".column") || getDefaultColumn();
 
   taskForm.reset();
+  // Ensure status field is visible when editing
+  if (taskStatus instanceof HTMLElement) {
+    taskStatus.style.display = '';
+  }
+  if (taskStatus?.parentElement instanceof HTMLElement) {
+    taskStatus.parentElement.style.display = '';
+  }
+  const field = taskStatus?.closest && taskStatus.closest('.task-field');
+  if (field instanceof HTMLElement) field.style.display = '';
+  const altField = taskStatus?.closest && taskStatus.closest('.field');
+  if (altField instanceof HTMLElement) altField.style.display = '';
 
   const meta = getStoredTaskMeta(id);
   const title = normalizeToken(card.querySelector("h3")?.textContent);
@@ -1575,7 +2466,7 @@ const openTaskModalForEdit = (card) => {
   if (taskDue) taskDue.value = dueLocal;
 
   if (taskAssignee) {
-    taskAssignee.value = normalizeToken(card.dataset.assigneeId);
+    renderAssigneeOptions({ selectedValue: normalizeToken(card.dataset.assigneeId) });
   }
   if (taskPriority) {
     taskPriority.value = normalizeToken(card.dataset.priorityValue) || `${DEFAULT_PRIORITY_VALUE}`;
@@ -1615,9 +2506,15 @@ const createTaskCard = (taskData) => {
 
   const statusValue = toStatusValue(taskData.statusValue ?? taskData.status);
   const priorityValue = toPriorityValue(taskData.priorityValue ?? taskData.priority);
+  const doneApprovalPending = Boolean(taskData?.doneApprovalPending);
   card.dataset.priority = getPriorityLabel(priorityValue);
   card.dataset.priorityValue = String(priorityValue);
   card.dataset.taskStatus = String(statusValue);
+  if (doneApprovalPending) {
+    card.dataset.doneApproval = "pending";
+  } else {
+    delete card.dataset.doneApproval;
+  }
   if (taskData.id !== undefined && taskData.id !== null) {
     card.dataset.taskId = String(taskData.id);
   }
@@ -1664,10 +2561,23 @@ const createTaskCard = (taskData) => {
   tag.textContent = STATUS_LABELS[statusValue] || "Новая";
   const time = document.createElement("span");
   time.className = "task-time";
-  time.textContent = formatDueLabel(card.dataset.dueDate || taskData.dueDate, statusValue);
+  time.textContent = formatCardDueLabel(card.dataset.dueDate || taskData.dueDate, statusValue);
 
   const meta = document.createElement("div");
   meta.className = "task-head-meta";
+
+  const approval = document.createElement("span");
+  approval.className = "task-approval-wait";
+  approval.hidden = !doneApprovalPending;
+  approval.title = "Ожидает подтверждения";
+  approval.setAttribute("aria-label", "Ожидает подтверждения");
+  approval.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 8v5l3 2" />
+      <path d="M12 21a9 9 0 1 0-9-9" />
+      <path d="M3 7v5h5" />
+    </svg>
+  `;
 
   const attachments = document.createElement("span");
   attachments.className = "task-attachment-indicator";
@@ -1679,7 +2589,7 @@ const createTaskCard = (taskData) => {
     <span class="task-attachment-count"></span>
   `;
 
-  meta.append(time, attachments);
+  meta.append(time, approval, attachments);
   head.append(tag, meta);
 
   const title = document.createElement("h3");
@@ -1706,45 +2616,117 @@ const createTaskCard = (taskData) => {
   return card;
 };
 
+const toFlowDueDateIso = (value) => {
+  const token = normalizeToken(value);
+  if (!token) return "";
+  const date = new Date(token);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString();
+};
+
+const buildFlowNodeDetailNote = (taskData, statusValue) => {
+  const description = normalizeToken(taskData?.description);
+  const duePart = `Срок: ${formatDueLabel(taskData?.dueDate, statusValue) || "Без срока"}`;
+  if (!description) {
+    return duePart;
+  }
+  return `${description} • ${duePart}`;
+};
+
+const buildFlowTaskPayloadFromTask = (taskData) => {
+  const statusValue = toStatusValue(taskData?.statusValue ?? taskData?.status);
+  const statusLabel = getFlowStatusLabel(statusValue);
+  const note = buildFlowNote(taskData);
+  const title = normalizeToken(taskData?.title) || "Новая задача";
+  const parsedTaskId = Number.parseInt(String(taskData?.id ?? ""), 10);
+  const taskId = Number.isFinite(parsedTaskId) && parsedTaskId > 0 ? parsedTaskId : null;
+  const taskPhoto = taskId ? normalizeToken(getStoredTaskBg(taskId)) : "";
+
+  return {
+    title,
+    tag: statusLabel,
+    note,
+    detailNote: buildFlowNodeDetailNote(taskData, statusValue),
+    description: taskData?.description ? String(taskData.description) : "",
+    dueDate: toFlowDueDateIso(taskData?.dueDate),
+    statusValue,
+    doneApprovalPending: Boolean(taskData?.doneApprovalPending),
+    taskId: taskId ? String(taskId) : "",
+    taskKey: taskId
+      ? `task:${taskId}`
+      : buildTaskKey({ title, tag: statusLabel, note }),
+    taskPhoto
+  };
+};
+
+const openTaskDetailsById = (taskId, sourceElement = null) => {
+  const id = Number.parseInt(String(taskId ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return;
+  if (!taskDetailController || typeof taskDetailController.openTaskDetailModalForTask !== "function") return;
+  const taskCard = document.querySelector(`.task-card[data-task-id="${id}"]`) || sourceElement || null;
+  void taskDetailController.openTaskDetailModalForTask(id, taskCard);
+};
+
 const createFlowTaskItem = (taskData) => {
+  const payload = buildFlowTaskPayloadFromTask(taskData);
   const item = document.createElement("div");
   item.className = "flow-task";
   item.setAttribute("draggable", "true");
-  const statusValue = toStatusValue(taskData?.statusValue ?? taskData?.status);
-  const note = buildFlowNote(taskData);
-  const statusLabel = getFlowStatusLabel(statusValue);
-  item.dataset.taskTitle = taskData.title || "New task";
-  item.dataset.taskTag = statusLabel;
-  item.dataset.taskNote = note;
-  item.dataset.taskDescription = taskData.description || "";
-  if (taskData.id !== undefined && taskData.id !== null) {
-    item.dataset.taskId = String(taskData.id);
+  item.dataset.taskTitle = payload.title;
+  item.dataset.taskTag = payload.tag;
+  item.dataset.taskNote = payload.note;
+  item.dataset.taskDetailNote = payload.detailNote;
+  item.dataset.taskDescription = payload.description;
+  item.dataset.taskStatus = String(payload.statusValue);
+  if (payload.doneApprovalPending) {
+    item.dataset.doneApproval = "pending";
+  } else {
+    delete item.dataset.doneApproval;
   }
-  item.dataset.taskKey = buildTaskKey({
-    title: item.dataset.taskTitle,
-    tag: item.dataset.taskTag,
-    note: item.dataset.taskNote
-  });
-  if (taskData.dueDate) item.dataset.taskDueDate = taskData.dueDate;
-  item.dataset.taskUrgency = getUrgency(taskData.dueDate, statusValue);
+  if (payload.taskId) {
+    item.dataset.taskId = payload.taskId;
+  }
+  item.dataset.taskKey = payload.taskKey;
+  if (payload.dueDate) item.dataset.taskDueDate = payload.dueDate;
+  item.dataset.taskUrgency = getUrgency(payload.dueDate, payload.statusValue);
+
+  if (payload.taskPhoto) {
+    item.classList.add("has-photo");
+    item.dataset.taskPhoto = payload.taskPhoto;
+    item.style.setProperty("--task-photo", `url('${payload.taskPhoto.replace(/'/g, "%27")}')`);
+  }
 
   const tag = document.createElement("span");
   tag.className = "flow-task-tag";
-  tag.textContent = statusLabel;
+  tag.textContent = payload.tag;
   const title = document.createElement("span");
   title.className = "flow-task-title";
-  title.textContent = taskData.title || "New task";
+  title.textContent = payload.title;
   const noteEl = document.createElement("span");
   noteEl.className = "flow-task-note";
-  noteEl.textContent = note;
+  noteEl.textContent = payload.note;
 
-  item.append(tag, title, noteEl);
+  const approval = document.createElement("span");
+  approval.className = "flow-task-pending";
+  approval.hidden = !payload.doneApprovalPending;
+  approval.title = "Ожидает подтверждения";
+  approval.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 8v5l3 2" />
+      <path d="M12 21a9 9 0 1 0-9-9" />
+      <path d="M3 7v5h5" />
+    </svg>
+  `;
+
+  item.append(tag, title, noteEl, approval);
   return item;
 };
 
 const flowEditorController = createFlowEditorController({
   flowCanvas,
+  flowScene,
   flowLinks,
+  flowNodesLayer,
   flowDropzone,
   flowListItems,
   clampValue,
@@ -1753,7 +2735,31 @@ const flowEditorController = createFlowEditorController({
   buildFlowNote,
   getFlowStatusLabel,
   getTasks: () => lastNormalizedTasks,
-  createFlowTaskItem
+  buildFlowTaskPayloadFromTask,
+  createFlowTaskItem,
+  getStoredFlowState: () => {
+    if (!currentWorkspaceId) return null;
+    return getStoredWorkspaceFlowMap(currentWorkspaceId);
+  },
+  setStoredFlowState: (state) => {
+    if (!currentWorkspaceId) return;
+    setStoredWorkspaceFlowMap(currentWorkspaceId, state);
+  },
+  onFlowTaskOpenDetails: (taskId, source) => {
+    openTaskDetailsById(taskId, source);
+  },
+  onFlowTaskDragStart: (payload) => {
+    const id = Number.parseInt(String(payload?.taskId ?? ""), 10);
+    dragTrashTaskId = Number.isFinite(id) && id > 0 ? id : null;
+    dragTrashTaskTitle = normalizeToken(payload?.title) || "";
+    setTrashZoneVisible(true);
+  },
+  onFlowTaskDragEnd: () => {
+    dragTrashTaskId = null;
+    dragTrashTaskTitle = "";
+    setTrashZoneOver(false);
+    setTrashZoneVisible(false);
+  }
 });
 
 const {
@@ -1761,6 +2767,10 @@ const {
   updateFlowLines,
   initFlowTask,
   rebuildFlowPool,
+  updateFlowNodesForTask,
+  removeFlowNodesByTaskId,
+  clearFlowBoard,
+  clearFlowLinks,
   bindCanvasInteractions
 } = flowEditorController;
 
@@ -1818,7 +2828,7 @@ const updateTaskCardStatus = (card, statusValue) => {
   }
   const time = card.querySelector(".task-time");
   if (time) {
-    time.textContent = formatDueLabel(card.dataset.dueDate, statusValue);
+    time.textContent = formatCardDueLabel(card.dataset.dueDate, statusValue);
   }
 
   const urgency = getUrgency(card.dataset.dueDate, statusValue);
@@ -1835,7 +2845,7 @@ const refreshTaskCardTiming = (card) => {
   const dueIso = card.dataset.dueDate;
   const time = card.querySelector(".task-time");
   if (time) {
-    time.textContent = formatDueLabel(dueIso, statusValue);
+    time.textContent = formatCardDueLabel(dueIso, statusValue);
   }
   const urgency = getUrgency(dueIso, statusValue);
   if (urgency && urgency !== URGENCY.none) {
@@ -1855,13 +2865,75 @@ const startTaskTimingTicker = () => {
   window.setInterval(() => {
     if (document.hidden) return;
     refreshAllTaskTimings();
+    void sweepAutoOverdueTasks();
   }, 60 * 1000);
+};
+
+const applyAutoOverdueToTask = (task) => {
+  const id = Number.parseInt(String(task?.id ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return;
+
+  const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(id)) || null;
+  const next = {
+    ...task,
+    status: 4,
+    statusValue: 4
+  };
+
+  const historyLines = buildTaskHistoryLines(before, next);
+  recordTaskHistory(id, {
+    at: Date.now(),
+    title: "Задача просрочена",
+    source: "Авто",
+    lines: historyLines.length ? historyLines : ["Статус: Просрочено"]
+  });
+
+  if (isTaskVisibleWithCurrentFilters(next)) {
+    upsertTaskInState(next);
+    applyTaskUpsertToUi(next);
+  } else {
+    removeTaskFromState(id);
+    applyTaskRemovalToUi(id);
+  }
+};
+
+const sweepAutoOverdueTasks = async (maxCount = 10_000) => {
+  const list = Array.isArray(lastNormalizedTasks) ? lastNormalizedTasks : [];
+  if (!list.length) return;
+
+  const now = Date.now();
+  const candidates = [];
+
+  list.forEach((task) => {
+    const id = Number.parseInt(String(task?.id ?? ""), 10);
+    if (!Number.isFinite(id) || id <= 0) return;
+
+    const statusValue = toStatusValue(task?.statusValue ?? task?.status);
+    if (statusValue === 3 || statusValue === 4) return;
+
+    const dueDate = normalizeToken(task?.dueDate);
+    if (!dueDate) return;
+    const due = new Date(dueDate);
+    if (Number.isNaN(due.getTime())) return;
+    if (due.getTime() >= now) return;
+
+    candidates.push(task);
+  });
+
+  // Keep the sweep cheap.
+  const limit = Number.isFinite(Number(maxCount)) && Number(maxCount) > 0 ? Number(maxCount) : 10_000;
+  candidates.slice(0, limit).forEach((task) => {
+    applyAutoOverdueToTask(task);
+  });
 };
 
 const normalizeApiTask = (task) => {
   const statusValue = toStatusValue(task?.status);
   const priorityValue = toPriorityValue(task?.priority);
   const tagIds = Array.isArray(task?.tagIds) ? task.tagIds : [];
+  const doneApprovalPending = Boolean(task?.doneApprovalPending);
+  const doneApprovalRequestedByUserId = task?.doneApprovalRequestedByUserId ?? null;
+  const doneApprovalRequestedAtUtc = task?.doneApprovalRequestedAtUtc ?? null;
   const meta = task?.id !== undefined && task?.id !== null ? getStoredTaskMeta(task.id) : null;
   const metaTags = meta?.tags && meta.tags.length ? meta.tags : null;
   const apiTagNames = tagIds
@@ -1874,6 +2946,9 @@ const normalizeApiTask = (task) => {
     description: task?.description || "",
     statusValue,
     priorityValue,
+    doneApprovalPending,
+    doneApprovalRequestedByUserId,
+    doneApprovalRequestedAtUtc,
     assigneeId: task?.assigneeId ?? null,
     dueDate: task?.dueDate,
     tags: metaTags || (apiTagNames.length ? apiTagNames : tagIds.map((id) => `Tag-${id}`)),
@@ -1959,8 +3034,18 @@ const removeTaskFromState = (taskId) => {
 };
 
 const syncTaskStateToUi = () => {
-  rebuildFlowPool(lastNormalizedTasks);
-  renderCurrentView();
+  refreshToolbarUiState();
+  const visibleTasks = getVisibleSortedTasks(lastNormalizedTasks);
+  rebuildFlowPool(visibleTasks);
+
+  if (isToolbarSearchOrFilterActive()) {
+    setGridOverlayActive(true);
+    renderTaskGridView(visibleTasks);
+    return;
+  }
+
+  setGridOverlayActive(false);
+  renderCurrentView(visibleTasks);
 };
 
 const isCalendarViewActive = () => (board?.dataset.view || "board") === "calendar";
@@ -1985,7 +3070,8 @@ const boardViewController = createBoardViewController({
   toStatusValue,
   toPriorityValue,
   getColumnIdForStatus,
-  getPriorityLabel
+  getPriorityLabel,
+  compareTasks: compareTasksForToolbar
 });
 
 const {
@@ -2000,7 +3086,8 @@ const calendarViewController = createCalendarViewController({
   clearBoardTasks,
   createTaskCard,
   getCalendarBucketId,
-  toPriorityValue
+  toPriorityValue,
+  compareTasks: compareTasksForToolbar
 });
 
 const {
@@ -2014,7 +3101,8 @@ const priorityViewController = createPriorityViewController({
   board,
   clearBoardTasks,
   createTaskCard,
-  toPriorityValue
+  toPriorityValue,
+  compareTasks: compareTasksForToolbar
 });
 
 const {
@@ -2051,7 +3139,13 @@ const removeFlowTaskItem = (taskId) => {
 const applyTaskUpsertToUi = (taskData) => {
   if (!taskData) return;
 
+  if (isToolbarFilteringActive()) {
+    syncTaskStateToUi();
+    return;
+  }
+
   upsertFlowTaskItem(taskData);
+  updateFlowNodesForTask(taskData);
 
   if (isCalendarViewActive()) {
     const updated = upsertTaskInCalendar(taskData);
@@ -2073,7 +3167,13 @@ const applyTaskUpsertToUi = (taskData) => {
 };
 
 const applyTaskRemovalToUi = (taskId) => {
+  if (isToolbarFilteringActive()) {
+    syncTaskStateToUi();
+    return;
+  }
+
   removeFlowTaskItem(taskId);
+  removeFlowNodesByTaskId(taskId);
 
   if (isCalendarViewActive()) {
     const removed = removeTaskFromCalendar(taskId);
@@ -2148,6 +3248,14 @@ const createTaskViaApi = async (uiTaskData) => {
   const taskData = normalizeApiTask(createdTask);
   if (tags.length) taskData.tags = tags;
 
+  recordTaskHistory(createdId, {
+    at: Date.now(),
+    title: "Создана задача",
+    source: "Создание",
+    lines: [normalizeToken(taskData.title) ? `Название: ${normalizeToken(taskData.title)}` : ""]
+      .filter(Boolean)
+  });
+
   if (isTaskVisibleWithCurrentFilters(taskData)) {
     upsertTaskInState(taskData);
     applyTaskUpsertToUi(taskData);
@@ -2160,7 +3268,22 @@ const createTaskViaApi = async (uiTaskData) => {
 };
 
 const updateTaskViaApi = async (id, uiTaskData) => {
-  const statusValue = toStatusValue(uiTaskData.statusValue);
+  const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(id)) || null;
+  const beforeStatusValue = toStatusValue(before?.statusValue ?? before?.status);
+
+  let statusValue = toStatusValue(uiTaskData.statusValue);
+  const dueMs = Date.parse(String(uiTaskData.dueDateIso || ""));
+  const restoringFromOverdue = beforeStatusValue === 4
+    && Number.isFinite(dueMs)
+    && dueMs >= Date.now();
+
+  if (restoringFromOverdue) {
+    statusValue = 1;
+  } else if (beforeStatusValue === 4) {
+    statusValue = 4;
+  } else if (statusValue === 4) {
+    statusValue = beforeStatusValue || 1;
+  }
   const tagIds = Array.isArray(uiTaskData.tagIds) ? uiTaskData.tagIds : [];
 
   const assigneeIdParsed = Number.parseInt(String(uiTaskData.assigneeId ?? ""), 10);
@@ -2230,6 +3353,19 @@ const updateTaskViaApi = async (id, uiTaskData) => {
     normalizedTask.tags = tags;
   }
 
+  const beforeForHistory = before && Number(before?.id) === Number(updatedId)
+    ? before
+    : (lastNormalizedTasks.find((t) => Number(t?.id) === Number(updatedId)) || null);
+  const historyLines = buildTaskHistoryLines(beforeForHistory, normalizedTask);
+  if (historyLines.length) {
+    recordTaskHistory(updatedId, {
+      at: Date.now(),
+      title: "Изменение задачи",
+      source: "Редактирование",
+      lines: historyLines
+    });
+  }
+
   if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
     upsertTaskInState(normalizedTask);
     applyTaskUpsertToUi(normalizedTask);
@@ -2266,6 +3402,13 @@ const buildUpdatePayloadFromCard = (card, statusValue) => {
 const updateTaskStatus = async (card, statusValue) => {
   const id = Number.parseInt(card.dataset.taskId || "", 10);
   if (!Number.isFinite(id)) return;
+  const currentStatusValue = toStatusValue(card.dataset.taskStatus);
+  const nextStatusValue = toStatusValue(statusValue);
+  if ((currentStatusValue === 4 && nextStatusValue !== 4) || (currentStatusValue !== 4 && nextStatusValue === 4)) {
+    syncTaskStateToUi();
+    return;
+  }
+  const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(id)) || null;
   const payload = buildUpdatePayloadFromCard(card, statusValue);
   const response = await apiFetch(buildApiUrl(`/tasks/${id}`), {
     method: "PUT",
@@ -2294,6 +3437,17 @@ const updateTaskStatus = async (card, statusValue) => {
   }
 
   const normalizedTask = normalizeApiTask(updatedTask);
+
+  const historyLines = buildTaskHistoryLines(before, normalizedTask);
+  if (historyLines.length) {
+    recordTaskHistory(id, {
+      at: Date.now(),
+      title: "Изменение задачи",
+      source: "Перетаскивание",
+      lines: historyLines
+    });
+  }
+
   if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
     upsertTaskInState(normalizedTask);
     applyTaskUpsertToUi(normalizedTask);
@@ -2325,23 +3479,33 @@ const loadTasksFromApi = async () => {
   if (!Array.isArray(tasks)) return;
   lastNormalizedTasks = tasks.map(normalizeApiTask);
   syncTaskStateToUi();
+  void sweepAutoOverdueTasks();
 };
 
-const renderCurrentView = () => {
+const renderCurrentView = (tasks) => {
   const view = board?.dataset.view || "board";
+  const list = Array.isArray(tasks) ? tasks : getVisibleSortedTasks(lastNormalizedTasks);
+  if (isToolbarSearchOrFilterActive()) {
+    return;
+  }
+  if (view === "flow") {
+    return;
+  }
   if (view === "calendar") {
-    renderCalendarView(lastNormalizedTasks);
+    renderCalendarView(list);
     return;
   }
   if (view === "priority") {
-    renderPriorityView(lastNormalizedTasks);
+    renderPriorityView(list);
     return;
   }
-  renderBoardView(lastNormalizedTasks);
+  renderBoardView(list);
 };
 
 const initColumn = (column) => {
   ensureColumnMetadata(column);
+
+  applyColumnPermissions(column);
 
   const title = column.querySelector(".column-title");
   if (title) {
@@ -2365,13 +3529,23 @@ const initColumn = (column) => {
 
   const handle = column.querySelector(".column-handle");
   if (handle) {
-    handle.addEventListener("dragstart", onDragStart);
-    handle.addEventListener("dragend", onDragEnd);
+    handle.addEventListener("dragstart", (event) => {
+      if (!canManageColumns()) return;
+      onDragStart(event);
+    });
+    handle.addEventListener("dragend", (event) => {
+      if (!canManageColumns()) return;
+      onDragEnd(event);
+    });
   }
 
   const deleteBtn = column.querySelector(".column-delete");
   if (deleteBtn) {
-    deleteBtn.addEventListener("click", () => removeColumn(column));
+    deleteBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      removeColumn(column);
+    });
   }
 
   const body = column.querySelector(".column-body");
@@ -2414,7 +3588,6 @@ const createColumn = (name) => {
     </header>
     <div class="column-body">
     </div>
-    <button class="add-task" type="button">Создать задачу</button>
   `;
   const body = column.querySelector(".column-body");
   if (body) {
@@ -2425,6 +3598,7 @@ const createColumn = (name) => {
 };
 
 const createColumnFromType = (type) => {
+  if (!canManageColumns()) return;
   if (!columnsWrap) return;
 
   const variant = getColumnCreateVariant(type);
@@ -2529,6 +3703,27 @@ const flip = (elements, mutate) => {
   });
 };
 
+const canDragTaskCard = () => {
+  if (!board) return false;
+  const view = board.dataset.view || "board";
+  const style = board.dataset.style || "columns";
+  const overlay = board.dataset.overlay || "";
+
+  if (style !== "columns") {
+    return shouldShowTrashZone();
+  }
+
+  if (overlay === "grid") {
+    return shouldShowTrashZone();
+  }
+
+  if (view === "calendar" || view === "priority") {
+    return shouldShowTrashZone();
+  }
+
+  return true;
+};
+
 const initTaskCard = (card) => {
   if (!card || card.classList.contains("is-empty")) return;
   card.setAttribute("draggable", "true");
@@ -2537,21 +3732,93 @@ const initTaskCard = (card) => {
   card.addEventListener("dblclick", () => {
     const id = Number.parseInt(card.dataset.taskId || "", 10);
     if (!Number.isFinite(id)) return;
-    void taskDetailController.openTaskDetailModalForTask(id, card);
+    openTaskDetailsById(id, card);
   });
 };
 
 const onTaskDragStart = (event) => {
+  if (!canDragTaskCard()) {
+    event.preventDefault();
+    return;
+  }
   const card = event.currentTarget;
   if (!(card instanceof Element)) return;
   dragTask = card;
   dragTaskColumn = card.closest(".column");
+  dragTaskStatusValue = toStatusValue(card.dataset.taskStatus);
+  dragTrashTaskId = Number.parseInt(card.dataset.taskId || "", 10);
+  dragTrashTaskTitle = card.querySelector("h3")?.textContent?.trim() || "";
   card.classList.add("is-dragging");
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", card.dataset.taskId || "");
   }
   setTrashZoneVisible(true);
+};
+
+const applyTaskDtoUpdateFromServer = (taskDto) => {
+  if (!taskDto || !Number.isFinite(Number(taskDto.id))) return null;
+  const normalizedTask = normalizeApiTask(taskDto);
+  if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
+    upsertTaskInState(normalizedTask);
+    applyTaskUpsertToUi(normalizedTask);
+  } else {
+    removeTaskFromState(normalizedTask.id);
+    applyTaskRemovalToUi(normalizedTask.id);
+  }
+  return normalizedTask;
+};
+
+const approveTaskDoneViaApi = async (taskId) => {
+  const id = Number(taskId);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  if (!isAdmin()) return null;
+
+  const response = await apiFetch(buildApiUrl(`/tasks/${id}/done-approval/approve`), {
+    method: "POST",
+    headers: { Accept: "application/json" }
+  });
+  if (!response.ok) {
+    await handleApiError(response, "Подтверждение задачи");
+    return null;
+  }
+
+  let updatedTask = null;
+  try {
+    updatedTask = await response.json();
+  } catch {
+    updatedTask = null;
+  }
+
+  const normalized = applyTaskDtoUpdateFromServer(updatedTask);
+  await notificationsController.refreshUnreadCount();
+  return normalized;
+};
+
+const rejectTaskDoneViaApi = async (taskId) => {
+  const id = Number(taskId);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  if (!isAdmin()) return null;
+
+  const response = await apiFetch(buildApiUrl(`/tasks/${id}/done-approval/reject`), {
+    method: "POST",
+    headers: { Accept: "application/json" }
+  });
+  if (!response.ok) {
+    await handleApiError(response, "Отклонение задачи");
+    return null;
+  }
+
+  let updatedTask = null;
+  try {
+    updatedTask = await response.json();
+  } catch {
+    updatedTask = null;
+  }
+
+  const normalized = applyTaskDtoUpdateFromServer(updatedTask);
+  await notificationsController.refreshUnreadCount();
+  return normalized;
 };
 
 const onTaskDragEnd = () => {
@@ -2569,8 +3836,11 @@ const onTaskDragEnd = () => {
   }
   dragTask = null;
   dragTaskColumn = null;
+  dragTaskStatusValue = null;
   lastTaskAfter = null;
   lastTaskContainer = null;
+  dragTrashTaskId = null;
+  dragTrashTaskTitle = "";
   setTrashZoneOver(false);
   setTrashZoneVisible(false);
 };
@@ -2601,18 +3871,52 @@ const getTaskFlipElements = (sourceContainer, targetContainer) => {
   return Array.from(new Set(elements));
 };
 
+const canMoveTasksBetweenColumns = () => {
+  if (!board) return false;
+  if (board.dataset.overlay === "grid") return false;
+  if (board.dataset.style !== "columns") return false;
+  const view = board.dataset.view || "board";
+  return view === "board" || view === "list";
+};
+
+const resolveStatusForColumn = (column) => {
+  if (!(column instanceof Element)) return null;
+  const direct = getStatusForColumnId(normalizeToken(column.dataset.columnId));
+  if (direct) return direct;
+  const type = normalizeToken(column.dataset.columnType).toLowerCase();
+  const variant = getColumnCreateVariant(type);
+  return getStatusForColumnId(variant.columnId);
+};
+
+const isOverdueStatus = (statusValue) => toStatusValue(statusValue) === 4;
+
 const onTaskDragOver = (event) => {
-  event.preventDefault();
+  if (!canMoveTasksBetweenColumns()) return;
   if (!dragTask) return;
   const container = event.currentTarget;
   if (!(container instanceof Element)) return;
+
+  const sourceContainer = dragTask.parentElement;
+  const sourceColumn = sourceContainer instanceof Element ? sourceContainer.closest(".column") : null;
+  const targetColumn = container.closest(".column");
+  const sourceStatusValue = dragTaskStatusValue !== null ? dragTaskStatusValue : toStatusValue(dragTask.dataset.taskStatus);
+
+  // Overdue tasks cannot be moved to other columns.
+  if (isOverdueStatus(sourceStatusValue) && sourceColumn && targetColumn && sourceColumn !== targetColumn) {
+    return;
+  }
+
+  // Tasks cannot be manually moved into the Overdue column.
+  const targetStatusValue = resolveStatusForColumn(targetColumn);
+  if (isOverdueStatus(targetStatusValue) && !isOverdueStatus(sourceStatusValue)) {
+    return;
+  }
+
+  event.preventDefault();
   const afterElement = getTaskDragAfterElement(container, event.clientY);
   if (afterElement === lastTaskAfter && container === lastTaskContainer) return;
   lastTaskAfter = afterElement;
   lastTaskContainer = container;
-  const sourceContainer = dragTask.parentElement;
-  const sourceColumn = sourceContainer instanceof Element ? sourceContainer.closest(".column") : null;
-  const targetColumn = container.closest(".column");
   const flipElements = getTaskFlipElements(sourceContainer, container);
   flip(flipElements, () => {
     if (!afterElement) {
@@ -2630,16 +3934,43 @@ const onTaskDragOver = (event) => {
 };
 
 const onTaskDrop = (event) => {
-  event.preventDefault();
+  if (!canMoveTasksBetweenColumns()) return;
   if (!dragTask) return;
+  event.preventDefault();
   const targetContainer = event.currentTarget instanceof Element ? event.currentTarget : null;
   const targetColumn = targetContainer?.closest(".column") || null;
+
+  const sourceStatusValue = dragTaskStatusValue !== null ? dragTaskStatusValue : toStatusValue(dragTask.dataset.taskStatus);
+  const targetStatusValue = resolveStatusForColumn(targetColumn);
+
+  // Overdue tasks can only be "restored" by changing the due date.
+  if (isOverdueStatus(sourceStatusValue) && dragTaskColumn && targetColumn && dragTaskColumn !== targetColumn) {
+    syncTaskStateToUi();
+    return;
+  }
+
+  // Don't allow manual status changes to Overdue via drag&drop.
+  if (isOverdueStatus(targetStatusValue) && !isOverdueStatus(sourceStatusValue)) {
+    syncTaskStateToUi();
+    return;
+  }
+
   if (dragTaskColumn && targetColumn && dragTaskColumn !== targetColumn) {
-    const nextStatus =
-      getStatusForColumnId(targetColumn.dataset.columnId)
-      || getStatusForColumnId(getColumnCreateVariant(targetColumn.dataset.columnType).columnId);
+    const nextStatus = targetStatusValue;
     if (nextStatus && dragTask.dataset.taskId) {
       updateTaskCardStatus(dragTask, nextStatus);
+
+      const pending = !isAdmin() && toStatusValue(nextStatus) === 3;
+      if (pending) {
+        dragTask.dataset.doneApproval = "pending";
+      } else {
+        delete dragTask.dataset.doneApproval;
+      }
+      const approvalEl = dragTask.querySelector(".task-approval-wait");
+      if (approvalEl instanceof HTMLElement) {
+        approvalEl.hidden = !pending;
+      }
+
       void updateTaskStatus(dragTask, nextStatus);
     }
   }
@@ -2655,7 +3986,10 @@ const onTaskDrop = (event) => {
 
 if (taskTrashZone) {
   taskTrashZone.addEventListener("dragover", (event) => {
-    if (!dragTask || !shouldShowTrashZone()) return;
+    if (!shouldShowTrashZone()) return;
+    const parsed = parseTrashDragInfo(event.dataTransfer);
+    const id = Number.isFinite(dragTrashTaskId) && dragTrashTaskId > 0 ? dragTrashTaskId : parsed.id;
+    if (!id) return;
     event.preventDefault();
     setTrashZoneOver(true);
     if (event.dataTransfer) {
@@ -2668,12 +4002,18 @@ if (taskTrashZone) {
   });
 
   taskTrashZone.addEventListener("drop", async (event) => {
-    if (!dragTask || !shouldShowTrashZone()) return;
+    if (!shouldShowTrashZone()) return;
     event.preventDefault();
     event.stopPropagation();
     setTrashZoneOver(false);
-    const id = Number.parseInt(dragTask.dataset.taskId || "", 10);
-    const title = dragTask.querySelector("h3")?.textContent?.trim();
+    const parsed = parseTrashDragInfo(event.dataTransfer);
+    const id = Number.isFinite(dragTrashTaskId) && dragTrashTaskId > 0 ? dragTrashTaskId : parsed.id;
+    const title = dragTrashTaskTitle || parsed.title || "";
+    if (!Number.isFinite(Number(id)) || Number(id) <= 0) {
+      setTrashZoneVisible(false);
+      syncTaskStateToUi();
+      return;
+    }
     const confirmed = await openConfirmModal({
       kicker: "Удаление задачи",
       title: title ? `Удалить "${title}"?` : "Удалить эту задачу?",
@@ -2682,12 +4022,16 @@ if (taskTrashZone) {
     });
     if (confirmed !== true) {
       setTrashZoneVisible(false);
+      dragTrashTaskId = null;
+      dragTrashTaskTitle = "";
       syncTaskStateToUi();
       return;
     }
     void (async () => {
       const deleted = await deleteTaskViaApi(id);
       setTrashZoneVisible(false);
+      dragTrashTaskId = null;
+      dragTrashTaskTitle = "";
       if (!deleted) {
         syncTaskStateToUi();
         return;
@@ -2779,37 +4123,54 @@ if (brandMarkEl) {
   });
 }
 
+if (accountAvatarEl) {
+  accountAvatarEl.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    closeUserMiniMenu();
+    setNotificationsOpen(false);
+    setSettingsOpen(false);
+    setPanelOpen(false);
+
+    const actorId = getActorUserId();
+    if (!Number.isFinite(Number(actorId))) return;
+
+    const member = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === Number(actorId));
+    const fallback = {
+      id: Number(actorId),
+      name: getActorDisplayName(),
+      email: normalizeToken(actorUser?.email) || "-",
+      role: normalizeToken(currentWorkspaceRole) || "Member"
+    };
+    profileModalsController.openProfileModal(member || fallback);
+  });
+}
+
 if (userSearch) {
   userSearch.addEventListener("input", refreshUserFilter);
 }
 
-if (userAddBtn) {
-  userAddBtn.addEventListener("click", () => {
-    if (!userAddInput) return;
-    void (async () => {
-      if (!currentWorkspaceId) return;
-      if (!isAdmin()) return;
-      const email = normalizeEmail(userAddInput.value);
-      if (!email) return;
-      const name = email.split("@")[0] || "Без имени";
-      const created = await fetchJsonOrNull(buildApiUrl(`/spaces/${currentWorkspaceId}/members`), "Добавление участника", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json"
-        },
-        body: JSON.stringify({ name, email })
-      });
-
-      userAddInput.value = "";
-      await loadUsersFromApi();
-      if (created && created.userId) {
-        setCurrentUser({ id: Number(created.userId), name: created.name, email: created.email });
-        await loadTasksFromApi();
-      }
-    })();
-  });
-}
+inviteControls = createInviteControls({
+  inputEl: userAddInput,
+  buttonEl: userAddBtn,
+  canManageInvites: () => isAdmin() && Number.isFinite(Number(currentWorkspaceId)) && Number(currentWorkspaceId) > 0,
+  getWorkspaceId: () => currentWorkspaceId,
+  sendInvite: async (workspaceId, email) => {
+    return await fetchJsonOrNull(buildApiUrl(`/spaces/${workspaceId}/invites`), "Отправка приглашения", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({ email, role: 1 })
+    });
+  },
+  onInviteSent: async () => {
+    await notificationsController.refreshUnreadCount();
+  }
+});
+inviteControls.bind();
 
 if (openSpacesHomeBtn) {
   openSpacesHomeBtn.addEventListener("click", () => {
@@ -2817,14 +4178,7 @@ if (openSpacesHomeBtn) {
   });
 }
 
-if (userAddInput) {
-  userAddInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      userAddBtn?.click();
-    }
-  });
-}
+refreshInviteControlsState();
 
 if (board) {
   board.addEventListener("click", (event) => {
@@ -2837,8 +4191,57 @@ if (board) {
   });
 }
 
+document.addEventListener("click", (event) => {
+  const chip = event.target instanceof Element
+    ? event.target.closest(".task-card .task-chip")
+    : null;
+  if (!(chip instanceof Element)) return;
+  if (chip.closest(".task-modal")) return;
+
+  const tag = normalizeTag(chip.textContent);
+  if (!tag) return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  toolbarTagFilter.add(tag);
+  closeToolbarPopovers();
+  if (boardSearchInput instanceof HTMLInputElement) {
+    boardSearchInput.focus();
+  }
+  syncTaskStateToUi();
+});
+
 if (flowAddTaskBtn) {
   flowAddTaskBtn.addEventListener("click", () => {
+    openTaskModal(getDefaultColumn());
+  });
+}
+
+if (flowClearBtn) {
+  flowClearBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setFlowClearMenuOpen(!isFlowClearMenuOpen);
+  });
+}
+
+if (flowClearMenu) {
+  flowClearMenu.addEventListener("click", (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest(".flow-clear-menu-item[data-flow-clear]")
+      : null;
+    if (!(target instanceof HTMLButtonElement)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    const action = normalizeToken(target.dataset.flowClear).toLowerCase();
+    setFlowClearMenuOpen(false);
+    void runFlowClearAction(action);
+  });
+}
+
+if (boardTaskCreateBtn) {
+  boardTaskCreateBtn.addEventListener("click", () => {
     openTaskModal(getDefaultColumn());
   });
 }
@@ -2857,6 +4260,19 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("click", (event) => {
+  if (!isFlowClearMenuOpen) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) {
+    setFlowClearMenuOpen(false);
+    return;
+  }
+  if (target.closest("#flow-clear-task") || target.closest("#flow-clear-menu")) {
+    return;
+  }
+  setFlowClearMenuOpen(false);
+});
+
+document.addEventListener("click", (event) => {
   const target = event.target instanceof Element ? event.target : null;
   if (!target || !taskModal || taskModal.hasAttribute("hidden")) return;
   if (target.closest("[data-close-modal]")) {
@@ -2867,17 +4283,17 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("click", (event) => {
   const target = event.target instanceof Element ? event.target : null;
-  if (!target || !profileModal || profileModal.hasAttribute("hidden")) return;
+  if (!target || !profileModalsController.isProfileModalOpen()) return;
   if (target.closest("[data-close-profile]")) {
-    closeProfileModal();
+    profileModalsController.closeProfileModal();
   }
 });
 
 document.addEventListener("click", (event) => {
   const target = event.target instanceof Element ? event.target : null;
-  if (!target || !avatarModal || avatarModal.hasAttribute("hidden")) return;
+  if (!target || !profileModalsController.isAvatarModalOpen()) return;
   if (target.closest("[data-close-avatar]")) {
-    closeAvatarModal();
+    profileModalsController.closeAvatarModal();
   }
 });
 
@@ -2944,18 +4360,36 @@ document.addEventListener("click", (event) => {
   setNotificationsOpen(false);
 });
 
-const taskDetailController = createTaskDetailController({
-  isAdmin,
+taskDetailController = createTaskDetailController({
+  canEditTask: isAdmin,
+  canClearHistory: isAdmin,
+  canManageDoneApproval: isAdmin,
+  approveDone: approveTaskDoneViaApi,
+  rejectDone: rejectTaskDoneViaApi,
   ensureTagsLoaded,
   getTagNameById: (id) => tagById.get(Number(id)) || "",
+  getAssigneeNameById: (id) => {
+    const match = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === Number(id));
+    return normalizeToken(match?.name);
+  },
   openTaskModalForEdit,
   applyTaskBgToCards,
   applyAttachmentCountToCards,
   confirmDestructiveAction: openConfirmModal
 });
 
+window.addEventListener("task:upsert", (event) => {
+  const payload = event?.detail;
+  const dto = payload?.task;
+  applyTaskDtoUpdateFromServer(dto);
+});
+
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (isFlowClearMenuOpen) {
+      setFlowClearMenuOpen(false);
+      return;
+    }
     if (isAddColumnMenuOpen) {
       closeAddColumnMenu();
       return;
@@ -2963,10 +4397,13 @@ document.addEventListener("keydown", (event) => {
     if (closeConfirmModal(false)) {
       return;
     }
-    if (closeAvatarModal()) {
+    if (closeToolbarPopovers()) {
       return;
     }
-    if (closeProfileModal()) {
+    if (profileModalsController.closeAvatarModal()) {
+      return;
+    }
+    if (profileModalsController.closeProfileModal()) {
       return;
     }
     if (activeUserMiniMenu instanceof Element) {
@@ -3004,9 +4441,26 @@ if (taskForm) {
     }
     const assigneeId = normalizeToken(taskAssignee?.value);
     const priorityValue = normalizeToken(taskPriority?.value) || `${DEFAULT_PRIORITY_VALUE}`;
-    const statusValue = editingTaskId
+    const requestedStatusValue = editingTaskId
       ? toStatusValue(taskStatus?.value)
       : 1;
+
+    let statusValue = requestedStatusValue;
+    if (editingTaskId && editingTaskCard) {
+      const currentStatusValue = toStatusValue(editingTaskCard.dataset.taskStatus);
+      const dueMs = Date.parse(dueDateIso);
+      const restoringFromOverdue = currentStatusValue === 4
+        && Number.isFinite(dueMs)
+        && dueMs >= Date.now();
+
+      if (restoringFromOverdue) {
+        statusValue = 1;
+      } else if (currentStatusValue === 4) {
+        statusValue = 4;
+      } else if (requestedStatusValue === 4) {
+        statusValue = currentStatusValue;
+      }
+    }
     const tagIds = await resolveTagIdsForTask(tags);
     const taskData = {
       title,
@@ -3125,7 +4579,7 @@ if (panelWorkspaceAvatarInput) {
     panelWorkspaceAvatarInput.value = "";
     if (!file) return;
     if (!currentWorkspaceId) return;
-    if (!isAdmin()) return;
+    if (!isOwner()) return;
 
     const form = new FormData();
     form.append("file", file);
@@ -3147,12 +4601,121 @@ if (panelWorkspaceAvatarInput) {
   });
 }
 
+if (panelWorkspaceDeleteBtn) {
+  panelWorkspaceDeleteBtn.addEventListener("click", () => {
+    void (async () => {
+      if (!currentWorkspaceId) return;
+      if (!isOwner()) return;
+
+      const workspaceName = normalizeToken(panelWorkspaceNameEl?.textContent)
+        || normalizeToken(brandTitleEl?.textContent)
+        || "Проект";
+
+      const confirmed = await openConfirmModal({
+        kicker: "Внимание!",
+        title: `Удалить проект "${workspaceName}"?`,
+        message: "Для удаления введите название проекта в поле ниже. Это действие необратимо.",
+        confirmText: "Удалить проект",
+        requireText: workspaceName,
+        requireTextHint: `Введите название проекта: ${workspaceName}`,
+        requireTextPlaceholder: "Название проекта"
+      });
+
+      if (confirmed !== true) return;
+
+      const response = await apiFetch(buildApiUrl(`/spaces/${currentWorkspaceId}`), {
+        method: "DELETE",
+        headers: { Accept: "application/json" }
+      });
+
+      if (!response.ok) {
+        await handleApiError(response, "Удаление проекта");
+        return;
+      }
+
+      try {
+        localStorage.removeItem(STORAGE_WORKSPACE_ID);
+      } catch {
+        // ignore
+      }
+
+      window.location.href = "index.html";
+    })();
+  });
+}
+
 if (settingsNicknameInput) {
   settingsNicknameInput.addEventListener("input", () => {
-    const id = getActorUserId();
-    if (!id) return;
-    setStoredAccountNickname(id, settingsNicknameInput.value);
-    updateActorUi();
+    clearNicknameStatusMessage();
+    refreshNicknameControls();
+  });
+
+  settingsNicknameInput.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    settingsNicknameSaveBtn?.click();
+  });
+}
+
+if (settingsNicknameSaveBtn) {
+  settingsNicknameSaveBtn.addEventListener("click", () => {
+    void (async () => {
+      const actorUserId = getActorUserId();
+      if (!actorUserId) return;
+      if (nicknameSaveInFlight) return;
+      if (getNicknameCooldownRemainingSeconds() > 0) {
+        refreshNicknameControls();
+        return;
+      }
+
+      const nickname = normalizeToken(settingsNicknameInput?.value);
+      const currentDisplayName = normalizeToken(getActorDisplayName());
+      if (!nickname || nickname === currentDisplayName) {
+        refreshNicknameControls();
+        return;
+      }
+
+      nicknameSaveInFlight = true;
+      clearNicknameStatusMessage();
+      refreshNicknameControls();
+
+      const response = await apiFetch(buildApiUrl("/auth/nickname"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json"
+        },
+        body: JSON.stringify({ nickname })
+      });
+
+      if (!response.ok) {
+        const message = await parseApiErrorMessage(response, "Не удалось изменить ник.");
+        setNicknameStatusMessage(message, true);
+        if (response.status === 400) {
+          await loadCurrentUserFromApi();
+        }
+        nicknameSaveInFlight = false;
+        refreshNicknameControls();
+        return;
+      }
+
+      let updatedUser = null;
+      try {
+        updatedUser = await response.json();
+      } catch {
+        updatedUser = null;
+      }
+
+      if (updatedUser?.id) {
+        setActorUser(updatedUser);
+      } else {
+        await loadCurrentUserFromApi();
+      }
+
+      clearNicknameStatusMessage();
+      nicknameSaveInFlight = false;
+      refreshNicknameControls();
+    })();
   });
 }
 
@@ -3164,29 +4727,69 @@ if (settingsAvatarBtn && settingsAvatarInput) {
 
 if (settingsAvatarInput) {
   settingsAvatarInput.addEventListener("change", () => {
-    const file = settingsAvatarInput.files && settingsAvatarInput.files[0];
-    // Allow re-selecting the same file.
-    settingsAvatarInput.value = "";
-    const id = getActorUserId();
-    if (!id || !file) return;
-    const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      const dataUrl = typeof reader.result === "string" ? reader.result : "";
-      if (!dataUrl) return;
-      setStoredAccountAvatar(id, dataUrl);
-      updateActorUi();
-    });
-    reader.readAsDataURL(file);
+    void (async () => {
+      const file = settingsAvatarInput.files && settingsAvatarInput.files[0];
+      settingsAvatarInput.value = "";
+      if (!getActorUserId() || !file) return;
+
+      const form = new FormData();
+      form.append("file", file);
+
+      const response = await apiFetch(buildApiUrl("/auth/avatar"), {
+        method: "POST",
+        body: form
+      });
+
+      if (!response.ok) {
+        await handleApiError(response, "Обновление аватара аккаунта");
+        return;
+      }
+
+      try {
+        const updated = await response.json();
+        if (updated?.id) {
+          setActorUser(updated);
+        } else {
+          await loadCurrentUserFromApi();
+        }
+      } catch {
+        await loadCurrentUserFromApi();
+      }
+
+      await loadUsersFromApi();
+    })();
   });
 }
 
 if (settingsAvatarClearBtn) {
   settingsAvatarClearBtn.addEventListener("click", () => {
-    const id = getActorUserId();
-    if (!id) return;
-    setStoredAccountAvatar(id, "");
-    if (settingsAvatarInput) settingsAvatarInput.value = "";
-    updateActorUi();
+    void (async () => {
+      if (!getActorUserId()) return;
+
+      const response = await apiFetch(buildApiUrl("/auth/avatar"), {
+        method: "DELETE"
+      });
+
+      if (!response.ok) {
+        await handleApiError(response, "Очистка аватара аккаунта");
+        return;
+      }
+
+      if (settingsAvatarInput) settingsAvatarInput.value = "";
+
+      try {
+        const updated = await response.json();
+        if (updated?.id) {
+          setActorUser(updated);
+        } else {
+          await loadCurrentUserFromApi();
+        }
+      } catch {
+        await loadCurrentUserFromApi();
+      }
+
+      await loadUsersFromApi();
+    })();
   });
 }
 
@@ -3215,12 +4818,28 @@ if (taskDetailEditBtn) {
   taskDetailEditBtn.addEventListener("click", taskDetailController.onDetailEditClick);
 }
 
+if (taskDetailApproveBtn) {
+  taskDetailApproveBtn.addEventListener("click", taskDetailController.onApproveDoneClick);
+}
+
+if (taskDetailRejectBtn) {
+  taskDetailRejectBtn.addEventListener("click", taskDetailController.onRejectDoneClick);
+}
+
 if (taskDetailPhotoBtn) {
   taskDetailPhotoBtn.addEventListener("click", taskDetailController.onDetailPhotoClick);
 }
 
 if (taskDetailPhotoClearBtn) {
   taskDetailPhotoClearBtn.addEventListener("click", taskDetailController.onDetailPhotoClearClick);
+}
+
+if (taskDetailHistoryToggleBtn) {
+  taskDetailHistoryToggleBtn.addEventListener("click", taskDetailController.onHistoryToggleClick);
+}
+
+if (taskDetailHistoryClearBtn) {
+  taskDetailHistoryClearBtn.addEventListener("click", taskDetailController.onHistoryClearClick);
 }
 
 if (taskAttachBtn) {
@@ -3247,9 +4866,247 @@ viewButtons.forEach((button) => {
   });
 });
 
+const openBoardSortMenu = () => {
+  if (!boardSortMenu || !boardSortToggleBtn) return;
+  if (boardFilterPanel) boardFilterPanel.setAttribute("hidden", "");
+  if (boardFilterToggleBtn) boardFilterToggleBtn.setAttribute("aria-expanded", "false");
+  refreshToolbarUiState();
+  boardSortMenu.removeAttribute("hidden");
+  boardSortToggleBtn.setAttribute("aria-expanded", "true");
+};
+
+const toggleBoardSortMenu = () => {
+  if (!boardSortMenu || !boardSortToggleBtn) return;
+  const open = !boardSortMenu.hasAttribute("hidden");
+  if (open) {
+    closeToolbarPopovers();
+  } else {
+    openBoardSortMenu();
+  }
+};
+
+const openBoardFilterPanel = () => {
+  if (!boardFilterPanel || !boardFilterToggleBtn) return;
+  if (boardSortMenu) boardSortMenu.setAttribute("hidden", "");
+  if (boardSortToggleBtn) boardSortToggleBtn.setAttribute("aria-expanded", "false");
+  if (boardTagsMenu) boardTagsMenu.setAttribute("hidden", "");
+  if (boardTagsToggleBtn) boardTagsToggleBtn.setAttribute("aria-expanded", "false");
+  refreshToolbarUiState();
+  boardFilterPanel.removeAttribute("hidden");
+  boardFilterToggleBtn.setAttribute("aria-expanded", "true");
+};
+
+const renderBoardTagsMenu = () => {
+  if (!boardTagsList || !boardTagsEmptyEl) return;
+  boardTagsList.innerHTML = "";
+
+  const tags = Array.isArray(tagList) ? tagList : [];
+  if (!tags.length) {
+    boardTagsEmptyEl.hidden = false;
+    return;
+  }
+  boardTagsEmptyEl.hidden = true;
+
+  const selected = new Set(Array.from(toolbarTagFilter.values()));
+  const fragment = document.createDocumentFragment();
+  tags.forEach((t) => {
+    const label = normalizeToken(t?.name);
+    const key = normalizeTag(label);
+    if (!key) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "board-popover-item";
+    btn.dataset.tag = key;
+    btn.textContent = `#${label}`;
+    btn.classList.toggle("is-selected", selected.has(key));
+    fragment.appendChild(btn);
+  });
+  boardTagsList.appendChild(fragment);
+};
+
+const openBoardTagsMenu = async () => {
+  if (!boardTagsMenu || !boardTagsToggleBtn) return;
+  if (boardSortMenu) boardSortMenu.setAttribute("hidden", "");
+  if (boardSortToggleBtn) boardSortToggleBtn.setAttribute("aria-expanded", "false");
+  if (boardFilterPanel) boardFilterPanel.setAttribute("hidden", "");
+  if (boardFilterToggleBtn) boardFilterToggleBtn.setAttribute("aria-expanded", "false");
+
+  await ensureTagsLoaded();
+  renderBoardTagsMenu();
+  refreshToolbarUiState();
+  boardTagsMenu.removeAttribute("hidden");
+  boardTagsToggleBtn.setAttribute("aria-expanded", "true");
+};
+
+const toggleBoardTagsMenu = () => {
+  if (!boardTagsMenu || !boardTagsToggleBtn) return;
+  const open = !boardTagsMenu.hasAttribute("hidden");
+  if (open) {
+    closeToolbarPopovers();
+  } else {
+    void openBoardTagsMenu();
+  }
+};
+
+const toggleBoardFilterPanel = () => {
+  if (!boardFilterPanel || !boardFilterToggleBtn) return;
+  const open = !boardFilterPanel.hasAttribute("hidden");
+  if (open) {
+    closeToolbarPopovers();
+  } else {
+    openBoardFilterPanel();
+  }
+};
+
+if (boardTagsToggleBtn) {
+  boardTagsToggleBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleBoardTagsMenu();
+  });
+}
+
+if (boardTagsClearBtn) {
+  boardTagsClearBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toolbarTagFilter.clear();
+    refreshToolbarUiState();
+    syncTaskStateToUi();
+  });
+}
+
+if (boardTagsList) {
+  boardTagsList.addEventListener("click", (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest(".board-popover-item[data-tag]")
+      : null;
+    if (!(target instanceof HTMLButtonElement)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const tag = normalizeTag(target.dataset.tag);
+    if (!tag) return;
+    if (toolbarTagFilter.has(tag)) {
+      toolbarTagFilter.delete(tag);
+    } else {
+      toolbarTagFilter.add(tag);
+    }
+    refreshToolbarUiState();
+    syncTaskStateToUi();
+  });
+}
+
+if (boardSearchInput) {
+  boardSearchInput.addEventListener("input", () => {
+    if (toolbarSearchDebounceId) {
+      window.clearTimeout(toolbarSearchDebounceId);
+    }
+    toolbarSearchDebounceId = window.setTimeout(() => {
+      toolbarQuery = normalizeToken(boardSearchInput.value);
+      syncTaskStateToUi();
+    }, 120);
+  });
+}
+
+if (boardSearchClearBtn) {
+  boardSearchClearBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toolbarQuery = "";
+    toolbarTagFilter.clear();
+    if (boardSearchInput) boardSearchInput.value = "";
+    syncTaskStateToUi();
+  });
+}
+
+if (boardSortToggleBtn) {
+  boardSortToggleBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleBoardSortMenu();
+  });
+}
+
+if (boardSortMenu) {
+  boardSortMenu.addEventListener("click", (event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest(".board-popover-item[data-sort]")
+      : null;
+    if (!(target instanceof HTMLButtonElement)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const next = normalizeToken(target.dataset.sort) || "smart";
+    toolbarSort = next;
+    closeToolbarPopovers();
+    syncTaskStateToUi();
+  });
+}
+
+if (boardFilterToggleBtn) {
+  boardFilterToggleBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleBoardFilterPanel();
+  });
+}
+
+if (boardFilterResetBtn) {
+  boardFilterResetBtn.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    toolbarStatusFilter.clear();
+    toolbarPriorityFilter.clear();
+    toolbarTagFilter.clear();
+    refreshToolbarUiState();
+    syncTaskStateToUi();
+  });
+}
+
+if (boardFilterPanel) {
+  boardFilterPanel.addEventListener("change", (event) => {
+    const input = event.target instanceof Element
+      ? event.target.closest('input[type="checkbox"][data-filter]')
+      : null;
+    if (!(input instanceof HTMLInputElement)) return;
+    const kind = normalizeToken(input.dataset.filter);
+    const value = Number.parseInt(normalizeToken(input.value), 10);
+    if (!Number.isFinite(value)) return;
+
+    const set = kind === "status"
+      ? toolbarStatusFilter
+      : (kind === "priority" ? toolbarPriorityFilter : null);
+    if (!set) return;
+
+    if (input.checked) {
+      set.add(value);
+    } else {
+      set.delete(value);
+    }
+    syncTaskStateToUi();
+  });
+}
+
+document.addEventListener("click", (event) => {
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) {
+    closeToolbarPopovers();
+    return;
+  }
+  if (target.closest("#board-sort-menu")
+    || target.closest("#board-filter-panel")
+    || target.closest("#board-tags-menu")
+    || target.closest("#board-sort-toggle")
+    || target.closest("#board-filter-toggle")
+    || target.closest("#board-tags-toggle")) {
+    return;
+  }
+  closeToolbarPopovers();
+});
+
 refreshUserFilter();
 setLayoutStyle(board?.dataset.style || "columns");
 refreshAddColumnMenuState();
+refreshBoardPermissionsUi();
 updateFlowEmptyState();
 startTaskTimingTicker();
 
@@ -3305,6 +5162,7 @@ const bootstrapWorkspacePage = async () => {
 
   setAppScreen("board");
   await loadCurrentUserFromApi();
+  await migrateLegacyAvatarIfNeeded();
   updateActorUi();
 
   if (!getActorUserId()) {
@@ -3341,6 +5199,7 @@ const bootstrapWorkspacePage = async () => {
   }
 
   await openWorkspace(workspace);
+  await notificationsController.refreshUnreadCount();
 };
 
 void (async () => {
@@ -3376,6 +5235,7 @@ function setNotificationsOpen(open) {
     // Avoid two panels fighting for width.
     setPanelOpen(false);
     setSettingsOpen(false);
+    void notificationsController.onPanelOpened();
     window.setTimeout(() => notificationsCloseBtn?.focus(), 0);
   }
 }

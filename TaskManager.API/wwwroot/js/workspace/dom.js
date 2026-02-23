@@ -18,14 +18,39 @@ export const styleSwitch = document.getElementById("style-switch");
 export const styleToggleTitleEl = document.getElementById("style-toggle-title");
 export const styleToggleSubEl = document.getElementById("style-toggle-sub");
 
+export const boardToolbar = document.getElementById("board-toolbar");
+export const boardSearchInput = document.getElementById("board-search");
+export const boardSearchTags = document.getElementById("board-search-tags");
+export const boardSearchClearBtn = document.getElementById("board-search-clear");
+export const boardSortToggleBtn = document.getElementById("board-sort-toggle");
+export const boardFilterToggleBtn = document.getElementById("board-filter-toggle");
+export const boardTagsToggleBtn = document.getElementById("board-tags-toggle");
+export const boardSortMenu = document.getElementById("board-sort-menu");
+export const boardFilterPanel = document.getElementById("board-filter-panel");
+export const boardTagsMenu = document.getElementById("board-tags-menu");
+export const boardFilterResetBtn = document.getElementById("board-filter-reset");
+export const boardTagsClearBtn = document.getElementById("board-tags-clear");
+export const boardTagsList = document.getElementById("board-tags-list");
+export const boardTagsEmptyEl = document.getElementById("board-tags-empty");
+export const boardTaskCreateBtn = document.getElementById("board-task-create");
+
+export const taskGrid = document.getElementById("task-grid");
+export const taskGridItems = document.getElementById("task-grid-items");
+export const taskGridEmptyEl = document.getElementById("task-grid-empty");
+export const taskGridSubEl = document.getElementById("task-grid-sub");
+
 export const taskTrashZone = document.getElementById("task-trash-zone");
 
 export const flowLayout = document.getElementById("flow-layout");
 export const flowCanvas = document.getElementById("flow-canvas");
+export const flowScene = document.getElementById("flow-scene");
 export const flowLinks = document.getElementById("flow-links");
+export const flowNodesLayer = document.getElementById("flow-nodes");
 export const flowDropzone = document.getElementById("flow-dropzone");
 export const flowListItems = document.querySelector(".flow-list-items");
 export const flowAddTaskBtn = document.getElementById("flow-add-task");
+export const flowClearBtn = document.getElementById("flow-clear-task");
+export const flowClearMenu = document.getElementById("flow-clear-menu");
 
 export const calendarLayout = document.getElementById("calendar-layout");
 
@@ -46,12 +71,16 @@ export const userList = document.getElementById("user-list");
 export const userEmpty = document.getElementById("user-empty");
 export const userAddInput = document.getElementById("user-add-input");
 export const userAddBtn = document.getElementById("user-add-btn");
+export const userAddSection = document.querySelector(".user-add");
 
 export const panelWorkspace = document.getElementById("panel-workspace");
 export const panelWorkspaceNameEl = document.getElementById("panel-workspace-name");
 export const panelWorkspaceEditBtn = document.getElementById("panel-workspace-edit");
 export const panelWorkspaceAvatarEl = document.getElementById("panel-workspace-avatar");
 export const panelWorkspaceAvatarInput = document.getElementById("panel-workspace-avatar-input");
+
+export const panelWorkspaceDanger = document.getElementById("panel-workspace-danger");
+export const panelWorkspaceDeleteBtn = document.getElementById("panel-workspace-delete");
 
 export const taskBgInput = document.getElementById("task-bg-input");
 export const taskAttachmentsInput = document.getElementById("task-attachments-input");
@@ -71,9 +100,14 @@ export const settingsToggleBtn = document.getElementById("settings-toggle");
 export const notificationsPanel = document.getElementById("notifications-panel");
 export const notificationsToggleBtn = document.getElementById("notifications-toggle");
 export const notificationsCloseBtn = document.getElementById("notifications-close");
+export const notificationsList = document.getElementById("notifications-list");
+export const notificationsEmpty = document.getElementById("notifications-empty");
+export const notificationsMarkAllBtn = document.getElementById("notifications-mark-all");
 
 export const logoutBtn = document.getElementById("logout-btn");
 export const settingsNicknameInput = document.getElementById("settings-nickname");
+export const settingsNicknameSaveBtn = document.getElementById("settings-nickname-save");
+export const settingsNicknameCooldownEl = document.getElementById("settings-nickname-cooldown");
 export const settingsAvatarPreview = document.getElementById("settings-avatar-preview");
 export const settingsAvatarPreviewTextEl = settingsAvatarPreview?.querySelector("span") || null;
 export const settingsAvatarInput = document.getElementById("settings-avatar-input");
@@ -107,6 +141,19 @@ export const taskDetailPhotoImg = document.getElementById("task-detail-photo-img
 export const taskDetailPhotoBtn = document.getElementById("task-detail-photo-btn");
 export const taskDetailPhotoClearBtn = document.getElementById("task-detail-photo-clear-btn");
 
+export const taskDetailHistoryPanel = document.getElementById("task-detail-history-panel");
+export const taskDetailHistoryToggleBtn = document.getElementById("task-detail-history-toggle");
+
+export const taskDetailHistoryList = document.getElementById("task-detail-history");
+export const taskDetailHistoryEmpty = document.getElementById("task-detail-history-empty");
+export const taskDetailHistoryClearBtn = document.getElementById("task-detail-history-clear");
+
+export const taskDetailApprovalWrap = document.getElementById("task-detail-approval");
+export const taskDetailApprovalTextEl = document.getElementById("task-detail-approval-text");
+export const taskDetailApprovalActions = document.getElementById("task-detail-approval-actions");
+export const taskDetailApproveBtn = document.getElementById("task-detail-approve");
+export const taskDetailRejectBtn = document.getElementById("task-detail-reject");
+
 export const taskAttachBtn = document.getElementById("task-attach-btn");
 export const taskAttachmentsList = document.getElementById("task-attachments-list");
 export const taskAttachmentsEmpty = document.getElementById("task-attachments-empty");
@@ -117,3 +164,7 @@ export const confirmModalTitleEl = document.getElementById("confirm-modal-title"
 export const confirmModalMessageEl = document.getElementById("confirm-modal-message");
 export const confirmModalCancelBtn = document.getElementById("confirm-modal-cancel");
 export const confirmModalAcceptBtn = document.getElementById("confirm-modal-accept");
+
+export const confirmModalInputWrap = document.getElementById("confirm-modal-input-wrap");
+export const confirmModalInputHintEl = document.getElementById("confirm-modal-input-hint");
+export const confirmModalInputEl = document.getElementById("confirm-modal-input");

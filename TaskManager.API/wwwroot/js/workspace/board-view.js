@@ -26,6 +26,18 @@ export const createBoardViewController = (deps) => {
     : () => "column-new";
   const getPriorityLabel = typeof deps?.getPriorityLabel === "function" ? deps.getPriorityLabel : () => "medium";
 
+  const compareBoardTasks = (a, b) => {
+    const ad = a?.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
+    const bd = b?.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
+    if (ad !== bd) return ad - bd;
+    const ap = toPriorityValue(a?.priorityValue ?? a?.priority);
+    const bp = toPriorityValue(b?.priorityValue ?? b?.priority);
+    if (ap !== bp) return bp - ap;
+    return String(a?.title || "").localeCompare(String(b?.title || ""));
+  };
+
+  const compareTasks = typeof deps?.compareTasks === "function" ? deps.compareTasks : compareBoardTasks;
+
   const upsertTaskChips = (footer, tags) => {
     if (!(footer instanceof Element)) return;
     footer.querySelectorAll(".task-chip").forEach((chip) => chip.remove());
@@ -97,6 +109,17 @@ export const createBoardViewController = (deps) => {
     existingCard.dataset.priority = getPriorityLabel(priorityValue);
     existingCard.dataset.taskStatus = String(statusValue);
 
+    const doneApprovalPending = Boolean(taskData?.doneApprovalPending);
+    if (doneApprovalPending) {
+      existingCard.dataset.doneApproval = "pending";
+    } else {
+      delete existingCard.dataset.doneApproval;
+    }
+    const approvalEl = existingCard.querySelector(".task-approval-wait");
+    if (approvalEl instanceof HTMLElement) {
+      approvalEl.hidden = !doneApprovalPending;
+    }
+
     const tagIds = Array.isArray(taskData?.tagIds) ? taskData.tagIds : [];
     existingCard.dataset.tagIds = tagIds.join(",");
 
@@ -154,7 +177,30 @@ export const createBoardViewController = (deps) => {
     }
 
     clearBoardTasks();
-    (Array.isArray(tasks) ? tasks : []).forEach((task) => addTaskToBoard(task));
+
+    const list = Array.isArray(tasks) ? tasks : [];
+    const groupsByColumnId = new Map();
+    list.forEach((task) => {
+      const statusValue = toStatusValue(task?.statusValue ?? task?.status);
+      const columnId = getColumnIdForStatus(statusValue);
+      const bucket = groupsByColumnId.get(columnId) || [];
+      bucket.push(task);
+      groupsByColumnId.set(columnId, bucket);
+    });
+
+    const columns = Array.from(document.querySelectorAll(".column"));
+    columns.forEach((column) => {
+      const columnId = column?.dataset?.columnId;
+      if (!columnId) return;
+      const bucket = groupsByColumnId.get(columnId) || [];
+      bucket.slice().sort(compareTasks).forEach((task) => addTaskToBoard(task));
+      groupsByColumnId.delete(columnId);
+    });
+
+    // Any remaining tasks fall back to default column.
+    Array.from(groupsByColumnId.values()).forEach((bucket) => {
+      bucket.slice().sort(compareTasks).forEach((task) => addTaskToBoard(task));
+    });
 
     document.querySelectorAll(".column").forEach((column) => {
       updateColumnCount(column);

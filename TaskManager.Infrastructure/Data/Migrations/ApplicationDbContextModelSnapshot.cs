@@ -77,6 +77,10 @@ namespace TaskManager.Infrastructure.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("ActionUrl")
+                        .HasMaxLength(300)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
@@ -106,6 +110,9 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int?>("WorkspaceId")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreatedAt");
@@ -114,10 +121,13 @@ namespace TaskManager.Infrastructure.Data.Migrations
 
                     b.HasIndex("UserId");
 
+                    b.HasIndex("WorkspaceId");
+
                     b.HasIndex("UserId", "IsRead");
 
                     b.ToTable("Notifications");
                 });
+
             modelBuilder.Entity("TaskManager.Domain.Entities.Tag", b =>
                 {
                     b.Property<int>("Id")
@@ -147,6 +157,43 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.ToTable("Tags");
                 });
 
+            modelBuilder.Entity("TaskManager.Domain.Entities.TaskAttachment", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TaskId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UploadedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskId", "UploadedAtUtc");
+
+                    b.ToTable("TaskAttachments");
+                });
+
             modelBuilder.Entity("TaskManager.Domain.Entities.TaskItem", b =>
                 {
                     b.Property<int>("Id")
@@ -169,9 +216,19 @@ namespace TaskManager.Infrastructure.Data.Migrations
 
                     b.Property<DateTime?>("DeadlineNotificationSentAt")
                         .HasColumnType("TEXT");
+
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
+
+                    b.Property<bool>("DoneApprovalPending")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("DoneApprovalRequestedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DoneApprovalRequestedByUserId")
+                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("DueDate")
                         .HasColumnType("TEXT");
@@ -242,6 +299,14 @@ namespace TaskManager.Infrastructure.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AvatarObjectKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AvatarPath")
+                        .HasMaxLength(400)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
@@ -257,6 +322,16 @@ namespace TaskManager.Infrastructure.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTime?>("NicknameChangedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("UTC");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
@@ -270,6 +345,10 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("AvatarObjectKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("AvatarPath")
                         .HasMaxLength(400)
@@ -295,6 +374,56 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.HasIndex("CreatedByUserId");
 
                     b.ToTable("Workspaces");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.WorkspaceInvitation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("InvitedByUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("InvitedEmail")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("InvitedUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("RespondedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("WorkspaceId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("InvitedByUserId");
+
+                    b.HasIndex("InvitedUserId", "Status");
+
+                    b.HasIndex("WorkspaceId", "InvitedEmail", "Status");
+
+                    b.ToTable("WorkspaceInvitations");
                 });
 
             modelBuilder.Entity("TaskManager.Domain.Entities.WorkspaceMember", b =>
@@ -335,10 +464,18 @@ namespace TaskManager.Infrastructure.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("TaskManager.Domain.Entities.Workspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Task");
 
                     b.Navigation("User");
+
+                    b.Navigation("Workspace");
                 });
+
             modelBuilder.Entity("TaskManager.Domain.Entities.Tag", b =>
                 {
                     b.HasOne("TaskManager.Domain.Entities.Workspace", "Workspace")
@@ -348,6 +485,17 @@ namespace TaskManager.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.TaskAttachment", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.TaskItem", "Task")
+                        .WithMany("Attachments")
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Task");
                 });
 
             modelBuilder.Entity("TaskManager.Domain.Entities.TaskItem", b =>
@@ -398,6 +546,32 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Navigation("CreatedByUser");
                 });
 
+            modelBuilder.Entity("TaskManager.Domain.Entities.WorkspaceInvitation", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.User", "InvitedByUser")
+                        .WithMany()
+                        .HasForeignKey("InvitedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TaskManager.Domain.Entities.User", "InvitedUser")
+                        .WithMany()
+                        .HasForeignKey("InvitedUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TaskManager.Domain.Entities.Workspace", "Workspace")
+                        .WithMany()
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("InvitedByUser");
+
+                    b.Navigation("InvitedUser");
+
+                    b.Navigation("Workspace");
+                });
+
             modelBuilder.Entity("TaskManager.Domain.Entities.WorkspaceMember", b =>
                 {
                     b.HasOne("TaskManager.Domain.Entities.User", "User")
@@ -424,6 +598,8 @@ namespace TaskManager.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("TaskManager.Domain.Entities.TaskItem", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("TaskTags");
                 });
 

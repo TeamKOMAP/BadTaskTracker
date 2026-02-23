@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Net.Mail;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.Extensions.Logging;
 using TaskManager.Application.Auth;
 using TaskManager.Application.DTOs;
 using TaskManager.Application.Exceptions;
@@ -23,7 +24,10 @@ namespace TaskManager.Application.Services
         private readonly IEmailAuthCodeRepository _emailAuthCodeRepository;
         private readonly IEmailSender _emailSender;
         private readonly IJwtTokenService _jwtTokenService;
+        private readonly IWorkspaceInvitationService _workspaceInvitationService;
+        private readonly ILogger<AuthService> _logger;
         private readonly EmailAuthSettings _settings;
+        private readonly ProfileSettings _profileSettings;
 
         public AuthService(
             IUserRepository userRepository,
@@ -31,14 +35,20 @@ namespace TaskManager.Application.Services
             IEmailAuthCodeRepository emailAuthCodeRepository,
             IEmailSender emailSender,
             IJwtTokenService jwtTokenService,
-            EmailAuthSettings settings)
+            IWorkspaceInvitationService workspaceInvitationService,
+            ILogger<AuthService> logger,
+            EmailAuthSettings settings,
+            ProfileSettings profileSettings)
         {
             _userRepository = userRepository;
             _workspaceMemberRepository = workspaceMemberRepository;
             _emailAuthCodeRepository = emailAuthCodeRepository;
             _emailSender = emailSender;
             _jwtTokenService = jwtTokenService;
+            _workspaceInvitationService = workspaceInvitationService;
+            _logger = logger;
             _settings = settings ?? new EmailAuthSettings();
+            _profileSettings = profileSettings ?? new ProfileSettings();
         }
 
         public Task<EmailCodeRequestResultDto> RequestEmailCodeAsync(EmailCodeRequestDto dto)
@@ -167,8 +177,22 @@ namespace TaskManager.Application.Services
                 {
                     Name = BuildDefaultNameFromEmail(email),
                     Email = email,
+                    TimeZoneId = "UTC",
                     CreatedAt = now
                 });
+            }
+
+            try
+            {
+                await _workspaceInvitationService.SyncPendingInvitesForUserAsync(user.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "Failed to sync pending workspace invitations for user {UserId} ({Email}) after email verification.",
+                    user.Id,
+                    user.Email);
             }
 
             var token = _jwtTokenService.CreateAccessToken(user);
@@ -233,12 +257,115 @@ namespace TaskManager.Application.Services
                 throw new NotFoundException("User not found");
             }
 
-            return new AuthUserDto
+            return MapAuthUser(user);
+        }
+
+        public async Task<AuthUserDto> UpdateTimeZoneAsync(int actorUserId, string timeZoneId)
+        {
+            if (actorUserId <= 0)
             {
-                Id = user.Id,
-                Name = user.Name,
-                Email = user.Email
-            };
+                throw new ForbiddenException("Access denied");
+            }
+
+            var user = await _userRepository.GetByIdAsync(actorUserId);
+            if (user == null)
+            {
+                throw new NotFoundException("User not found");
+            }
+
+            user.TimeZoneId = NormalizeTimeZoneId(timeZoneId);
+            await _userRepository.UpdateAsync(user);
+
+            return MapAuthUser(user);
+        }
+
+        public async Task<AuthUserDto> UpdateNicknameAsync(int actorUserId, string nickname)
+        {
+            if (actorUserId <= 0)
+            {
+                throw new ForbiddenException("Access denied");
+            }
+
+            var user = await _userRepository.GetByIdAsync(actorUserId);
+            if (user == null)
+            {
+                throw new NotFoundException("User not found");
+            }
+
+            var normalizedNickname = NormalizeNickname(nickname);
+            if (string.Equals(normalizedNickname, user.Name, StringComparison.Ordinal))
+            {
+                return MapAuthUser(user);
+            }
+
+            var now = DateTime.UtcNow;
+            var availableAtUtc = GetNicknameChangeAvailableAtUtc(user, now);
+            if (availableAtUtc.HasValue && availableAtUtc.Value > now)
+            {
+                throw new ValidationException("Nickname change cooldown is active. Try again later.");
+            }
+
+            user.Name = normalizedNickname;
+            user.NicknameChangedAtUtc = now;
+            await _userRepository.UpdateAsync(user);
+
+            return MapAuthUser(user, now);
+        }
+
+        public async Task<string?> GetAvatarObjectKeyAsync(int actorUserId)
+        {
+            if (actorUserId <= 0)
+            {
+                throw new ForbiddenException("Access denied");
+            }
+
+            var user = await _userRepository.GetByIdAsync(actorUserId);
+            if (user == null)
+            {
+                throw new NotFoundException("User not found");
+            }
+
+            return user.AvatarObjectKey;
+        }
+
+        public async Task<AuthUserDto> SetAvatarAsync(int actorUserId, string avatarPath, string avatarObjectKey)
+        {
+            if (actorUserId <= 0)
+            {
+                throw new ForbiddenException("Access denied");
+            }
+
+            var user = await _userRepository.GetByIdAsync(actorUserId);
+            if (user == null)
+            {
+                throw new NotFoundException("User not found");
+            }
+
+            user.AvatarPath = NormalizeAvatarPath(avatarPath);
+            user.AvatarObjectKey = NormalizeAvatarObjectKey(avatarObjectKey);
+            await _userRepository.UpdateAsync(user);
+
+            return MapAuthUser(user);
+        }
+
+        public async Task<AuthUserDto> ClearAvatarAsync(int actorUserId)
+        {
+            if (actorUserId <= 0)
+            {
+                throw new ForbiddenException("Access denied");
+            }
+
+            var user = await _userRepository.GetByIdAsync(actorUserId);
+            if (user == null)
+            {
+                throw new NotFoundException("User not found");
+            }
+
+            user.AvatarPath = null;
+            user.AvatarObjectKey = null;
+            await _userRepository.UpdateAsync(user);
+
+            return MapAuthUser(user);
         }
 
         private AuthTokenResponseDto MapTokenResponse(User user, string token, int? workspaceId)
@@ -249,19 +376,147 @@ namespace TaskManager.Application.Services
                 TokenType = "Bearer",
                 ExpiresInSeconds = Math.Max(60, _jwtTokenService.AccessTokenLifetimeMinutes * 60),
                 WorkspaceId = workspaceId,
-                User = new AuthUserDto
-                {
-                    Id = user.Id,
-                    Name = user.Name,
-                    Email = user.Email
-                }
+                User = MapAuthUser(user)
             };
+        }
+
+        private AuthUserDto MapAuthUser(User user, DateTime? nowUtc = null)
+        {
+            var now = nowUtc ?? DateTime.UtcNow;
+            return new AuthUserDto
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                TimeZoneId = NormalizeTimeZoneId(user.TimeZoneId),
+                AvatarPath = user.AvatarPath,
+                NicknameChangeAvailableAtUtc = GetNicknameChangeAvailableAtUtc(user, now)
+            };
+        }
+
+        private DateTime? GetNicknameChangeAvailableAtUtc(User user, DateTime nowUtc)
+        {
+            if (!user.NicknameChangedAtUtc.HasValue)
+            {
+                return null;
+            }
+
+            var cooldown = GetNicknameChangeCooldown();
+            if (cooldown <= TimeSpan.Zero)
+            {
+                return null;
+            }
+
+            var changedAtUtc = EnsureUtc(user.NicknameChangedAtUtc.Value);
+            var availableAt = changedAtUtc.Add(cooldown);
+            return availableAt > EnsureUtc(nowUtc) ? availableAt : null;
+        }
+
+        private TimeSpan GetNicknameChangeCooldown()
+        {
+            var hours = Math.Max(0, _profileSettings.NicknameChangeCooldownHours);
+            return TimeSpan.FromHours(hours);
+        }
+
+        private static DateTime EnsureUtc(DateTime value)
+        {
+            return value.Kind switch
+            {
+                DateTimeKind.Utc => value,
+                DateTimeKind.Local => value.ToUniversalTime(),
+                _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+            };
+        }
+
+        private static string NormalizeNickname(string? rawNickname)
+        {
+            var nickname = (rawNickname ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(nickname))
+            {
+                throw new ValidationException("Nickname is required.");
+            }
+
+            if (nickname.Length > 60)
+            {
+                throw new ValidationException("Nickname is too long.");
+            }
+
+            return nickname;
+        }
+
+        private static string NormalizeAvatarPath(string? rawAvatarPath)
+        {
+            var avatarPath = (rawAvatarPath ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(avatarPath))
+            {
+                throw new ValidationException("Avatar path is required.");
+            }
+
+            if (avatarPath.Length > 400)
+            {
+                throw new ValidationException("Avatar path is too long.");
+            }
+
+            return avatarPath;
+        }
+
+        private static string NormalizeAvatarObjectKey(string? rawAvatarObjectKey)
+        {
+            var objectKey = (rawAvatarObjectKey ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(objectKey))
+            {
+                throw new ValidationException("Avatar storage key is required.");
+            }
+
+            if (objectKey.Length > 500)
+            {
+                throw new ValidationException("Avatar storage key is too long.");
+            }
+
+            return objectKey;
+        }
+
+        private static string NormalizeTimeZoneId(string? raw)
+        {
+            var value = (raw ?? string.Empty).Trim();
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return "UTC";
+            }
+
+            if (value.Length > 100)
+            {
+                value = value[..100];
+            }
+
+            return value;
         }
 
         private static string BuildEmailBody(string code, int minutes)
         {
             var safeMinutes = Math.Max(1, minutes);
-            return $"<p>Your BadTaskTracker code:</p><h2 style=\"letter-spacing: 0.2em;\">{code}</h2><p>This code expires in {safeMinutes} minute(s).</p>";
+            return $@"<!DOCTYPE html>
+<html>
+<head><meta charset=""utf-8""></head>
+<body style=""font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f6f8fa; margin: 0; padding: 20px;"">
+  <div style=""max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);"">
+    <div style=""background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 24px; text-align: center;"">
+      <h1 style=""margin: 0; font-size: 20px; font-weight: 600;"">GoodTaskTracker</h1>
+      <p style=""margin: 8px 0 0; opacity: 0.9; font-size: 14px;"">Код для входа</p>
+    </div>
+    <div style=""padding: 32px 24px; text-align: center;"">
+      <p style=""color: #586069; font-size: 14px; margin: 0 0 16px;"">Введите этот код в приложении:</p>
+      <div style=""background: #f6f8fa; border-radius: 8px; padding: 20px; margin: 0 0 16px;"">
+        <span style=""font-size: 32px; font-weight: 700; letter-spacing: 0.3em; color: #24292e; font-family: monospace;"">{code}</span>
+      </div>
+      <p style=""color: #586069; font-size: 13px; margin: 0;"">Код действителен <strong>{safeMinutes} мин.</strong></p>
+    </div>
+    <div style=""padding: 16px 24px; background: #f6f8fa; color: #586069; font-size: 12px; text-align: center;"">
+      Если вы не запрашивали код, проигнорируйте это письмо
+    </div>
+  </div>
+</body>
+</html>";
         }
 
         private static string NormalizeCode(string? rawCode)

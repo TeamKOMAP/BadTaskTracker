@@ -19,15 +19,33 @@ import {
   taskDetailPhotoImg,
   taskDetailPhotoBtn,
   taskDetailPhotoClearBtn,
+  taskDetailHistoryPanel,
+  taskDetailHistoryToggleBtn,
+  taskDetailHistoryList,
+  taskDetailHistoryEmpty,
+  taskDetailHistoryClearBtn,
+  taskDetailApprovalWrap,
+  taskDetailApprovalTextEl,
+  taskDetailApprovalActions,
+  taskDetailApproveBtn,
+  taskDetailRejectBtn,
   taskAttachBtn,
   taskAttachmentsList,
   taskAttachmentsEmpty,
   taskAttachmentsInput,
   taskBgInput
-} from "./dom.js?v=authflow2";
+} from "./dom.js?v=authflow9";
 
 import { normalizeToken } from "../shared/utils.js";
-import { getStoredTaskMeta, getStoredTaskBg, setStoredTaskBg, clearStoredTaskBg } from "./storage.js?v=authflow2";
+import {
+  getStoredTaskMeta,
+  getStoredTaskBg,
+  setStoredTaskBg,
+  clearStoredTaskBg,
+  getStoredTaskHistory,
+  appendStoredTaskHistory,
+  clearStoredTaskHistory
+} from "./storage.js?v=authflow4";
 import { optimizeImageForStorage } from "./media-utils.js";
 import { createTaskDetailCache } from "./task-detail-cache.js";
 import {
@@ -43,7 +61,7 @@ import {
   renderTaskInDetail,
   renderDetailTags,
   renderAttachmentsList
-} from "./task-detail-render.js";
+} from "./task-detail-render.js?v=perf3";
 
 const detailElements = {
   titleEl: taskDetailTitleEl,
@@ -61,13 +79,43 @@ const detailElements = {
   tagsEl: taskDetailTagsEl,
   descriptionEl: taskDetailDescriptionEl,
   photoWrapEl: taskDetailPhotoWrap,
-  photoImgEl: taskDetailPhotoImg
+  photoImgEl: taskDetailPhotoImg,
+  approvalWrapEl: taskDetailApprovalWrap,
+  approvalTextEl: taskDetailApprovalTextEl,
+  approvalActionsEl: taskDetailApprovalActions,
+  approveBtnEl: taskDetailApproveBtn,
+  rejectBtnEl: taskDetailRejectBtn
+};
+
+const formatHistoryAt = (timestampMs) => {
+  const date = new Date(Number(timestampMs) || 0);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString([], {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 };
 
 export const createTaskDetailController = (deps) => {
-  const isAdmin = typeof deps?.isAdmin === "function" ? deps.isAdmin : () => false;
+  const canEditTask = typeof deps?.canEditTask === "function"
+    ? deps.canEditTask
+    : typeof deps?.isAdmin === "function"
+      ? deps.isAdmin
+      : () => false;
+  const canClearHistory = typeof deps?.canClearHistory === "function"
+    ? deps.canClearHistory
+    : canEditTask;
+  const canManageDoneApproval = typeof deps?.canManageDoneApproval === "function"
+    ? deps.canManageDoneApproval
+    : canEditTask;
+  const approveDone = typeof deps?.approveDone === "function" ? deps.approveDone : async () => null;
+  const rejectDone = typeof deps?.rejectDone === "function" ? deps.rejectDone : async () => null;
   const ensureTagsLoaded = typeof deps?.ensureTagsLoaded === "function" ? deps.ensureTagsLoaded : async () => {};
   const getTagNameById = typeof deps?.getTagNameById === "function" ? deps.getTagNameById : () => "";
+  const getAssigneeNameById = typeof deps?.getAssigneeNameById === "function" ? deps.getAssigneeNameById : () => "";
   const openTaskModalForEdit = typeof deps?.openTaskModalForEdit === "function" ? deps.openTaskModalForEdit : () => {};
   const applyTaskBgToCards = typeof deps?.applyTaskBgToCards === "function" ? deps.applyTaskBgToCards : () => {};
   const applyAttachmentCountToCards = typeof deps?.applyAttachmentCountToCards === "function"
@@ -86,6 +134,170 @@ export const createTaskDetailController = (deps) => {
   let detailRequestSeq = 0;
   let detailAbortController = null;
 
+  const refreshHistoryClearButton = (options) => {
+    if (!taskDetailHistoryClearBtn) return;
+    const allowed = !!canClearHistory();
+    const hasEntries = Boolean(options?.hasEntries);
+    taskDetailHistoryClearBtn.toggleAttribute("hidden", !allowed);
+    taskDetailHistoryClearBtn.disabled = !allowed || !hasEntries;
+  };
+
+  const renderHistoryForTask = (taskId = detailTaskId) => {
+    if (!taskDetailHistoryList || !taskDetailHistoryEmpty) return;
+    const id = Number(taskId);
+    if (!Number.isFinite(id) || id <= 0) {
+      taskDetailHistoryList.innerHTML = "";
+      taskDetailHistoryEmpty.hidden = false;
+      taskDetailHistoryEmpty.textContent = "Нет изменений.";
+      refreshHistoryClearButton({ hasEntries: false });
+      return;
+    }
+
+    const entries = getStoredTaskHistory(id);
+    taskDetailHistoryList.innerHTML = "";
+
+    if (!entries.length) {
+      taskDetailHistoryEmpty.hidden = false;
+      taskDetailHistoryEmpty.textContent = "Нет изменений.";
+      refreshHistoryClearButton({ hasEntries: false });
+      return;
+    }
+
+    taskDetailHistoryEmpty.hidden = true;
+    refreshHistoryClearButton({ hasEntries: true });
+
+    const fragment = document.createDocumentFragment();
+    entries.forEach((entry) => {
+      const item = document.createElement("article");
+      item.className = "task-history-item";
+
+      const meta = document.createElement("div");
+      meta.className = "task-history-meta";
+      const time = document.createElement("span");
+      time.className = "task-history-time";
+      time.textContent = formatHistoryAt(entry.at);
+      meta.appendChild(time);
+
+      const source = normalizeToken(entry.source);
+      if (source) {
+        const src = document.createElement("span");
+        src.className = "task-history-source";
+        src.textContent = source;
+        meta.appendChild(src);
+      }
+
+      const title = document.createElement("div");
+      title.className = "task-history-title";
+      title.textContent = entry.title || "Изменение";
+
+      item.append(meta, title);
+
+      const lines = Array.isArray(entry.lines) ? entry.lines : [];
+      if (lines.length) {
+        const list = document.createElement("div");
+        list.className = "task-history-lines";
+        lines.forEach((line) => {
+          const row = document.createElement("div");
+          row.className = "task-history-line";
+          row.textContent = line;
+          list.appendChild(row);
+        });
+        item.appendChild(list);
+      }
+
+      fragment.appendChild(item);
+    });
+
+    taskDetailHistoryList.appendChild(fragment);
+  };
+
+  const notifyTaskHistoryChanged = (taskId) => {
+    const id = Number(taskId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    if (detailTaskId !== id) return;
+    if (!isHistoryPanelOpen()) return;
+    renderHistoryForTask(id);
+  };
+
+  const onHistoryClearClick = async () => {
+    if (!detailTaskId) return;
+    if (!canClearHistory()) return;
+    const confirmed = await confirmDestructiveAction({
+      kicker: "История изменений",
+      title: "Очистить историю изменений этой задачи?",
+      message: "История изменений хранится локально в браузере. Это действие нельзя отменить.",
+      confirmText: "Очистить"
+    });
+    if (confirmed !== true) return;
+    clearStoredTaskHistory(detailTaskId);
+    renderHistoryForTask(detailTaskId);
+  };
+
+  const isHistoryPanelOpen = () => Boolean(taskDetailHistoryPanel && !taskDetailHistoryPanel.hasAttribute("hidden"));
+
+  const positionHistoryPanel = () => {
+    if (!taskDetailHistoryPanel || !taskDetailModal) return;
+    const card = taskDetailModal.querySelector(".task-modal-card.task-detail-card");
+    if (!(card instanceof Element)) return;
+    if (!isHistoryPanelOpen()) return;
+
+    const rect = card.getBoundingClientRect();
+    const gap = 14;
+    const margin = 16;
+    const maxHeight = Math.max(240, Math.min(window.innerHeight - margin * 2, rect.height));
+
+    taskDetailHistoryPanel.classList.remove("is-stack");
+    taskDetailHistoryPanel.style.width = "";
+
+    const defaultWidth = Math.min(380, Math.max(260, window.innerWidth - rect.right - gap - margin));
+    const fitsRight = rect.right + gap + defaultWidth <= window.innerWidth - margin;
+
+    if (fitsRight) {
+      taskDetailHistoryPanel.style.left = `${Math.round(rect.right + gap)}px`;
+      taskDetailHistoryPanel.style.top = `${Math.round(Math.max(margin, rect.top))}px`;
+      taskDetailHistoryPanel.style.height = `${Math.round(Math.min(maxHeight, window.innerHeight - Math.max(margin, rect.top) - margin))}px`;
+      taskDetailHistoryPanel.style.width = `${Math.round(defaultWidth)}px`;
+      return;
+    }
+
+    // Fallback: stack below the card (mobile / narrow viewports).
+    taskDetailHistoryPanel.classList.add("is-stack");
+    const stackTop = rect.bottom + gap;
+    const height = Math.max(200, Math.min(420, window.innerHeight - stackTop - margin));
+    taskDetailHistoryPanel.style.left = `${Math.round(Math.max(margin, rect.left))}px`;
+    taskDetailHistoryPanel.style.top = `${Math.round(stackTop)}px`;
+    taskDetailHistoryPanel.style.height = `${Math.round(height)}px`;
+    taskDetailHistoryPanel.style.width = `${Math.round(Math.min(rect.width, window.innerWidth - margin * 2))}px`;
+  };
+
+  const setHistoryPanelOpen = (open) => {
+    if (!taskDetailHistoryPanel) return;
+    const show = Boolean(open);
+    taskDetailHistoryPanel.toggleAttribute("hidden", !show);
+    if (taskDetailHistoryToggleBtn) {
+      taskDetailHistoryToggleBtn.setAttribute("aria-expanded", show ? "true" : "false");
+      taskDetailHistoryToggleBtn.setAttribute("aria-pressed", show ? "true" : "false");
+    }
+    if (!show) {
+      taskDetailHistoryPanel.classList.remove("is-stack");
+      taskDetailHistoryPanel.style.left = "";
+      taskDetailHistoryPanel.style.top = "";
+      taskDetailHistoryPanel.style.height = "";
+      taskDetailHistoryPanel.style.width = "";
+      window.removeEventListener("resize", positionHistoryPanel);
+      return;
+    }
+
+    renderHistoryForTask(detailTaskId);
+    positionHistoryPanel();
+    window.addEventListener("resize", positionHistoryPanel);
+  };
+
+  const onHistoryToggleClick = () => {
+    if (!detailTaskId) return;
+    setHistoryPanelOpen(!isHistoryPanelOpen());
+  };
+
   const cache = createTaskDetailCache({ getStoredTaskBg });
 
   const beginDetailRequest = () => {
@@ -102,7 +314,7 @@ export const createTaskDetailController = (deps) => {
       taskId,
       listElement: taskAttachmentsList,
       emptyElement: taskAttachmentsEmpty,
-      isAdmin,
+      isAdmin: canEditTask,
       applyAttachmentCountToCards,
       onDownload: async (info) => {
         if (!info?.taskId || !info?.id) return;
@@ -132,6 +344,14 @@ export const createTaskDetailController = (deps) => {
 
         const deleted = await deleteTaskAttachment(info.taskId, info.id);
         if (!deleted) return;
+
+        appendStoredTaskHistory(info.taskId, {
+          at: Date.now(),
+          title: "Удалено вложение",
+          source: "Детали задачи",
+          lines: normalizeToken(info.name) ? [normalizeToken(info.name)] : []
+        });
+        notifyTaskHistoryChanged(info.taskId);
 
         cache.deleteAttachments(info.taskId);
         void loadAttachmentsForDetail(
@@ -187,7 +407,7 @@ export const createTaskDetailController = (deps) => {
   };
 
   const uploadAttachmentsForDetail = async (files) => {
-    if (!detailTaskId) return;
+    if (!detailTaskId) return false;
     const taskId = detailTaskId;
 
     const uploaded = await uploadTaskAttachments(taskId, files);
@@ -196,7 +416,7 @@ export const createTaskDetailController = (deps) => {
         taskAttachmentsEmpty.hidden = false;
         taskAttachmentsEmpty.textContent = "Не удалось загрузить. Откройте консоль для деталей.";
       }
-      return;
+      return false;
     }
 
     cache.deleteAttachments(taskId);
@@ -206,6 +426,7 @@ export const createTaskDetailController = (deps) => {
       detailAbortController?.signal,
       { forceRefresh: true }
     );
+    return true;
   };
 
   const closeTaskDetailModal = () => {
@@ -218,6 +439,7 @@ export const createTaskDetailController = (deps) => {
     }
 
     taskDetailModal.setAttribute("hidden", "");
+    setHistoryPanelOpen(false);
     detailTaskId = null;
     detailTaskCard = null;
     pendingPhotoTaskId = null;
@@ -234,6 +456,10 @@ export const createTaskDetailController = (deps) => {
     if (taskAttachmentsEmpty) {
       taskAttachmentsEmpty.hidden = true;
     }
+
+    if (taskDetailHistoryList) taskDetailHistoryList.innerHTML = "";
+    if (taskDetailHistoryEmpty) taskDetailHistoryEmpty.hidden = true;
+    refreshHistoryClearButton({ hasEntries: false });
   };
 
   const openTaskDetailModalForTask = async (taskId, card) => {
@@ -258,6 +484,7 @@ export const createTaskDetailController = (deps) => {
     }
 
     taskDetailModal.removeAttribute("hidden");
+    setHistoryPanelOpen(false);
 
     const fallbackTitle = normalizeToken(card?.querySelector?.("h3")?.textContent) || `Задача #${id}`;
     if (taskDetailTitleEl) {
@@ -288,19 +515,20 @@ export const createTaskDetailController = (deps) => {
     }
 
     if (taskDetailEditBtn) {
-      taskDetailEditBtn.toggleAttribute("hidden", !isAdmin());
+      taskDetailEditBtn.toggleAttribute("hidden", !canEditTask());
     }
     if (taskDetailPhotoBtn) {
-      taskDetailPhotoBtn.toggleAttribute("hidden", !isAdmin());
+      taskDetailPhotoBtn.toggleAttribute("hidden", !canEditTask());
     }
     if (taskDetailPhotoClearBtn) {
-      taskDetailPhotoClearBtn.toggleAttribute("hidden", !isAdmin());
+      taskDetailPhotoClearBtn.toggleAttribute("hidden", !canEditTask());
     }
     if (taskAttachBtn) {
-      taskAttachBtn.toggleAttribute("hidden", !isAdmin());
+      taskAttachBtn.toggleAttribute("hidden", !canEditTask());
     }
 
     const resolveTagName = (tagId) => getTagNameById(Number(tagId)) || "";
+    const resolveAssigneeName = (assigneeId) => getAssigneeNameById(Number(assigneeId)) || "";
 
     const cachedTask = cache.getTask(id);
     let lastTagIds = [];
@@ -312,7 +540,9 @@ export const createTaskDetailController = (deps) => {
         taskId: id,
         requestSeq,
         elements: detailElements,
+        canManageDoneApproval,
         resolveTagName,
+        resolveAssigneeName,
         getStoredTaskMeta,
         getCachedTaskBg: cache.getTaskBg,
         getCurrentRequestSeq: () => detailRequestSeq,
@@ -369,7 +599,9 @@ export const createTaskDetailController = (deps) => {
       taskId: id,
       requestSeq,
       elements: detailElements,
+      canManageDoneApproval,
       resolveTagName,
+      resolveAssigneeName,
       getStoredTaskMeta,
       getCachedTaskBg: cache.getTaskBg,
       getCurrentRequestSeq: () => detailRequestSeq,
@@ -397,12 +629,13 @@ export const createTaskDetailController = (deps) => {
     const target = event.target instanceof Element ? event.target : null;
     if (!target) return;
     if (target.closest("[data-close-detail]")) {
+      setHistoryPanelOpen(false);
       closeTaskDetailModal();
     }
   };
 
   const onDetailEditClick = () => {
-    if (!isAdmin() || !detailTaskId) return;
+    if (!canEditTask() || !detailTaskId) return;
     const card = detailTaskCard || document.querySelector(`.task-card[data-task-id="${detailTaskId}"]`);
     if (!card) return;
     cache.deleteTask(detailTaskId);
@@ -410,14 +643,54 @@ export const createTaskDetailController = (deps) => {
     openTaskModalForEdit(card);
   };
 
+  const setApprovalButtonsBusy = (busy) => {
+    const isBusy = Boolean(busy);
+    if (taskDetailApproveBtn instanceof HTMLButtonElement) {
+      taskDetailApproveBtn.disabled = isBusy;
+    }
+    if (taskDetailRejectBtn instanceof HTMLButtonElement) {
+      taskDetailRejectBtn.disabled = isBusy;
+    }
+  };
+
+  const onApproveDoneClick = () => {
+    if (!detailTaskId) return;
+    if (!canManageDoneApproval()) return;
+    setApprovalButtonsBusy(true);
+    void (async () => {
+      try {
+        await approveDone(detailTaskId);
+        cache.deleteTask(detailTaskId);
+        await openTaskDetailModalForTask(detailTaskId, detailTaskCard);
+      } finally {
+        setApprovalButtonsBusy(false);
+      }
+    })();
+  };
+
+  const onRejectDoneClick = () => {
+    if (!detailTaskId) return;
+    if (!canManageDoneApproval()) return;
+    setApprovalButtonsBusy(true);
+    void (async () => {
+      try {
+        await rejectDone(detailTaskId);
+        cache.deleteTask(detailTaskId);
+        await openTaskDetailModalForTask(detailTaskId, detailTaskCard);
+      } finally {
+        setApprovalButtonsBusy(false);
+      }
+    })();
+  };
+
   const onDetailPhotoClick = () => {
-    if (!isAdmin() || !detailTaskId) return;
+    if (!canEditTask() || !detailTaskId) return;
     pendingPhotoTaskId = detailTaskId;
     taskBgInput?.click();
   };
 
   const onDetailPhotoClearClick = () => {
-    if (!isAdmin() || !detailTaskId) return;
+    if (!canEditTask() || !detailTaskId) return;
     clearStoredTaskBg(detailTaskId);
     cache.clearTaskBg(detailTaskId);
     applyTaskBgToCards(detailTaskId, "");
@@ -425,10 +698,18 @@ export const createTaskDetailController = (deps) => {
       taskDetailPhotoImg.removeAttribute("src");
       taskDetailPhotoWrap.setAttribute("hidden", "");
     }
+
+    appendStoredTaskHistory(detailTaskId, {
+      at: Date.now(),
+      title: "Фото удалено",
+      source: "Детали задачи",
+      lines: []
+    });
+    notifyTaskHistoryChanged(detailTaskId);
   };
 
   const onAttachClick = () => {
-    if (!isAdmin() || !detailTaskId) return;
+    if (!canEditTask() || !detailTaskId) return;
     taskAttachmentsInput?.click();
   };
 
@@ -437,7 +718,15 @@ export const createTaskDetailController = (deps) => {
     const files = taskAttachmentsInput.files ? Array.from(taskAttachmentsInput.files) : [];
     taskAttachmentsInput.value = "";
     if (!files.length) return;
-    await uploadAttachmentsForDetail(files);
+    const uploaded = await uploadAttachmentsForDetail(files);
+    if (!uploaded) return;
+    appendStoredTaskHistory(detailTaskId, {
+      at: Date.now(),
+      title: "Добавлены вложения",
+      source: "Детали задачи",
+      lines: files.map((f) => normalizeToken(f?.name)).filter(Boolean)
+    });
+    notifyTaskHistoryChanged(detailTaskId);
   };
 
   const onTaskBgInputChange = async () => {
@@ -461,6 +750,14 @@ export const createTaskDetailController = (deps) => {
         taskDetailPhotoImg.src = dataUrl;
         taskDetailPhotoWrap.removeAttribute("hidden");
       }
+
+      appendStoredTaskHistory(id, {
+        at: Date.now(),
+        title: "Фото обновлено",
+        source: "Детали задачи",
+        lines: normalizeToken(file.name) ? [normalizeToken(file.name)] : []
+      });
+      notifyTaskHistoryChanged(id);
     } catch (error) {
       console.error("Не удалось загрузить фото", error);
     }
@@ -469,10 +766,15 @@ export const createTaskDetailController = (deps) => {
   return {
     closeTaskDetailModal,
     openTaskDetailModalForTask,
+    notifyTaskHistoryChanged,
     onDetailModalClick,
     onDetailEditClick,
+    onApproveDoneClick,
+    onRejectDoneClick,
     onDetailPhotoClick,
     onDetailPhotoClearClick,
+    onHistoryToggleClick,
+    onHistoryClearClick,
     onAttachClick,
     onAttachmentsInputChange,
     onTaskBgInputChange

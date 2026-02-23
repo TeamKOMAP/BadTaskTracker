@@ -46,5 +46,11 @@ namespace TaskManager.Infrastructure.Repositories
             _context.Workspaces.Update(workspace);
             await _context.SaveChangesAsync();
         }
+
+        public async Task DeleteAsync(Workspace workspace)
+        {
+            _context.Workspaces.Remove(workspace);
+            await _context.SaveChangesAsync();
+        }
     }
 }

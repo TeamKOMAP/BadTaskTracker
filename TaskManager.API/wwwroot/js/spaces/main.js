@@ -8,13 +8,12 @@ import {
   clearAccessToken
 } from "../shared/api.js?v=auth5";
 import { getPreferredTheme, setTheme } from "../workspace/storage.js?v=auth4";
-import { MANAGE_ROLES, STORAGE_WORKSPACE_ID } from "../shared/constants.js";
+import { STORAGE_WORKSPACE_ID } from "../shared/constants.js";
 import { navigateToWorkspacePage } from "../shared/navigation.js";
 import { normalizeToken, toInitials, toWorkspaceRole } from "../shared/utils.js";
 import { getRoleLabel } from "../shared/roles.js?v=auth1";
+import { createNotificationsPanelController } from "../shared/notifications.js?v=notif3";
 import {
-  getStoredAccountNickname,
-  setStoredAccountNickname,
   getStoredAccountAvatar,
   setStoredAccountAvatar,
   applyAccountAvatarToElement
@@ -36,6 +35,8 @@ const spacesAccountAvatarEl = document.getElementById("spaces-account-avatar");
 const settingsPanel = document.getElementById("settings-panel");
 const settingsToggleBtn = document.getElementById("settings-toggle");
 const settingsNicknameInput = document.getElementById("settings-nickname");
+const settingsNicknameSaveBtn = document.getElementById("settings-nickname-save");
+const settingsNicknameCooldownEl = document.getElementById("settings-nickname-cooldown");
 const settingsAvatarPreview = document.getElementById("settings-avatar-preview");
 const settingsAvatarPreviewTextEl = settingsAvatarPreview?.querySelector("span") || null;
 const settingsAvatarInput = document.getElementById("settings-avatar-input");
@@ -47,11 +48,27 @@ const settingsThemeLightBtn = document.getElementById("settings-theme-light");
 const notificationsPanel = document.getElementById("notifications-panel");
 const notificationsToggleBtn = document.getElementById("notifications-toggle");
 const notificationsCloseBtn = document.getElementById("notifications-close");
+const notificationsListEl = document.getElementById("notifications-list");
+const notificationsEmptyEl = document.getElementById("notifications-empty");
+const notificationsMarkAllBtn = document.getElementById("notifications-mark-all");
 
 const logoutBtn = document.getElementById("logout-btn");
 
 let actorUser = null;
 let pendingSpaceAvatarId = null;
+let nicknameSaveInFlight = false;
+let nicknameCooldownEndsAt = 0;
+let nicknameCooldownTimerHandle = null;
+let nicknameStatusMessage = "";
+let nicknameStatusIsError = false;
+
+const notificationsController = createNotificationsPanelController({
+  toggleBtn: notificationsToggleBtn,
+  listEl: notificationsListEl,
+  emptyEl: notificationsEmptyEl,
+  markAllBtn: notificationsMarkAllBtn,
+  returnTo: "spaces"
+});
 
 const formatMembersLabel = (count) => {
   const n = Number(count) || 0;
@@ -81,6 +98,7 @@ const setNotificationsOpen = (open) => {
   }
 
   if (open) {
+    void notificationsController.onPanelOpened();
     window.setTimeout(() => notificationsCloseBtn?.focus(), 0);
   }
 };
@@ -107,27 +125,147 @@ const getActorUserId = () => {
   return Number.isFinite(id) && id > 0 ? id : null;
 };
 
+const parseApiErrorMessage = async (response, fallback) => {
+  try {
+    const payload = await response.json();
+    const message = normalizeToken(payload?.error || payload?.title);
+    if (message) return message;
+  } catch {
+    // ignore parse errors
+  }
+  return fallback;
+};
+
+const getActorDisplayName = () => {
+  const apiName = normalizeToken(actorUser?.name);
+  if (apiName && apiName.toLowerCase() !== "system") {
+    return apiName;
+  }
+  return "Аккаунт";
+};
+
+const formatCooldownTime = (totalSeconds) => {
+  const safe = Math.max(0, Number(totalSeconds) || 0);
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+};
+
+const getNicknameCooldownRemainingSeconds = () => {
+  if (!Number.isFinite(nicknameCooldownEndsAt) || nicknameCooldownEndsAt <= 0) return 0;
+  return Math.max(0, Math.ceil((nicknameCooldownEndsAt - Date.now()) / 1000));
+};
+
+const stopNicknameCooldownTimer = () => {
+  if (nicknameCooldownTimerHandle) {
+    window.clearInterval(nicknameCooldownTimerHandle);
+    nicknameCooldownTimerHandle = null;
+  }
+};
+
+const setNicknameStatusMessage = (message, isError = false) => {
+  nicknameStatusMessage = normalizeToken(message);
+  nicknameStatusIsError = !!isError;
+};
+
+const clearNicknameStatusMessage = () => {
+  nicknameStatusMessage = "";
+  nicknameStatusIsError = false;
+};
+
+const renderNicknameStatus = () => {
+  if (!settingsNicknameCooldownEl) return;
+
+  const remaining = getNicknameCooldownRemainingSeconds();
+  if (remaining > 0) {
+    settingsNicknameCooldownEl.textContent = `Следующая смена ника через ${formatCooldownTime(remaining)}`;
+    settingsNicknameCooldownEl.classList.remove("is-error");
+    settingsNicknameCooldownEl.removeAttribute("hidden");
+    return;
+  }
+
+  if (nicknameStatusMessage) {
+    settingsNicknameCooldownEl.textContent = nicknameStatusMessage;
+    settingsNicknameCooldownEl.classList.toggle("is-error", nicknameStatusIsError);
+    settingsNicknameCooldownEl.removeAttribute("hidden");
+    return;
+  }
+
+  settingsNicknameCooldownEl.textContent = "";
+  settingsNicknameCooldownEl.classList.remove("is-error");
+  settingsNicknameCooldownEl.setAttribute("hidden", "");
+};
+
+const refreshNicknameControls = () => {
+  const canUseNicknameSettings = Number.isFinite(Number(getActorUserId()));
+  const remaining = getNicknameCooldownRemainingSeconds();
+  const isCooldownActive = remaining > 0;
+  const currentDisplayName = getActorDisplayName();
+  const draftNickname = normalizeToken(settingsNicknameInput?.value);
+  const isDirty = draftNickname !== normalizeToken(currentDisplayName);
+  const hasDraft = draftNickname.length > 0;
+
+  if (settingsNicknameInput) {
+    settingsNicknameInput.disabled = !canUseNicknameSettings || nicknameSaveInFlight || isCooldownActive;
+  }
+
+  if (settingsNicknameSaveBtn) {
+    settingsNicknameSaveBtn.disabled = !canUseNicknameSettings
+      || nicknameSaveInFlight
+      || isCooldownActive
+      || !hasDraft
+      || !isDirty;
+    settingsNicknameSaveBtn.textContent = nicknameSaveInFlight ? "Сохраняем..." : "Сохранить";
+  }
+
+  renderNicknameStatus();
+};
+
+const syncNicknameCooldownFromActor = () => {
+  const raw = normalizeToken(actorUser?.nicknameChangeAvailableAtUtc);
+  const nextAllowedAt = raw ? Date.parse(raw) : Number.NaN;
+  if (Number.isFinite(nextAllowedAt) && nextAllowedAt > Date.now()) {
+    nicknameCooldownEndsAt = nextAllowedAt;
+  } else {
+    nicknameCooldownEndsAt = 0;
+  }
+
+  if (getNicknameCooldownRemainingSeconds() > 0) {
+    if (!nicknameCooldownTimerHandle) {
+      nicknameCooldownTimerHandle = window.setInterval(() => {
+        if (getNicknameCooldownRemainingSeconds() <= 0) {
+          nicknameCooldownEndsAt = 0;
+          stopNicknameCooldownTimer();
+          clearNicknameStatusMessage();
+        }
+        refreshNicknameControls();
+      }, 1000);
+    }
+  } else {
+    stopNicknameCooldownTimer();
+  }
+};
+
 const updateActorUi = () => {
   const id = getActorUserId();
   const email = actorUser?.email || "account@example.com";
-  const apiName = normalizeToken(actorUser?.name);
-  const storedNickname = id ? normalizeToken(getStoredAccountNickname(id)) : "";
-  const fallbackName = apiName
-    ? (apiName.toLowerCase() !== "system" ? apiName : "Без имени")
-    : "Аккаунт";
-  const name = storedNickname || fallbackName;
+  const name = getActorDisplayName();
   const initials = toInitials(name, email);
-  const avatarDataUrl = id ? getStoredAccountAvatar(id) : "";
+  const avatarPath = normalizeToken(actorUser?.avatarPath);
 
   if (spacesAccountNameEl) spacesAccountNameEl.textContent = name;
   if (spacesAccountEmailEl) spacesAccountEmailEl.textContent = email;
 
-  applyAccountAvatarToElement(spacesAccountAvatarEl, null, initials, avatarDataUrl);
-  applyAccountAvatarToElement(settingsAvatarPreview, settingsAvatarPreviewTextEl, initials, avatarDataUrl);
+  applyAccountAvatarToElement(spacesAccountAvatarEl, null, initials, avatarPath);
+  applyAccountAvatarToElement(settingsAvatarPreview, settingsAvatarPreviewTextEl, initials, avatarPath);
 
   if (settingsNicknameInput && document.activeElement !== settingsNicknameInput) {
-    settingsNicknameInput.value = storedNickname;
+    settingsNicknameInput.value = name;
   }
+
+  refreshNicknameControls();
 };
 
 const setActorUser = (user) => {
@@ -138,9 +276,12 @@ const setActorUser = (user) => {
   actorUser = {
     id,
     name: normalizeToken(user.name) || `User ${id}`,
-    email: normalizeToken(user.email) || `user${id}@local`
+    email: normalizeToken(user.email) || `user${id}@local`,
+    avatarPath: normalizeToken(user.avatarPath),
+    nicknameChangeAvailableAtUtc: normalizeToken(user.nicknameChangeAvailableAtUtc)
   };
 
+  syncNicknameCooldownFromActor();
   updateActorUi();
 };
 
@@ -155,7 +296,56 @@ const loadCurrentUserFromApi = async () => {
   }
 
   actorUser = null;
+  nicknameCooldownEndsAt = 0;
+  stopNicknameCooldownTimer();
+  clearNicknameStatusMessage();
   updateActorUi();
+};
+
+const migrateLegacyAvatarIfNeeded = async () => {
+  const id = getActorUserId();
+  if (!id) return;
+
+  if (normalizeToken(actorUser?.avatarPath)) {
+    setStoredAccountAvatar(id, "");
+    return;
+  }
+
+  const legacyAvatar = getStoredAccountAvatar(id);
+  if (!legacyAvatar || !legacyAvatar.startsWith("data:image/")) {
+    return;
+  }
+
+  try {
+    const legacyBlob = await fetch(legacyAvatar).then((response) => response.blob());
+    if (!legacyBlob || legacyBlob.size <= 0) return;
+
+    const ext = legacyBlob.type === "image/png"
+      ? "png"
+      : legacyBlob.type === "image/webp"
+        ? "webp"
+        : "jpg";
+
+    const form = new FormData();
+    form.append("file", legacyBlob, `legacy-avatar.${ext}`);
+
+    const response = await apiFetch(buildApiUrl("/auth/avatar"), {
+      method: "POST",
+      body: form
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    const updated = await response.json();
+    if (updated?.id) {
+      setActorUser(updated);
+      setStoredAccountAvatar(id, "");
+    }
+  } catch {
+    // ignore one-time migration errors
+  }
 };
 
 const closeSpaceModal = () => {
@@ -262,7 +452,7 @@ const renderSpaces = (spaces) => {
     });
     actions.appendChild(openBtn);
 
-    if (MANAGE_ROLES.has(role)) {
+    if (role === "Owner") {
       const avatarBtn = document.createElement("button");
       avatarBtn.type = "button";
       avatarBtn.className = "space-avatar-btn";
@@ -349,10 +539,76 @@ const bindEvents = () => {
 
   if (settingsNicknameInput) {
     settingsNicknameInput.addEventListener("input", () => {
-      const id = getActorUserId();
-      if (!id) return;
-      setStoredAccountNickname(id, settingsNicknameInput.value);
-      updateActorUi();
+      clearNicknameStatusMessage();
+      refreshNicknameControls();
+    });
+
+    settingsNicknameInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      settingsNicknameSaveBtn?.click();
+    });
+  }
+
+  if (settingsNicknameSaveBtn) {
+    settingsNicknameSaveBtn.addEventListener("click", () => {
+      void (async () => {
+        const actorUserId = getActorUserId();
+        if (!actorUserId) return;
+        if (nicknameSaveInFlight) return;
+        if (getNicknameCooldownRemainingSeconds() > 0) {
+          refreshNicknameControls();
+          return;
+        }
+
+        const nickname = normalizeToken(settingsNicknameInput?.value);
+        const currentDisplayName = normalizeToken(getActorDisplayName());
+        if (!nickname || nickname === currentDisplayName) {
+          refreshNicknameControls();
+          return;
+        }
+
+        nicknameSaveInFlight = true;
+        clearNicknameStatusMessage();
+        refreshNicknameControls();
+
+        const response = await apiFetch(buildApiUrl("/auth/nickname"), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json"
+          },
+          body: JSON.stringify({ nickname })
+        });
+
+        if (!response.ok) {
+          const message = await parseApiErrorMessage(response, "Не удалось изменить ник.");
+          setNicknameStatusMessage(message, true);
+          if (response.status === 400) {
+            await loadCurrentUserFromApi();
+          }
+          nicknameSaveInFlight = false;
+          refreshNicknameControls();
+          return;
+        }
+
+        let updatedUser = null;
+        try {
+          updatedUser = await response.json();
+        } catch {
+          updatedUser = null;
+        }
+
+        if (updatedUser?.id) {
+          setActorUser(updatedUser);
+        } else {
+          await loadCurrentUserFromApi();
+        }
+
+        clearNicknameStatusMessage();
+        nicknameSaveInFlight = false;
+        refreshNicknameControls();
+      })();
     });
   }
 
@@ -364,30 +620,65 @@ const bindEvents = () => {
 
   if (settingsAvatarInput) {
     settingsAvatarInput.addEventListener("change", () => {
-      const file = settingsAvatarInput.files && settingsAvatarInput.files[0];
-      const id = getActorUserId();
-      // Allow re-selecting the same file.
-      settingsAvatarInput.value = "";
-      if (!id || !file) return;
+      void (async () => {
+        const file = settingsAvatarInput.files && settingsAvatarInput.files[0];
+        settingsAvatarInput.value = "";
+        if (!getActorUserId() || !file) return;
 
-      const reader = new FileReader();
-      reader.addEventListener("load", () => {
-        const dataUrl = typeof reader.result === "string" ? reader.result : "";
-        if (!dataUrl) return;
-        setStoredAccountAvatar(id, dataUrl);
-        updateActorUi();
-      });
-      reader.readAsDataURL(file);
+        const form = new FormData();
+        form.append("file", file);
+
+        const response = await apiFetch(buildApiUrl("/auth/avatar"), {
+          method: "POST",
+          body: form
+        });
+
+        if (!response.ok) {
+          await handleApiError(response, "Обновление аватара аккаунта");
+          return;
+        }
+
+        try {
+          const updated = await response.json();
+          if (updated?.id) {
+            setActorUser(updated);
+          } else {
+            await loadCurrentUserFromApi();
+          }
+        } catch {
+          await loadCurrentUserFromApi();
+        }
+      })();
     });
   }
 
   if (settingsAvatarClearBtn) {
     settingsAvatarClearBtn.addEventListener("click", () => {
-      const id = getActorUserId();
-      if (!id) return;
-      setStoredAccountAvatar(id, "");
-      if (settingsAvatarInput) settingsAvatarInput.value = "";
-      updateActorUi();
+      void (async () => {
+        if (!getActorUserId()) return;
+
+        const response = await apiFetch(buildApiUrl("/auth/avatar"), {
+          method: "DELETE"
+        });
+
+        if (!response.ok) {
+          await handleApiError(response, "Очистка аватара аккаунта");
+          return;
+        }
+
+        if (settingsAvatarInput) settingsAvatarInput.value = "";
+
+        try {
+          const updated = await response.json();
+          if (updated?.id) {
+            setActorUser(updated);
+          } else {
+            await loadCurrentUserFromApi();
+          }
+        } catch {
+          await loadCurrentUserFromApi();
+        }
+      })();
     });
   }
 
@@ -479,6 +770,7 @@ const bootstrap = async () => {
 
   bindEvents();
   await loadCurrentUserFromApi();
+  await migrateLegacyAvatarIfNeeded();
   updateActorUi();
   refreshSettingsThemeState();
 
@@ -487,6 +779,7 @@ const bootstrap = async () => {
     return;
   }
 
+  await notificationsController.refreshUnreadCount();
   await loadSpacesFromApi();
 };
 
@@ -501,13 +794,6 @@ window.addEventListener("storage", (event) => {
   if (key === "gtt-theme") {
     setTheme(getPreferredTheme());
     refreshSettingsThemeState();
-    return;
-  }
-
-  const id = getActorUserId();
-  if (!id) return;
-  if (key === `gtt-account-nickname:${id}` || key === `gtt-account-avatar:${id}`) {
-    updateActorUi();
   }
 });
 

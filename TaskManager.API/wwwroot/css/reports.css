@@ -1,0 +1,276 @@
+.reports {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.report-card {
+  border: 1px solid var(--stroke);
+  border-radius: 22px;
+  background: rgba(10, 15, 22, 0.45);
+  box-shadow: 0 18px 34px rgba(6, 11, 18, 0.35);
+  overflow: hidden;
+}
+
+body[data-theme="light"] .report-card {
+  background: rgba(255, 255, 255, 0.74);
+  border-color: rgba(15, 20, 28, 0.14);
+  box-shadow: 0 14px 28px rgba(15, 20, 28, 0.10);
+}
+
+.report-head {
+  padding: 16px 18px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-bottom: 1px solid var(--stroke);
+}
+
+.report-title {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 18px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.report-sub {
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.report-body {
+  padding: 14px 18px 18px;
+}
+
+.report-chart {
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  background: rgba(16, 22, 30, 0.42);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+body[data-theme="light"] .report-chart {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.report-note {
+  border: 1px dashed rgba(240, 195, 106, 0.35);
+  border-radius: 16px;
+  padding: 12px 12px;
+  margin-bottom: 12px;
+  color: rgba(240, 195, 106, 0.92);
+  font-size: 13px;
+  background: rgba(240, 195, 106, 0.08);
+}
+
+body[data-theme="light"] .report-note {
+  border-color: rgba(240, 195, 106, 0.42);
+  background: rgba(240, 195, 106, 0.10);
+  color: rgba(132, 90, 16, 0.95);
+}
+
+.report-empty {
+  border: 1px dashed var(--stroke);
+  border-radius: 16px;
+  padding: 14px;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 980px) {
+  .status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.status-pill {
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  background: rgba(16, 22, 30, 0.50);
+  padding: 14px 14px;
+  min-height: 74px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+body[data-theme="light"] .status-pill {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.status-pill-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.status-pill-value {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 28px;
+  font-weight: 650;
+  line-height: 1;
+}
+
+.status-pill[data-kind="1"] .status-pill-title {
+  color: rgba(120, 182, 255, 0.92);
+}
+
+.status-pill[data-kind="2"] .status-pill-title {
+  color: rgba(250, 204, 21, 0.92);
+}
+
+.status-pill[data-kind="3"] .status-pill-title {
+  color: rgba(74, 222, 128, 0.92);
+}
+
+.status-pill[data-kind="4"] .status-pill-title {
+  color: rgba(248, 113, 113, 0.92);
+}
+
+.overdue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.overdue-card {
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  background: rgba(16, 22, 30, 0.50);
+  padding: 14px;
+}
+
+body[data-theme="light"] .overdue-card {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.overdue-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.overdue-assignee {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.overdue-max {
+  color: rgba(248, 113, 113, 0.92);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.overdue-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.overdue-task {
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  padding: 10px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.overdue-task-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.overdue-task-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.overdue-task-late {
+  color: rgba(248, 113, 113, 0.92);
+  font-weight: 700;
+}
+
+.metric {
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  background: rgba(16, 22, 30, 0.50);
+  padding: 18px;
+}
+
+body[data-theme="light"] .metric {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.metric-value {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 34px;
+  font-weight: 650;
+  line-height: 1.1;
+}
+
+.metric-sub {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.reports-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+
+.reports-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  padding: 10px 12px;
+  background: rgba(10, 14, 20, 0.92);
+  color: var(--text-1);
+  font-size: 13px;
+  box-shadow: 0 18px 34px rgba(6, 11, 18, 0.45);
+  z-index: 10;
+  max-width: min(520px, 92vw);
+}
+
+body[data-theme="light"] .reports-toast {
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 14px 28px rgba(15, 20, 28, 0.12);
+}

@@ -13,6 +13,9 @@ namespace TaskManager.Domain.Entities
         [MaxLength(400)]
         public string? AvatarPath { get; set; }
 
+        [MaxLength(500)]
+        public string? AvatarObjectKey { get; set; }
+
         public int CreatedByUserId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

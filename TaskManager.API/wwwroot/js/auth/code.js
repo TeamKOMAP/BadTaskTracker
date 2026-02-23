@@ -99,8 +99,13 @@ const renderTimer = () => {
   const totalSeconds = Math.ceil(remainingMs / 1000);
 
   if (totalSeconds <= 0) {
-    if (timerEl) timerEl.textContent = "00:00";
-    if (resendBtn) resendBtn.disabled = false;
+    // Keep timer space but hide the countdown visually
+    if (timerEl) timerEl.style.visibility = "hidden";
+    if (resendBtn) {
+      resendBtn.disabled = false;
+      resendBtn.setAttribute("aria-disabled", "false");
+      resendBtn.classList.remove("is-disabled");
+    }
     if (timerHandle) {
       window.clearInterval(timerHandle);
       timerHandle = null;
@@ -110,8 +115,15 @@ const renderTimer = () => {
 
   const minutes = Math.floor(totalSeconds / 60);
   const seconds = totalSeconds % 60;
-  if (timerEl) timerEl.textContent = `${pad2(minutes)}:${pad2(seconds)}`;
-  if (resendBtn) resendBtn.disabled = true;
+  if (timerEl) {
+    timerEl.style.visibility = "visible"; // ensure timer is visible while counting
+    timerEl.textContent = `${pad2(minutes)}:${pad2(seconds)}`;
+  }
+  if (resendBtn) {
+    resendBtn.disabled = true;
+    resendBtn.setAttribute("aria-disabled", "true");
+    resendBtn.classList.add("is-disabled");
+  }
 };
 
 const startTimer = (seconds) => {
@@ -123,6 +135,8 @@ const startTimer = (seconds) => {
     timerHandle = null;
   }
 
+  // Ensure timer is visible when starting
+  if (timerEl) timerEl.style.visibility = "visible";
   renderTimer();
   timerHandle = window.setInterval(renderTimer, 1000);
 };
@@ -196,6 +210,43 @@ const verifyCode = async (code) => {
   }
 };
 
+const resolveBrowserTimeZoneId = () => {
+  try {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const token = String(zone || "").trim();
+    return token || "UTC";
+  } catch {
+    return "UTC";
+  }
+};
+
+const syncUserTimeZone = async () => {
+  const timeZoneId = resolveBrowserTimeZoneId();
+
+  try {
+    const response = await apiFetch(buildApiUrl("/auth/timezone"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json"
+      },
+      body: JSON.stringify({ timeZoneId })
+    });
+
+    if (!response.ok) {
+      return;
+    }
+
+    try {
+      await response.json();
+    } catch {
+      // ignore response parse errors for best-effort sync
+    }
+  } catch {
+    // ignore timezone sync errors for best-effort login flow
+  }
+};
+
 const initialCooldownSeconds = Number.isFinite(initialResendAfterSeconds) && initialResendAfterSeconds > 0
   ? initialResendAfterSeconds
   : 60;
@@ -210,16 +261,11 @@ if (resendBtn) {
       setCodeAlert("");
       resendBtn.disabled = true;
       const result = await requestCode();
-      if (!result) {
-        resendBtn.disabled = false;
-        return;
-      }
-
-      const nextCooldownSeconds = Number(result?.resendAfterSeconds);
-      const seconds = Number.isFinite(nextCooldownSeconds) && nextCooldownSeconds > 0
-        ? nextCooldownSeconds
-        : 60;
-      startTimer(seconds);
+      // Determine next cooldown: prefer server-provided, fall back to 60s
+      const provided = Number(result?.resendAfterSeconds);
+      const nextSeconds = Number.isFinite(provided) && provided > 0 ? provided : 60;
+      // Start the cooldown regardless of server response
+      startTimer(nextSeconds);
     })();
   });
 }
@@ -274,6 +320,7 @@ if (codeForm) {
 
       setAccessToken(token);
       clearDevelopmentCode();
+      await syncUserTimeZone();
 
       if (returnUrl && returnUrl.startsWith("/") && !returnUrl.startsWith("//")) {
         window.location.href = returnUrl;
