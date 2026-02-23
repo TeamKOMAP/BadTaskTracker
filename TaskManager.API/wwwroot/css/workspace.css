@@ -1026,9 +1026,27 @@ body[data-theme="light"] .board-toolbar {
 }
 
 .board-toolbar-plus {
-  width: 40px;
-  height: 40px;
-  border-radius: 16px;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, rgba(68, 210, 199, 0.9), rgba(44, 115, 255, 0.9));
+  color: #071017;
+  box-shadow: 0 12px 24px rgba(24, 109, 140, 0.35);
+}
+
+.board-toolbar-plus svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.4;
+}
+
+.board-toolbar-plus:hover,
+.board-toolbar-plus:focus-visible {
+  transform: translateY(-1px);
+  color: #071017;
+  border: none;
+  box-shadow: 0 18px 30px rgba(24, 109, 140, 0.45);
 }
 
 body[data-theme="light"] .board-popover {
@@ -1180,15 +1198,16 @@ body[data-theme="light"] .board-check input {
 }
 
 .board-toolbar-left .board-add-column-control {
-  width: auto;
-  flex: 0 0 auto;
+  width: var(--board-add-column-width);
+  flex: 0 0 var(--board-add-column-width);
 }
 
 .board-toolbar-left .board-add-column {
-  width: auto;
-  min-width: 190px;
-  padding: 12px 40px 12px 16px;
-  border-radius: 16px;
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  padding: 13px 34px 13px 14px;
+  border-radius: 14px;
 }
 
 body[data-theme="light"] .board-search {
@@ -1305,6 +1324,31 @@ body[data-theme="light"] .board-search-input::placeholder {
   border-radius: 14px;
 }
 
+.board-toolbar-btn.board-toolbar-plus {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  border: none;
+  background: linear-gradient(135deg, rgba(68, 210, 199, 0.9), rgba(44, 115, 255, 0.9));
+  color: #071017;
+  box-shadow: 0 12px 24px rgba(24, 109, 140, 0.35);
+}
+
+.board-toolbar-btn.board-toolbar-plus:hover,
+.board-toolbar-btn.board-toolbar-plus:focus-visible {
+  transform: translateY(-1px);
+  background: linear-gradient(135deg, rgba(96, 228, 218, 0.98), rgba(70, 143, 255, 0.98));
+  color: #071017;
+  border: none;
+  box-shadow: 0 18px 30px rgba(24, 109, 140, 0.45);
+}
+
+.board-toolbar-btn.board-toolbar-plus svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2.4;
+}
+
 .board-toolbar-btn svg {
   width: 18px;
   height: 18px;
@@ -1381,7 +1425,7 @@ body[data-theme="light"] .user-panel-inner {
 }
 
 .board-add-column-control {
-  --board-add-column-width: 220px;
+  --board-add-column-width: 204px;
   position: relative;
   right: auto;
   top: auto;
@@ -1389,7 +1433,8 @@ body[data-theme="light"] .user-panel-inner {
   z-index: 4;
   display: block;
   width: var(--board-add-column-width);
-  align-self: flex-end;
+  flex: 0 0 var(--board-add-column-width);
+  align-self: center;
 }
 
 .board-add-column-control[hidden] {
@@ -1406,8 +1451,8 @@ body[data-theme="light"] .user-panel-inner {
   min-width: 0;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 13px 40px 13px 18px;
+  justify-content: flex-start;
+  padding: 13px 34px 13px 14px;
   min-height: 0;
   border-radius: 14px;
   font-size: 13px;
@@ -1444,9 +1489,10 @@ body[data-theme="light"] .user-panel-inner {
 .board-add-column-menu {
   position: absolute;
   top: calc(100% + 8px);
-  right: 0;
+  left: 0;
   width: 100%;
   min-width: 0;
+  max-width: 100%;
   padding: 8px;
   border: 1px solid var(--stroke);
   border-radius: 14px;
