@@ -26,9 +26,8 @@ This runbook targets a fast production launch with the current architecture:
 1. Confirm branch is stable and merged to `dev`.
 2. Ensure CI passes (`dotnet build`, `dotnet test`).
 3. Rotate production secrets before public release:
-   - `Smtp__Username`
-   - `Smtp__Password`
-   - `Smtp__FromEmail`
+   - `Email__HttpApi__ApiKey`
+   - `Email__HttpApi__FromEmail`
    - `MINIO_ROOT_USER`
    - `MINIO_ROOT_PASSWORD`
 4. Decide migration mode:
@@ -62,6 +61,14 @@ Configured in `render.yaml`:
   - `Jwt__Issuer=GoodTaskTracker`
   - `Jwt__Audience=GoodTaskTracker.Client`
   - `Jwt__SigningKey` set in `render.yaml` (rotate after first deploy)
+- Email (HTTP API):
+  - `Email__Provider=HttpApi`
+  - `Email__HttpApi__Provider=Resend`
+  - `Email__HttpApi__BaseUrl=https://api.resend.com`
+  - `Email__HttpApi__SendPath=/emails`
+  - `Email__HttpApi__ApiKey` set in Render dashboard
+  - `Email__HttpApi__FromEmail` set in Render dashboard (verified sender)
+  - `Email__HttpApi__FromName=BadTaskTracker`
 - Storage:
   - `Storage__Provider=S3`
   - `Storage__Endpoint=http://badtasktracker-minio:10000`

@@ -52,20 +52,20 @@ services:
           name: badtasktracker-minio
           type: pserv
           envVarKey: MINIO_ROOT_PASSWORD
-      - key: Smtp__Host
-        value: smtp.gmail.com
-      - key: Smtp__Port
-        value: "587"
-      - key: Smtp__EnableSsl
-        value: "true"
-      - key: Smtp__FromName
-        value: GoodTaskTracker
-      - key: Smtp__Username
-        value: badtasktracker@gmail.com
-      - key: Smtp__Password
-        value: sgulxyadzthzuyea
-      - key: Smtp__FromEmail
-        value: badtasktracker@gmail.com
+      - key: Email__Provider
+        value: HttpApi
+      - key: Email__HttpApi__Provider
+        value: Resend
+      - key: Email__HttpApi__BaseUrl
+        value: https://api.resend.com
+      - key: Email__HttpApi__SendPath
+        value: /emails
+      - key: Email__HttpApi__FromName
+        value: BadTaskTracker
+      - key: Email__HttpApi__ApiKey
+        sync: false
+      - key: Email__HttpApi__FromEmail
+        sync: false
     disk:
       name: api-data
       mountPath: /var/data

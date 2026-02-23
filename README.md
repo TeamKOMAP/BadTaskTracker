@@ -70,13 +70,19 @@ dotnet run --project TaskManager.API
 
 ### Настройка email (опционально)
 
-Для работы email-аутентификации скопируйте `.env.example` в `.env` и заполните SMTP-данные:
+Для работы email-аутентификации скопируйте `.env.example` в `.env` и заполните настройки HTTP API-провайдера (Resend-совместимого):
 
 ```env
-Smtp__Username=your-email@gmail.com
-Smtp__Password=your-app-password
-Smtp__FromEmail=your-email@gmail.com
+Email__Provider=HttpApi
+Email__HttpApi__Provider=Resend
+Email__HttpApi__BaseUrl=https://api.resend.com
+Email__HttpApi__SendPath=/emails
+Email__HttpApi__ApiKey=your-http-email-api-key
+Email__HttpApi__FromEmail=your-verified-sender@example.com
+Email__HttpApi__FromName=BadTaskTracker
 ```
+
+SMTP остается доступным как fallback, но для Render рекомендуется HTTP API.
 
 ### Настройка хранилища (Local / MinIO / S3)
 
@@ -244,7 +250,7 @@ dotnet test
 
 ### Email и уведомления
 
-7. **Email fallback** — В development режиме при отсутствии SMTP настроек код отображается в консоли (см. `EmailAuth:EnableDevelopmentCodeFallback` в конфиге).
+7. **Email transport** — Для Render рекомендуется HTTP API (Resend-совместимый). В development режиме можно включить fallback-код (`EmailAuth:EnableDevelopmentCodeFallback`).
 
 8. **Email rate limiting** — Ограничение на отправку писем: не более 10 писем в минуту для предотвращения спама.
 

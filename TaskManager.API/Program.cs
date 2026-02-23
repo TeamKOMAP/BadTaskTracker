@@ -46,6 +46,7 @@ if ((builder.Environment.IsProduction() || builder.Environment.IsStaging())
 }
 
 var emailAuthSettings = builder.Configuration.GetSection("EmailAuth").Get<EmailAuthSettings>() ?? new EmailAuthSettings();
+var emailSettings = builder.Configuration.GetSection("Email").Get<EmailSettings>() ?? new EmailSettings();
 var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>() ?? new SmtpSettings();
 var profileSettings = builder.Configuration.GetSection("Profile").Get<ProfileSettings>() ?? new ProfileSettings();
 var storageSettings = builder.Configuration.GetSection("Storage").Get<StorageSettings>() ?? new StorageSettings();
@@ -58,6 +59,7 @@ if (!builder.Environment.IsDevelopment())
 
 builder.Services.AddSingleton(jwtSettings);
 builder.Services.AddSingleton(emailAuthSettings);
+builder.Services.AddSingleton(emailSettings);
 builder.Services.AddSingleton(smtpSettings);
 builder.Services.AddSingleton(profileSettings);
 builder.Services.AddSingleton(storageSettings);
@@ -146,7 +148,28 @@ builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ITaskAttachmentService, TaskAttachmentService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IWorkspaceInvitationService, WorkspaceInvitationService>();
-builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddScoped<SmtpEmailSender>();
+builder.Services.AddHttpClient<HttpApiEmailSender>((sp, client) =>
+{
+    var settings = sp.GetRequiredService<EmailSettings>().HttpApi ?? new HttpApiEmailSettings();
+    if (Uri.TryCreate(settings.BaseUrl, UriKind.Absolute, out var baseUri))
+    {
+        client.BaseAddress = baseUri;
+    }
+
+    client.Timeout = TimeSpan.FromSeconds(Math.Clamp(settings.TimeoutSeconds, 2, 30));
+});
+builder.Services.AddScoped<IEmailSender>(sp =>
+{
+    var provider = (sp.GetRequiredService<EmailSettings>().Provider ?? string.Empty).Trim();
+    if (provider.Equals("HttpApi", StringComparison.OrdinalIgnoreCase)
+        || provider.Equals("Resend", StringComparison.OrdinalIgnoreCase))
+    {
+        return sp.GetRequiredService<HttpApiEmailSender>();
+    }
+
+    return sp.GetRequiredService<SmtpEmailSender>();
+});
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddHostedService<OverdueStatusSyncBackgroundService>();
 builder.Services.AddHostedService<DeadlineNotificationBackgroundService>();
