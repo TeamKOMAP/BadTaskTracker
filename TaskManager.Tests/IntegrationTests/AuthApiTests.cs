@@ -22,7 +22,7 @@ namespace TaskManager.Tests.IntegrationTests
     {
         private const string JwtIssuer = "GoodTaskTracker";
         private const string JwtAudience = "GoodTaskTracker.Client";
-        private const string JwtSigningKey = "CHANGE_ME_IN_PRODUCTION_WITH_32_PLUS_CHARS";
+        private const string JwtSigningKey = "BTT_JWT_5c2a9d1f7e4b8a6c3d0f2e1a9b7c4d6e8f0a1b2c3d4e5f6a7b8c9d0e1f2a3b";
 
         private readonly HttpClient _client;
         private readonly WebApplicationFactory<Program> _factory;
