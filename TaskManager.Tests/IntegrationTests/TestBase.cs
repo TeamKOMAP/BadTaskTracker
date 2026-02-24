@@ -85,7 +85,7 @@ public class TestBase : IClassFixture<WebApplicationFactory<Program>>, IDisposab
         }
         catch
         {
-            // ignore best-effort cleanup
+            // игнорировать очистку по мере возможности
         }
     }
     protected string CreateAccessToken(int userId, int? workspaceId = null)
