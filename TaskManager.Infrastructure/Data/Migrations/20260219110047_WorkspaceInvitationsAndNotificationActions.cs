@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -29,16 +30,17 @@ namespace TaskManager.Infrastructure.Data.Migrations
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
+                        .Annotation("Sqlite:Autoincrement", true)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     WorkspaceId = table.Column<int>(type: "INTEGER", nullable: false),
                     InvitedByUserId = table.Column<int>(type: "INTEGER", nullable: false),
                     InvitedUserId = table.Column<int>(type: "INTEGER", nullable: true),
                     InvitedEmail = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
                     Role = table.Column<int>(type: "INTEGER", nullable: false),
                     Status = table.Column<int>(type: "INTEGER", nullable: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ExpiresAtUtc = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    RespondedAtUtc = table.Column<DateTime>(type: "TEXT", nullable: true)
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ExpiresAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    RespondedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {

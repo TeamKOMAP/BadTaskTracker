@@ -42,7 +42,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     FileName = table.Column<string>(type: "TEXT", maxLength: 255, nullable: false),
                     ContentType = table.Column<string>(type: "TEXT", maxLength: 150, nullable: false),
                     Size = table.Column<long>(type: "INTEGER", nullable: false),
-                    UploadedAtUtc = table.Column<DateTime>(type: "TEXT", nullable: false)
+                    UploadedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {

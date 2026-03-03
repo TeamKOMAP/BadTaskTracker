@@ -12,6 +12,10 @@ namespace TaskManager.Application.Storage
         public string SecretKey { get; set; } = string.Empty;
         public bool ForcePathStyle { get; set; } = true;
 
+        public string PostgresConnectionString { get; set; } = string.Empty;
+        public string PostgresSchema { get; set; } = "public";
+        public string PostgresTable { get; set; } = "object_storage_items";
+
         public string LocalRootPath { get; set; } = "App_Data/object-storage";
     }
 }

@@ -14,7 +14,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
             migrationBuilder.AddColumn<DateTime>(
                 name: "NicknameChangedAtUtc",
                 table: "Users",
-                type: "TEXT",
+                type: "timestamp with time zone",
                 nullable: true);
         }
 

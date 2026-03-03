@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -14,14 +15,14 @@ namespace TaskManager.Infrastructure.Data.Migrations
             migrationBuilder.AddColumn<bool>(
                 name: "DeadlineNotificationSent",
                 table: "Tasks",
-                type: "INTEGER",
+                type: "boolean",
                 nullable: false,
                 defaultValue: false);
 
             migrationBuilder.AddColumn<DateTime>(
                 name: "DeadlineNotificationSentAt",
                 table: "Tasks",
-                type: "TEXT",
+                type: "timestamp with time zone",
                 nullable: true);
 
             migrationBuilder.CreateTable(
@@ -29,14 +30,15 @@ namespace TaskManager.Infrastructure.Data.Migrations
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
+                        .Annotation("Sqlite:Autoincrement", true)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
                     Type = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
                     Title = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     Message = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: false),
                     TaskId = table.Column<int>(type: "INTEGER", nullable: true),
-                    IsRead = table.Column<bool>(type: "INTEGER", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false, defaultValueSql: "datetime('now')")
+                    IsRead = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
                 },
                 constraints: table =>
                 {
