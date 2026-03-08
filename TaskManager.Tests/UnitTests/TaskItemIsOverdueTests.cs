@@ -11,7 +11,7 @@ namespace TaskManager.Tests.UnitTests
         [Fact]
         public void IsOverdue_DueDateInPastAndStatusNotDone_ReturnsTrue()
         {
-            // Arrange
+            // подготовка
             var task = new TaskItem
             {
                 Title = "Просроченная задача",
@@ -20,14 +20,14 @@ namespace TaskManager.Tests.UnitTests
                 CreatedAt = DateTime.UtcNow.AddDays(-10)
             };
 
-            // Act & Assert
+            // действие и проверка
             task.IsOverdue.Should().BeTrue();
         }
 
         [Fact]
         public void IsOverdue_DueDateInFutureAndStatusNotDone_ReturnsFalse()
         {
-            // Arrange
+            // подготовка
             var task = new TaskItem
             {
                 Title = "Актуальная задача",
@@ -36,14 +36,14 @@ namespace TaskManager.Tests.UnitTests
                 CreatedAt = DateTime.UtcNow
             };
 
-            // Act & Assert
+            // действие и проверка
             task.IsOverdue.Should().BeFalse();
         }
 
         [Fact]
         public void IsOverdue_StatusDoneAndDueDateInPast_ReturnsFalse()
         {
-            // Arrange
+            // подготовка
             var task = new TaskItem
             {
                 Title = "Выполненная задача",
@@ -53,14 +53,14 @@ namespace TaskManager.Tests.UnitTests
                 CompletedAt = DateTime.UtcNow.AddDays(-3)
             };
 
-            // Act & Assert
+            // действие и проверка
             task.IsOverdue.Should().BeFalse();
         }
 
         [Fact]
         public void IsOverdue_StatusDoneAndDueDateInFuture_ReturnsFalse()
         {
-            // Arrange
+            // подготовка
             var task = new TaskItem
             {
                 Title = "Выполненная задача",
@@ -70,14 +70,14 @@ namespace TaskManager.Tests.UnitTests
                 CompletedAt = DateTime.UtcNow
             };
 
-            // Act & Assert
+            // действие и проверка
             task.IsOverdue.Should().BeFalse();
         }
 
         [Fact]
         public void IsOverdue_DueDateOneSecondAgo_ReturnsTrue()
         {
-            // Arrange
+            // подготовка
             var task = new TaskItem
             {
                 Title = "Задача просрочена на секунду",
@@ -86,14 +86,14 @@ namespace TaskManager.Tests.UnitTests
                 CreatedAt = DateTime.UtcNow.AddDays(-1)
             };
 
-            // Act & Assert
+            // действие и проверка
             task.IsOverdue.Should().BeTrue();
         }
 
         [Fact]
         public void IsOverdue_DueDateOneSecondInFuture_ReturnsFalse()
         {
-            // Arrange
+            // подготовка
             var task = new TaskItem
             {
                 Title = "Задача срок через секунду",
@@ -102,7 +102,7 @@ namespace TaskManager.Tests.UnitTests
                 CreatedAt = DateTime.UtcNow.AddDays(-1)
             };
 
-            // Act & Assert
+            // действие и проверка
             task.IsOverdue.Should().BeFalse();
         }
 
@@ -112,7 +112,7 @@ namespace TaskManager.Tests.UnitTests
         [InlineData(TaskItemStatus.Done, false)]
         public void IsOverdue_VariousStatusesWithPastDueDate_ReturnsExpectedResult(TaskItemStatus status, bool expectedOverdue)
         {
-            // Arrange
+            // подготовка
             var task = new TaskItem
             {
                 Title = "Тестовая задача",
@@ -126,7 +126,7 @@ namespace TaskManager.Tests.UnitTests
                 task.CompletedAt = DateTime.UtcNow.AddHours(-1);
             }
 
-            // Act & Assert
+            // действие и проверка
             task.IsOverdue.Should().Be(expectedOverdue);
         }
     }

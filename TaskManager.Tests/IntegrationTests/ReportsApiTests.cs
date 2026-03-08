@@ -121,7 +121,7 @@ namespace TaskManager.Tests.IntegrationTests
             var result = await response.Content.ReadFromJsonAsync<AverageCompletionTimeDto>();
             result.Should().NotBeNull();
             result!.SampleSize.Should().BeGreaterThanOrEqualTo(1);
-            // AverageHours может быть 0 если задача создана и сразу завершена
+            // среднее время выполнения может быть 0, если задача создана и сразу завершена
         }
 
         [Fact]

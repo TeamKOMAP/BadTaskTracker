@@ -35,7 +35,7 @@ namespace TaskManager.Infrastructure.Data
                 entity.Property(u => u.AvatarObjectKey).HasMaxLength(500);
                 entity.Property(u => u.NicknameChangedAtUtc);
                 entity.HasIndex(u => u.Email).IsUnique();
-                entity.Property(u => u.CreatedAt).HasDefaultValueSql("datetime('now')");
+                entity.Property(u => u.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             modelBuilder.Entity<Workspace>(entity =>
@@ -44,7 +44,7 @@ namespace TaskManager.Infrastructure.Data
                 entity.Property(w => w.Name).IsRequired().HasMaxLength(120);
                 entity.Property(w => w.AvatarPath).HasMaxLength(400);
                 entity.Property(w => w.AvatarObjectKey).HasMaxLength(500);
-                entity.Property(w => w.CreatedAt).HasDefaultValueSql("datetime('now')");
+                entity.Property(w => w.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                 entity.HasOne(w => w.CreatedByUser)
                     .WithMany(u => u.OwnedWorkspaces)
@@ -63,7 +63,7 @@ namespace TaskManager.Infrastructure.Data
                     .IsRequired()
                     .HasConversion<int>();
 
-                entity.Property(m => m.AddedAt).HasDefaultValueSql("datetime('now')");
+                entity.Property(m => m.AddedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                 entity.HasOne(m => m.Workspace)
                     .WithMany(w => w.Members)
@@ -85,7 +85,7 @@ namespace TaskManager.Infrastructure.Data
                 entity.ToTable("Tasks");
                 entity.Property(t => t.Title).IsRequired().HasMaxLength(200);
                 entity.Property(t => t.Description).HasMaxLength(1000);
-                entity.Property(t => t.CreatedAt).HasDefaultValueSql("datetime('now')");
+                entity.Property(t => t.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 entity.Property(t => t.DueDate).IsRequired();
 
                 entity.Property(t => t.Status)
@@ -137,7 +137,7 @@ namespace TaskManager.Infrastructure.Data
             {
                 entity.HasKey(t => t.Id);
                 entity.Property(t => t.Name).IsRequired().HasMaxLength(50);
-                entity.Property(t => t.CreatedAt).HasDefaultValueSql("datetime('now')");
+                entity.Property(t => t.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                 entity.HasOne(t => t.Workspace)
                     .WithMany(w => w.Tags)
@@ -162,7 +162,7 @@ namespace TaskManager.Infrastructure.Data
                     .HasForeignKey(tt => tt.TagId)
                     .OnDelete(DeleteBehavior.Cascade);
 
-                entity.Property(tt => tt.CreatedAt).HasDefaultValueSql("datetime('now')");
+                entity.Property(tt => tt.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             });
 
             modelBuilder.Entity<EmailAuthCode>(entity =>
@@ -202,7 +202,7 @@ namespace TaskManager.Infrastructure.Data
                     .HasMaxLength(300);
 
                 entity.Property(n => n.CreatedAt)
-                    .HasDefaultValueSql("datetime('now')");
+                    .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                 entity.HasOne(n => n.User)
                     .WithMany()

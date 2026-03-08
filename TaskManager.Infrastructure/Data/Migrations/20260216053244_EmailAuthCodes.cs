@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -16,16 +17,17 @@ namespace TaskManager.Infrastructure.Data.Migrations
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
+                        .Annotation("Sqlite:Autoincrement", true)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Email = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
                     CodeHash = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     CodeSalt = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     AttemptsUsed = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
-                    IsConsumed = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
-                    CreatedAtUtc = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ExpiresAtUtc = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ResendAvailableAtUtc = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ConsumedAtUtc = table.Column<DateTime>(type: "TEXT", nullable: true)
+                    IsConsumed = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ExpiresAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ResendAvailableAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ConsumedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {

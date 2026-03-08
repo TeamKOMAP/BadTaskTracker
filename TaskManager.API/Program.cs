@@ -38,11 +38,17 @@ if (string.IsNullOrWhiteSpace(jwtSettings.Issuer)
     throw new InvalidOperationException("JWT configuration is invalid. Provide Jwt:Issuer, Jwt:Audience and Jwt:SigningKey (at least 32 chars).");
 }
 
-const string insecureJwtPlaceholder = "CHANGE_ME_IN_PRODUCTION_WITH_32_PLUS_CHARS";
-if ((builder.Environment.IsProduction() || builder.Environment.IsStaging())
-    && string.Equals(jwtSettings.SigningKey, insecureJwtPlaceholder, StringComparison.Ordinal))
+var knownInsecureJwtSigningKeys = new[]
 {
-    throw new InvalidOperationException("JWT signing key uses insecure placeholder. Set a unique Jwt:SigningKey for this environment.");
+    "CHANGE_ME_IN_PRODUCTION_WITH_32_PLUS_CHARS",
+    "BTT_JWT_5c2a9d1f7e4b8a6c3d0f2e1a9b7c4d6e8f0a1b2c3d4e5f6a7b8c9d0e1f2a3b"
+};
+
+if ((builder.Environment.IsProduction() || builder.Environment.IsStaging())
+    && knownInsecureJwtSigningKeys.Contains(jwtSettings.SigningKey, StringComparer.Ordinal))
+{
+    throw new InvalidOperationException(
+        "JWT signing key uses insecure default value. Set a unique Jwt:SigningKey for this environment.");
 }
 
 var emailAuthSettings = builder.Configuration.GetSection("EmailAuth").Get<EmailAuthSettings>() ?? new EmailAuthSettings();
@@ -50,6 +56,7 @@ var emailSettings = builder.Configuration.GetSection("Email").Get<EmailSettings>
 var smtpSettings = builder.Configuration.GetSection("Smtp").Get<SmtpSettings>() ?? new SmtpSettings();
 var profileSettings = builder.Configuration.GetSection("Profile").Get<ProfileSettings>() ?? new ProfileSettings();
 var storageSettings = builder.Configuration.GetSection("Storage").Get<StorageSettings>() ?? new StorageSettings();
+var databaseSettings = builder.Configuration.GetSection("Database").Get<DatabaseSettings>() ?? new DatabaseSettings();
 
 if (!builder.Environment.IsDevelopment())
 {
@@ -63,6 +70,7 @@ builder.Services.AddSingleton(emailSettings);
 builder.Services.AddSingleton(smtpSettings);
 builder.Services.AddSingleton(profileSettings);
 builder.Services.AddSingleton(storageSettings);
+builder.Services.AddSingleton(databaseSettings);
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
     options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -127,7 +135,41 @@ builder.Services.AddRateLimiter(options =>
 
 // Add DbContext
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+{
+    var provider = (databaseSettings.Provider ?? string.Empty).Trim();
+
+    if (provider.Equals("Postgres", StringComparison.OrdinalIgnoreCase)
+        || provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase)
+        || provider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+    {
+        var postgresConnection = builder.Configuration.GetConnectionString("Postgres");
+        if (string.IsNullOrWhiteSpace(postgresConnection))
+        {
+            throw new InvalidOperationException("ConnectionStrings:Postgres must be configured when Database:Provider=Postgres.");
+        }
+
+        options.UseNpgsql(postgresConnection, npgsql =>
+        {
+            npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(3), null);
+        });
+        return;
+    }
+
+    if (provider.Equals("Sqlite", StringComparison.OrdinalIgnoreCase)
+        || string.IsNullOrWhiteSpace(provider))
+    {
+        var sqliteConnection = builder.Configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(sqliteConnection))
+        {
+            throw new InvalidOperationException("ConnectionStrings:DefaultConnection must be configured for Sqlite provider.");
+        }
+
+        options.UseSqlite(sqliteConnection);
+        return;
+    }
+
+    throw new InvalidOperationException($"Unsupported database provider '{provider}'. Use Sqlite or Postgres.");
+});
 
 // Add Repositories
 builder.Services.AddScoped<ITaskRepository, TaskRepository>();
@@ -173,17 +215,42 @@ builder.Services.AddScoped<IEmailSender>(sp =>
 builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 builder.Services.AddHostedService<OverdueStatusSyncBackgroundService>();
 builder.Services.AddHostedService<DeadlineNotificationBackgroundService>();
+builder.Services.AddSingleton<LocalObjectStorage>(sp =>
+{
+    var settings = sp.GetRequiredService<StorageSettings>();
+    var env = sp.GetRequiredService<IWebHostEnvironment>();
+    return new LocalObjectStorage(env.ContentRootPath, settings);
+});
+builder.Services.AddSingleton<S3ObjectStorage>(sp =>
+{
+    var settings = sp.GetRequiredService<StorageSettings>();
+    return new S3ObjectStorage(settings);
+});
+builder.Services.AddSingleton<PostgresObjectStorage>();
 builder.Services.AddSingleton<IObjectStorage>(sp =>
 {
     var settings = sp.GetRequiredService<StorageSettings>();
     var provider = (settings.Provider ?? string.Empty).Trim();
+
     if (provider.Equals("S3", StringComparison.OrdinalIgnoreCase))
     {
-        return new S3ObjectStorage(settings);
+        return sp.GetRequiredService<S3ObjectStorage>();
     }
 
-    var env = sp.GetRequiredService<IWebHostEnvironment>();
-    return new LocalObjectStorage(env.ContentRootPath, settings);
+    if (provider.Equals("Postgres", StringComparison.OrdinalIgnoreCase)
+        || provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase)
+        || provider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+    {
+        return sp.GetRequiredService<PostgresObjectStorage>();
+    }
+
+    if (provider.Equals("Local", StringComparison.OrdinalIgnoreCase)
+        || string.IsNullOrWhiteSpace(provider))
+    {
+        return sp.GetRequiredService<LocalObjectStorage>();
+    }
+
+    throw new InvalidOperationException($"Unsupported storage provider '{provider}'. Use Local, S3 or Postgres.");
 });
 builder.Services.AddScoped<IAttachmentStorage, ObjectAttachmentStorage>();
 builder.Services.AddScoped<LegacyStorageMigrator>();
