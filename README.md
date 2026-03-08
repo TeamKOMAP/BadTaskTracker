@@ -310,7 +310,7 @@ Authorization: Bearer {token}
 dotnet test
 ```
 
-Для запуска интеграционных тестов `PostgresObjectStorage` задайте одну из переменных окружения:
+Для запуска интеграционных тестов `PostgresObjectStorage` и smoke-тестов провайдера БД (`DatabaseProviderSmokeTests`) задайте одну из переменных окружения:
 
 ```env
 TEST_POSTGRES_CONNECTION_STRING=Host=localhost;Port=5432;Database=taskmanager_tests;Username=postgres;Password=postgres
