@@ -183,6 +183,15 @@ import {
   getStoredWorkspaceFlowMap,
   setStoredWorkspaceFlowMap
 } from "./storage.js?v=authflow7";
+import {
+  isTaskVisibleForAssignee,
+  upsertTaskInList,
+  removeTaskFromList,
+  updateTaskAttachmentCountInList
+} from "./task-state.js?v=state1";
+import { createWorkspaceTaskActions } from "./task-actions.js?v=actions1";
+import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
+import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
@@ -2076,14 +2085,7 @@ const applyAttachmentCountToCards = (id, count) => {
   const taskId = Number.parseInt(String(id || ""), 10);
   const normalizedCount = Number.isFinite(Number(count)) && Number(count) > 0 ? Number(count) : 0;
   if (Number.isFinite(taskId)) {
-    lastNormalizedTasks = lastNormalizedTasks.map((task) => {
-      const currentId = Number.parseInt(String(task?.id ?? ""), 10);
-      if (!Number.isFinite(currentId) || currentId !== taskId) return task;
-      return {
-        ...task,
-        attachmentCount: normalizedCount
-      };
-    });
+    lastNormalizedTasks = updateTaskAttachmentCountInList(lastNormalizedTasks, taskId, normalizedCount);
   }
 
   document.querySelectorAll(`.task-card[data-task-id="${id}"]`).forEach((card) => {
@@ -2927,38 +2929,6 @@ const sweepAutoOverdueTasks = async (maxCount = 10_000) => {
   });
 };
 
-const normalizeApiTask = (task) => {
-  const statusValue = toStatusValue(task?.status);
-  const priorityValue = toPriorityValue(task?.priority);
-  const tagIds = Array.isArray(task?.tagIds) ? task.tagIds : [];
-  const doneApprovalPending = Boolean(task?.doneApprovalPending);
-  const doneApprovalRequestedByUserId = task?.doneApprovalRequestedByUserId ?? null;
-  const doneApprovalRequestedAtUtc = task?.doneApprovalRequestedAtUtc ?? null;
-  const meta = task?.id !== undefined && task?.id !== null ? getStoredTaskMeta(task.id) : null;
-  const metaTags = meta?.tags && meta.tags.length ? meta.tags : null;
-  const apiTagNames = tagIds
-    .map((id) => tagById.get(Number(id)) || "")
-    .map((name) => normalizeToken(name))
-    .filter(Boolean);
-  return {
-    id: task?.id,
-    title: task?.title || "Задача без названия",
-    description: task?.description || "",
-    statusValue,
-    priorityValue,
-    doneApprovalPending,
-    doneApprovalRequestedByUserId,
-    doneApprovalRequestedAtUtc,
-    assigneeId: task?.assigneeId ?? null,
-    dueDate: task?.dueDate,
-    tags: metaTags || (apiTagNames.length ? apiTagNames : tagIds.map((id) => `Tag-${id}`)),
-    tagIds,
-    attachmentCount: Number.isFinite(Number(task?.attachmentCount)) && Number(task.attachmentCount) > 0
-      ? Number(task.attachmentCount)
-      : 0
-  };
-};
-
 const addTaskToBoard = (taskData) => {
   const statusValue = toStatusValue(taskData?.statusValue ?? taskData?.status);
   const columnId = getColumnIdForStatus(statusValue);
@@ -2973,64 +2943,16 @@ const clearBoardTasks = () => {
   document.querySelectorAll(".column .task-card").forEach((card) => card.remove());
 };
 
-const fetchTasks = async () => {
-  if (!currentWorkspaceId) return [];
-
-  const response = await apiFetch(buildApiUrl("/tasks", {
-    assigneeId: currentAssigneeIdFilter
-  }), {
-    headers: {
-      Accept: "application/json"
-    }
-  });
-  if (!response.ok) {
-    await handleApiError(response, "Загрузка задач");
-    return null;
-  }
-  return response.json();
-};
-
 const isTaskVisibleWithCurrentFilters = (taskData) => {
-  const filterId = Number.parseInt(String(currentAssigneeIdFilter ?? ""), 10);
-  if (!Number.isFinite(filterId) || filterId <= 0) {
-    return true;
-  }
-
-  const assigneeId = Number.parseInt(String(taskData?.assigneeId ?? ""), 10);
-  return Number.isFinite(assigneeId) && assigneeId === filterId;
+  return isTaskVisibleForAssignee(taskData, currentAssigneeIdFilter);
 };
 
 const upsertTaskInState = (taskData) => {
-  const taskId = Number.parseInt(String(taskData?.id ?? ""), 10);
-  if (!Number.isFinite(taskId) || taskId <= 0) return;
-
-  let replaced = false;
-  lastNormalizedTasks = lastNormalizedTasks.map((item) => {
-    const itemId = Number.parseInt(String(item?.id ?? ""), 10);
-    if (!Number.isFinite(itemId) || itemId !== taskId) {
-      return item;
-    }
-
-    replaced = true;
-    return {
-      ...item,
-      ...taskData
-    };
-  });
-
-  if (!replaced) {
-    lastNormalizedTasks = [...lastNormalizedTasks, taskData];
-  }
+  lastNormalizedTasks = upsertTaskInList(lastNormalizedTasks, taskData);
 };
 
 const removeTaskFromState = (taskId) => {
-  const normalizedId = Number.parseInt(String(taskId ?? ""), 10);
-  if (!Number.isFinite(normalizedId) || normalizedId <= 0) return;
-
-  lastNormalizedTasks = lastNormalizedTasks.filter((task) => {
-    const itemId = Number.parseInt(String(task?.id ?? ""), 10);
-    return !Number.isFinite(itemId) || itemId !== normalizedId;
-  });
+  lastNormalizedTasks = removeTaskFromList(lastNormalizedTasks, taskId);
 };
 
 const syncTaskStateToUi = () => {
@@ -3194,189 +3116,6 @@ const applyTaskRemovalToUi = (taskId) => {
   removeTaskFromBoard(taskId);
 };
 
-const createTaskViaApi = async (uiTaskData) => {
-  const assigneeIdParsed = Number.parseInt(String(uiTaskData.assigneeId ?? ""), 10);
-  const assigneeId = Number.isFinite(assigneeIdParsed) && assigneeIdParsed > 0 ? assigneeIdParsed : null;
-  const priorityParsed = Number.parseInt(String(uiTaskData.priorityValue ?? DEFAULT_PRIORITY_VALUE), 10);
-  const priority = Number.isFinite(priorityParsed) ? clampValue(priorityParsed, 1, 3) : DEFAULT_PRIORITY_VALUE;
-  const due = new Date(String(uiTaskData.dueDateIso || ""));
-  const dueDate = Number.isNaN(due.getTime()) ? getDefaultDueDateIso() : due.toISOString();
-  const tagIds = Array.isArray(uiTaskData.tagIds) ? uiTaskData.tagIds : [];
-  const payload = {
-    title: uiTaskData.title,
-    description: uiTaskData.description,
-    assigneeId,
-    dueDate,
-    priority,
-    tagIds
-  };
-
-  const response = await apiFetch(buildApiUrl("/tasks"), {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    await handleApiError(response, "Создание задачи");
-    return;
-  }
-
-  let createdTask = null;
-  try {
-    createdTask = await response.json();
-  } catch {
-    createdTask = null;
-  }
-
-  const createdId = Number.parseInt(String(createdTask?.id ?? ""), 10);
-  if (!Number.isFinite(createdId) || createdId <= 0) {
-    closeTaskModal();
-    await loadTasksFromApi();
-    return;
-  }
-
-  clearStoredTaskArtifacts(createdId);
-  const tags = Array.isArray(uiTaskData.tags) ? uiTaskData.tags.filter((t) => typeof t === "string" && t.trim()) : [];
-  if (Number.isFinite(createdId) && createdId > 0) {
-    setStoredTaskMeta(createdId, { tags });
-  }
-
-  const taskData = normalizeApiTask(createdTask);
-  if (tags.length) taskData.tags = tags;
-
-  recordTaskHistory(createdId, {
-    at: Date.now(),
-    title: "Создана задача",
-    source: "Создание",
-    lines: [normalizeToken(taskData.title) ? `Название: ${normalizeToken(taskData.title)}` : ""]
-      .filter(Boolean)
-  });
-
-  if (isTaskVisibleWithCurrentFilters(taskData)) {
-    upsertTaskInState(taskData);
-    applyTaskUpsertToUi(taskData);
-  } else {
-    removeTaskFromState(createdId);
-    applyTaskRemovalToUi(createdId);
-  }
-
-  closeTaskModal();
-};
-
-const updateTaskViaApi = async (id, uiTaskData) => {
-  const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(id)) || null;
-  const beforeStatusValue = toStatusValue(before?.statusValue ?? before?.status);
-
-  let statusValue = toStatusValue(uiTaskData.statusValue);
-  const dueMs = Date.parse(String(uiTaskData.dueDateIso || ""));
-  const restoringFromOverdue = beforeStatusValue === 4
-    && Number.isFinite(dueMs)
-    && dueMs >= Date.now();
-
-  if (restoringFromOverdue) {
-    statusValue = 1;
-  } else if (beforeStatusValue === 4) {
-    statusValue = 4;
-  } else if (statusValue === 4) {
-    statusValue = beforeStatusValue || 1;
-  }
-  const tagIds = Array.isArray(uiTaskData.tagIds) ? uiTaskData.tagIds : [];
-
-  const assigneeIdParsed = Number.parseInt(String(uiTaskData.assigneeId ?? ""), 10);
-  const assigneeId = Number.isFinite(assigneeIdParsed) && assigneeIdParsed > 0 ? assigneeIdParsed : null;
-  const priorityParsed = Number.parseInt(String(uiTaskData.priorityValue ?? DEFAULT_PRIORITY_VALUE), 10);
-  const priority = Number.isFinite(priorityParsed) ? clampValue(priorityParsed, 1, 3) : DEFAULT_PRIORITY_VALUE;
-  const due = new Date(String(uiTaskData.dueDateIso || ""));
-  const dueDate = Number.isNaN(due.getTime()) ? getDefaultDueDateIso() : due.toISOString();
-
-  const payload = {
-    id,
-    title: uiTaskData.title,
-    description: uiTaskData.description,
-    status: statusValue,
-    assigneeId,
-    dueDate,
-    priority,
-    tagIds
-  };
-
-  const response = await apiFetch(buildApiUrl(`/tasks/${id}`), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-
-  if (!response.ok) {
-    await handleApiError(response, "Обновление задачи");
-    return;
-  }
-
-  let updatedTask = null;
-  try {
-    updatedTask = await response.json();
-  } catch {
-    updatedTask = null;
-  }
-
-  const updatedId = Number.parseInt(String(updatedTask?.id ?? id), 10);
-  if (!Number.isFinite(updatedId) || updatedId <= 0) {
-    closeTaskModal();
-    await loadTasksFromApi();
-    return;
-  }
-
-  const tags = Array.isArray(uiTaskData.tags)
-    ? uiTaskData.tags.filter((t) => typeof t === "string" && t.trim())
-    : [];
-  setStoredTaskMeta(updatedId, { tags });
-
-  const normalizedTask = normalizeApiTask(updatedTask || {
-    id: updatedId,
-    title: uiTaskData.title,
-    description: uiTaskData.description,
-    status: statusValue,
-    assigneeId,
-    dueDate,
-    priority,
-    tagIds,
-    attachmentCount: 0
-  });
-
-  if (tags.length) {
-    normalizedTask.tags = tags;
-  }
-
-  const beforeForHistory = before && Number(before?.id) === Number(updatedId)
-    ? before
-    : (lastNormalizedTasks.find((t) => Number(t?.id) === Number(updatedId)) || null);
-  const historyLines = buildTaskHistoryLines(beforeForHistory, normalizedTask);
-  if (historyLines.length) {
-    recordTaskHistory(updatedId, {
-      at: Date.now(),
-      title: "Изменение задачи",
-      source: "Редактирование",
-      lines: historyLines
-    });
-  }
-
-  if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
-    upsertTaskInState(normalizedTask);
-    applyTaskUpsertToUi(normalizedTask);
-  } else {
-    removeTaskFromState(updatedId);
-    applyTaskRemovalToUi(updatedId);
-  }
-
-  closeTaskModal();
-};
-
 const buildUpdatePayloadFromCard = (card, statusValue) => {
   const id = Number.parseInt(card.dataset.taskId || "", 10);
   const title = card.querySelector("h3")?.textContent?.trim() || "Задача без названия";
@@ -3399,88 +3138,48 @@ const buildUpdatePayloadFromCard = (card, statusValue) => {
   };
 };
 
-const updateTaskStatus = async (card, statusValue) => {
-  const id = Number.parseInt(card.dataset.taskId || "", 10);
-  if (!Number.isFinite(id)) return;
-  const currentStatusValue = toStatusValue(card.dataset.taskStatus);
-  const nextStatusValue = toStatusValue(statusValue);
-  if ((currentStatusValue === 4 && nextStatusValue !== 4) || (currentStatusValue !== 4 && nextStatusValue === 4)) {
-    syncTaskStateToUi();
-    return;
-  }
-  const before = lastNormalizedTasks.find((t) => Number(t?.id) === Number(id)) || null;
-  const payload = buildUpdatePayloadFromCard(card, statusValue);
-  const response = await apiFetch(buildApiUrl(`/tasks/${id}`), {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) {
-    await handleApiError(response, "Обновление задачи");
-    syncTaskStateToUi();
-    return;
-  }
+const taskActions = createWorkspaceTaskActions({
+  apiFetch,
+  buildApiUrl,
+  handleApiError,
+  toStatusValue,
+  toPriorityValue,
+  normalizeToken,
+  getStoredTaskMeta,
+  setStoredTaskMeta,
+  clearStoredTaskArtifacts,
+  getTagNameById: (id) => tagById.get(Number(id)) || "",
+  clampValue,
+  getDefaultDueDateIso,
+  closeTaskModal,
+  ensureTagsLoaded,
+  syncTaskStateToUi,
+  sweepAutoOverdueTasks,
+  buildTaskHistoryLines,
+  recordTaskHistory,
+  isTaskVisibleWithCurrentFilters,
+  getTasks: () => lastNormalizedTasks,
+  setTasks: (tasks) => {
+    lastNormalizedTasks = Array.isArray(tasks) ? tasks : [];
+  },
+  upsertTaskInState,
+  removeTaskFromState,
+  applyTaskUpsertToUi,
+  applyTaskRemovalToUi,
+  buildUpdatePayloadFromCard,
+  getCurrentWorkspaceId: () => currentWorkspaceId,
+  getCurrentAssigneeIdFilter: () => currentAssigneeIdFilter,
+  defaultPriorityValue: DEFAULT_PRIORITY_VALUE
+});
 
-  let updatedTask = null;
-  try {
-    updatedTask = await response.json();
-  } catch {
-    updatedTask = null;
-  }
-
-  if (!updatedTask || !Number.isFinite(Number(updatedTask.id))) {
-    await loadTasksFromApi();
-    return;
-  }
-
-  const normalizedTask = normalizeApiTask(updatedTask);
-
-  const historyLines = buildTaskHistoryLines(before, normalizedTask);
-  if (historyLines.length) {
-    recordTaskHistory(id, {
-      at: Date.now(),
-      title: "Изменение задачи",
-      source: "Перетаскивание",
-      lines: historyLines
-    });
-  }
-
-  if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
-    upsertTaskInState(normalizedTask);
-    applyTaskUpsertToUi(normalizedTask);
-  } else {
-    removeTaskFromState(normalizedTask.id);
-    applyTaskRemovalToUi(normalizedTask.id);
-  }
-};
-
-const deleteTaskViaApi = async (id) => {
-  if (!Number.isFinite(Number(id))) return false;
-  const response = await apiFetch(buildApiUrl(`/tasks/${id}`), {
-    method: "DELETE",
-    headers: {
-      Accept: "application/json"
-    }
-  });
-  if (!response.ok) {
-    await handleApiError(response, "Удаление задачи");
-    return false;
-  }
-  clearStoredTaskArtifacts(id);
-  return true;
-};
-
-const loadTasksFromApi = async () => {
-  await ensureTagsLoaded();
-  const tasks = await fetchTasks();
-  if (!Array.isArray(tasks)) return;
-  lastNormalizedTasks = tasks.map(normalizeApiTask);
-  syncTaskStateToUi();
-  void sweepAutoOverdueTasks();
-};
+const {
+  loadTasksFromApi,
+  createTaskViaApi,
+  updateTaskViaApi,
+  updateTaskStatus,
+  deleteTaskViaApi,
+  applyTaskDtoUpdateFromServer
+} = taskActions;
 
 const renderCurrentView = (tasks) => {
   const view = board?.dataset.view || "board";
@@ -3754,19 +3453,6 @@ const onTaskDragStart = (event) => {
     event.dataTransfer.setData("text/plain", card.dataset.taskId || "");
   }
   setTrashZoneVisible(true);
-};
-
-const applyTaskDtoUpdateFromServer = (taskDto) => {
-  if (!taskDto || !Number.isFinite(Number(taskDto.id))) return null;
-  const normalizedTask = normalizeApiTask(taskDto);
-  if (isTaskVisibleWithCurrentFilters(normalizedTask)) {
-    upsertTaskInState(normalizedTask);
-    applyTaskUpsertToUi(normalizedTask);
-  } else {
-    removeTaskFromState(normalizedTask.id);
-    applyTaskRemovalToUi(normalizedTask.id);
-  }
-  return normalizedTask;
 };
 
 const approveTaskDoneViaApi = async (taskId) => {
@@ -4103,26 +3789,6 @@ if (taskTagsInput) {
   });
 }
 
-if (brandToggle) {
-  brandToggle.addEventListener("click", () => {
-    const nextState = !isPanelOpen();
-    setSettingsOpen(false);
-    setPanelOpen(nextState);
-    if (nextState) {
-      userSearch?.focus();
-    }
-  });
-}
-
-if (brandMarkEl) {
-  brandMarkEl.addEventListener("click", (event) => {
-    // Prevent global "click outside" handler from instantly closing the panel.
-    event.preventDefault();
-    event.stopPropagation();
-    brandToggle?.click();
-  });
-}
-
 if (accountAvatarEl) {
   accountAvatarEl.addEventListener("click", (event) => {
     event.preventDefault();
@@ -4339,27 +4005,6 @@ if (confirmModalAcceptBtn) {
   });
 }
 
-document.addEventListener("click", (event) => {
-  const target = event.target instanceof Element ? event.target : null;
-  if (!target || !isPanelOpen()) return;
-  if (target.closest("#user-panel") || target.closest("#brand-toggle") || target.closest("#workspace-avatar")) return;
-  setPanelOpen(false);
-});
-
-document.addEventListener("click", (event) => {
-  const target = event.target instanceof Element ? event.target : null;
-  if (!target || !isSettingsOpen()) return;
-  if (target.closest("#settings-panel") || target.closest("#settings-toggle")) return;
-  setSettingsOpen(false);
-});
-
-document.addEventListener("click", (event) => {
-  const target = event.target instanceof Element ? event.target : null;
-  if (!target || !isNotificationsOpen()) return;
-  if (target.closest("#notifications-panel") || target.closest("#notifications-toggle")) return;
-  setNotificationsOpen(false);
-});
-
 taskDetailController = createTaskDetailController({
   canEditTask: isAdmin,
   canClearHistory: isAdmin,
@@ -4480,25 +4125,20 @@ if (taskForm) {
   });
 }
 
-if (settingsToggleBtn) {
-  settingsToggleBtn.addEventListener("click", () => {
-    const next = !isSettingsOpen();
-    setSettingsOpen(next);
-  });
-}
-
-if (notificationsToggleBtn) {
-  notificationsToggleBtn.addEventListener("click", () => {
-    const next = !isNotificationsOpen();
-    setNotificationsOpen(next);
-  });
-}
-
-if (notificationsCloseBtn) {
-  notificationsCloseBtn.addEventListener("click", () => {
-    setNotificationsOpen(false);
-  });
-}
+bindWorkspacePanelEvents({
+  brandToggle,
+  brandMarkEl,
+  settingsToggleBtn,
+  notificationsToggleBtn,
+  notificationsCloseBtn,
+  userSearch,
+  isPanelOpen,
+  setPanelOpen,
+  isSettingsOpen,
+  setSettingsOpen,
+  isNotificationsOpen,
+  setNotificationsOpen
+});
 
 if (logoutBtn) {
   logoutBtn.addEventListener("click", () => {
@@ -4958,149 +4598,38 @@ const toggleBoardFilterPanel = () => {
   }
 };
 
-if (boardTagsToggleBtn) {
-  boardTagsToggleBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleBoardTagsMenu();
-  });
-}
-
-if (boardTagsClearBtn) {
-  boardTagsClearBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toolbarTagFilter.clear();
-    refreshToolbarUiState();
-    syncTaskStateToUi();
-  });
-}
-
-if (boardTagsList) {
-  boardTagsList.addEventListener("click", (event) => {
-    const target = event.target instanceof Element
-      ? event.target.closest(".board-popover-item[data-tag]")
-      : null;
-    if (!(target instanceof HTMLButtonElement)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const tag = normalizeTag(target.dataset.tag);
-    if (!tag) return;
-    if (toolbarTagFilter.has(tag)) {
-      toolbarTagFilter.delete(tag);
-    } else {
-      toolbarTagFilter.add(tag);
-    }
-    refreshToolbarUiState();
-    syncTaskStateToUi();
-  });
-}
-
-if (boardSearchInput) {
-  boardSearchInput.addEventListener("input", () => {
-    if (toolbarSearchDebounceId) {
-      window.clearTimeout(toolbarSearchDebounceId);
-    }
-    toolbarSearchDebounceId = window.setTimeout(() => {
-      toolbarQuery = normalizeToken(boardSearchInput.value);
-      syncTaskStateToUi();
-    }, 120);
-  });
-}
-
-if (boardSearchClearBtn) {
-  boardSearchClearBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toolbarQuery = "";
-    toolbarTagFilter.clear();
-    if (boardSearchInput) boardSearchInput.value = "";
-    syncTaskStateToUi();
-  });
-}
-
-if (boardSortToggleBtn) {
-  boardSortToggleBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleBoardSortMenu();
-  });
-}
-
-if (boardSortMenu) {
-  boardSortMenu.addEventListener("click", (event) => {
-    const target = event.target instanceof Element
-      ? event.target.closest(".board-popover-item[data-sort]")
-      : null;
-    if (!(target instanceof HTMLButtonElement)) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const next = normalizeToken(target.dataset.sort) || "smart";
-    toolbarSort = next;
-    closeToolbarPopovers();
-    syncTaskStateToUi();
-  });
-}
-
-if (boardFilterToggleBtn) {
-  boardFilterToggleBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toggleBoardFilterPanel();
-  });
-}
-
-if (boardFilterResetBtn) {
-  boardFilterResetBtn.addEventListener("click", (event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    toolbarStatusFilter.clear();
-    toolbarPriorityFilter.clear();
-    toolbarTagFilter.clear();
-    refreshToolbarUiState();
-    syncTaskStateToUi();
-  });
-}
-
-if (boardFilterPanel) {
-  boardFilterPanel.addEventListener("change", (event) => {
-    const input = event.target instanceof Element
-      ? event.target.closest('input[type="checkbox"][data-filter]')
-      : null;
-    if (!(input instanceof HTMLInputElement)) return;
-    const kind = normalizeToken(input.dataset.filter);
-    const value = Number.parseInt(normalizeToken(input.value), 10);
-    if (!Number.isFinite(value)) return;
-
-    const set = kind === "status"
-      ? toolbarStatusFilter
-      : (kind === "priority" ? toolbarPriorityFilter : null);
-    if (!set) return;
-
-    if (input.checked) {
-      set.add(value);
-    } else {
-      set.delete(value);
-    }
-    syncTaskStateToUi();
-  });
-}
-
-document.addEventListener("click", (event) => {
-  const target = event.target instanceof Element ? event.target : null;
-  if (!target) {
-    closeToolbarPopovers();
-    return;
-  }
-  if (target.closest("#board-sort-menu")
-    || target.closest("#board-filter-panel")
-    || target.closest("#board-tags-menu")
-    || target.closest("#board-sort-toggle")
-    || target.closest("#board-filter-toggle")
-    || target.closest("#board-tags-toggle")) {
-    return;
-  }
-  closeToolbarPopovers();
+bindWorkspaceToolbarEvents({
+  boardTagsToggleBtn,
+  boardTagsClearBtn,
+  boardTagsList,
+  boardSearchInput,
+  boardSearchClearBtn,
+  boardSortToggleBtn,
+  boardSortMenu,
+  boardFilterToggleBtn,
+  boardFilterResetBtn,
+  boardFilterPanel,
+  normalizeToken,
+  normalizeTag,
+  closeToolbarPopovers,
+  refreshToolbarUiState,
+  syncTaskStateToUi,
+  toggleBoardTagsMenu,
+  toggleBoardSortMenu,
+  toggleBoardFilterPanel,
+  setToolbarQuery: (value) => {
+    toolbarQuery = value;
+  },
+  setToolbarSort: (value) => {
+    toolbarSort = value;
+  },
+  getToolbarSearchDebounceId: () => toolbarSearchDebounceId,
+  setToolbarSearchDebounceId: (id) => {
+    toolbarSearchDebounceId = id;
+  },
+  toolbarTagFilter,
+  toolbarStatusFilter,
+  toolbarPriorityFilter
 });
 
 refreshUserFilter();
