@@ -182,6 +182,11 @@ builder.Services.AddScoped<IWorkspaceMemberRepository, WorkspaceMemberRepository
 builder.Services.AddScoped<IEmailAuthCodeRepository, EmailAuthCodeRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<IWorkspaceInvitationRepository, WorkspaceInvitationRepository>();
+builder.Services.AddScoped<IChatRepository, ChatRepository>();
+builder.Services.AddScoped<IChatRoomMemberRepository, ChatRoomMemberRepository>();
+builder.Services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
+builder.Services.AddScoped<IChatMessageAttachmentRepository, ChatMessageAttachmentRepository>();
+builder.Services.AddScoped<IChatReadStateRepository, ChatReadStateRepository>();
 
 // Add Services
 builder.Services.AddScoped<ITaskService, TaskService>();
@@ -192,6 +197,8 @@ builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ITaskAttachmentService, TaskAttachmentService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IWorkspaceInvitationService, WorkspaceInvitationService>();
+builder.Services.AddScoped<IChatService, ChatService>();
+builder.Services.AddScoped<IChatMessageService, ChatMessageService>();
 builder.Services.AddScoped<SmtpEmailSender>();
 builder.Services.AddHttpClient<HttpApiEmailSender>((sp, client) =>
 {
