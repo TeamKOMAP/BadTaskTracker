@@ -1,8 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
 using TaskManager.Application.Services;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
+using TaskManager.Infrastructure.Data;
 
 namespace TaskManager.Chat.Infrastructure.Services;
 
@@ -13,19 +15,22 @@ public sealed class ChatServiceImpl : IChatService
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly ITaskRepository _taskRepository;
     private readonly IUserRepository _userRepository;
+    private readonly ApplicationDbContext _dbContext;
 
     public ChatServiceImpl(
         IChatRepository chatRepository,
         IChatRoomMemberRepository memberRepository,
         IWorkspaceMemberRepository workspaceMemberRepository,
         ITaskRepository taskRepository,
-        IUserRepository userRepository)
+        IUserRepository userRepository,
+        ApplicationDbContext dbContext)
     {
         _chatRepository = chatRepository;
         _memberRepository = memberRepository;
         _workspaceMemberRepository = workspaceMemberRepository;
         _taskRepository = taskRepository;
         _userRepository = userRepository;
+        _dbContext = dbContext;
     }
 
     public async Task<List<ChatRoomDto>> GetChatsAsync(int workspaceId, int userId, CancellationToken ct = default)
@@ -78,6 +83,8 @@ public sealed class ChatServiceImpl : IChatService
             JoinedAtUtc = DateTime.UtcNow
         }, ct);
 
+        await _dbContext.SaveChangesAsync(ct);
+
         return MapToDto(chat);
     }
 
@@ -108,37 +115,61 @@ public sealed class ChatServiceImpl : IChatService
         var otherUser = await _userRepository.GetByIdAsync(otherUserId)
             ?? throw new NotFoundException("User not found");
 
-        var chat = new ChatRoom
+        try
         {
-            Id = Guid.NewGuid(),
-            WorkspaceId = workspaceId,
-            Type = ChatRoomType.Direct,
-            Title = otherUser.Name,
-            DirectKey = directKey,
-            CreatedByUserId = currentUserId,
-            CreatedAtUtc = DateTime.UtcNow,
-            UpdatedAtUtc = DateTime.UtcNow
-        };
+            return await ExecuteInTransactionAsync(async () =>
+            {
+                existingChat = await _chatRepository.GetDirectChatAsync(workspaceId, currentUserId, otherUserId, ct);
+                if (existingChat != null)
+                {
+                    return MapToDto(existingChat);
+                }
 
-        await _chatRepository.AddAsync(chat, ct);
+                var now = DateTime.UtcNow;
+                var chat = new ChatRoom
+                {
+                    Id = Guid.NewGuid(),
+                    WorkspaceId = workspaceId,
+                    Type = ChatRoomType.Direct,
+                    Title = otherUser.Name,
+                    DirectKey = directKey,
+                    CreatedByUserId = currentUserId,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now
+                };
 
-        await _memberRepository.AddMemberAsync(new ChatRoomMember
+                await _chatRepository.AddAsync(chat, ct);
+
+                await _memberRepository.AddMemberAsync(new ChatRoomMember
+                {
+                    ChatRoomId = chat.Id,
+                    UserId = currentUserId,
+                    Role = ChatMemberRole.Member,
+                    JoinedAtUtc = now
+                }, ct);
+
+                await _memberRepository.AddMemberAsync(new ChatRoomMember
+                {
+                    ChatRoomId = chat.Id,
+                    UserId = otherUserId,
+                    Role = ChatMemberRole.Member,
+                    JoinedAtUtc = now
+                }, ct);
+
+                await _dbContext.SaveChangesAsync(ct);
+                return MapToDto(chat);
+            }, ct);
+        }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
-            ChatRoomId = chat.Id,
-            UserId = currentUserId,
-            Role = ChatMemberRole.Member,
-            JoinedAtUtc = DateTime.UtcNow
-        }, ct);
+            var concurrentChat = await _chatRepository.GetDirectChatAsync(workspaceId, currentUserId, otherUserId, ct);
+            if (concurrentChat != null)
+            {
+                return MapToDto(concurrentChat);
+            }
 
-        await _memberRepository.AddMemberAsync(new ChatRoomMember
-        {
-            ChatRoomId = chat.Id,
-            UserId = otherUserId,
-            Role = ChatMemberRole.Member,
-            JoinedAtUtc = DateTime.UtcNow
-        }, ct);
-
-        return MapToDto(chat);
+            throw new ConflictException("Direct chat already exists.");
+        }
     }
 
     public async Task<ChatRoomDto> OpenTaskChatAsync(int taskId, int workspaceId, int userId, CancellationToken ct = default)
@@ -158,40 +189,64 @@ public sealed class ChatServiceImpl : IChatService
         var task = await _taskRepository.GetByIdAsync(taskId, workspaceId)
             ?? throw new NotFoundException("Task not found");
 
-        var chat = new ChatRoom
+        try
         {
-            Id = Guid.NewGuid(),
-            WorkspaceId = workspaceId,
-            Type = ChatRoomType.Task,
-            Title = $"Task: {task.Title}",
-            TaskId = taskId,
-            CreatedByUserId = userId,
-            CreatedAtUtc = DateTime.UtcNow,
-            UpdatedAtUtc = DateTime.UtcNow
-        };
-
-        await _chatRepository.AddAsync(chat, ct);
-
-        await _memberRepository.AddMemberAsync(new ChatRoomMember
-        {
-            ChatRoomId = chat.Id,
-            UserId = userId,
-            Role = ChatMemberRole.Member,
-            JoinedAtUtc = DateTime.UtcNow
-        }, ct);
-
-        if (task.AssigneeId.HasValue && task.AssigneeId != userId)
-        {
-            await _memberRepository.AddMemberAsync(new ChatRoomMember
+            return await ExecuteInTransactionAsync(async () =>
             {
-                ChatRoomId = chat.Id,
-                UserId = task.AssigneeId.Value,
-                Role = ChatMemberRole.Member,
-                JoinedAtUtc = DateTime.UtcNow
+                existingChat = await _chatRepository.GetByTaskIdAsync(taskId, ct);
+                if (existingChat != null)
+                {
+                    return MapToDto(existingChat);
+                }
+
+                var now = DateTime.UtcNow;
+                var chat = new ChatRoom
+                {
+                    Id = Guid.NewGuid(),
+                    WorkspaceId = workspaceId,
+                    Type = ChatRoomType.Task,
+                    Title = $"Task: {task.Title}",
+                    TaskId = taskId,
+                    CreatedByUserId = userId,
+                    CreatedAtUtc = now,
+                    UpdatedAtUtc = now
+                };
+
+                await _chatRepository.AddAsync(chat, ct);
+
+                await _memberRepository.AddMemberAsync(new ChatRoomMember
+                {
+                    ChatRoomId = chat.Id,
+                    UserId = userId,
+                    Role = ChatMemberRole.Member,
+                    JoinedAtUtc = now
+                }, ct);
+
+                if (task.AssigneeId.HasValue && task.AssigneeId != userId)
+                {
+                    await _memberRepository.AddMemberAsync(new ChatRoomMember
+                    {
+                        ChatRoomId = chat.Id,
+                        UserId = task.AssigneeId.Value,
+                        Role = ChatMemberRole.Member,
+                        JoinedAtUtc = now
+                    }, ct);
+                }
+
+                await _dbContext.SaveChangesAsync(ct);
+                return MapToDto(chat);
             }, ct);
         }
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
+        {
+            var concurrentChat = await _chatRepository.GetByTaskIdAsync(taskId, ct);
+            if (concurrentChat != null)
+            {
+                return MapToDto(concurrentChat);
+            }
 
-        return MapToDto(chat);
+            throw new ConflictException("Task chat already exists.");
+        }
     }
 
     public async Task UpdateChatSettingsAsync(Guid chatId, int userId, string? title, CancellationToken ct = default)
@@ -221,6 +276,7 @@ public sealed class ChatServiceImpl : IChatService
         chat.UpdatedAtUtc = DateTime.UtcNow;
 
         await _chatRepository.UpdateAsync(chat, ct);
+        await _dbContext.SaveChangesAsync(ct);
     }
 
     public async Task AddMemberAsync(Guid chatId, int userIdToAdd, int currentUserId, CancellationToken ct = default)
@@ -256,6 +312,8 @@ public sealed class ChatServiceImpl : IChatService
             Role = ChatMemberRole.Member,
             JoinedAtUtc = DateTime.UtcNow
         }, ct);
+
+        await _dbContext.SaveChangesAsync(ct);
     }
 
     public async Task RemoveMemberAsync(Guid chatId, int userIdToRemove, int currentUserId, CancellationToken ct = default)
@@ -282,6 +340,7 @@ public sealed class ChatServiceImpl : IChatService
         }
 
         await _memberRepository.RemoveMemberAsync(chatId, userIdToRemove, ct);
+        await _dbContext.SaveChangesAsync(ct);
     }
 
     public async Task UpdateMemberRoleAsync(Guid chatId, int userIdToUpdate, ChatMemberRole newRole, int currentUserId, CancellationToken ct = default)
@@ -306,6 +365,7 @@ public sealed class ChatServiceImpl : IChatService
         }
 
         await _memberRepository.UpdateRoleAsync(chatId, userIdToUpdate, newRole, ct);
+        await _dbContext.SaveChangesAsync(ct);
     }
 
     private async Task<bool> IsWorkspaceAdminAsync(int workspaceId, int userId, CancellationToken ct = default)
@@ -327,5 +387,26 @@ public sealed class ChatServiceImpl : IChatService
             CreatedAtUtc = chat.CreatedAtUtc,
             UpdatedAtUtc = chat.UpdatedAtUtc
         };
+    }
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("duplicate key value violates unique constraint", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("23505", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<T> ExecuteInTransactionAsync<T>(Func<Task<T>> operation, CancellationToken ct)
+    {
+        if (!_dbContext.Database.IsRelational())
+        {
+            return await operation();
+        }
+
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
+        var result = await operation();
+        await transaction.CommitAsync(ct);
+        return result;
     }
 }

@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Text;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
@@ -103,6 +104,45 @@ public class ChatApiTests : TestBase
     }
 
     [Fact]
+    public async Task SendMessage_WithSameClientMessageId_ReturnsExistingMessage()
+    {
+        var peerId = await CreateWorkspaceUserAsync("Idempotency Peer");
+        var chatId = await CreateDirectChatAsync(peerId);
+        var clientMessageId = Guid.NewGuid().ToString("N");
+
+        var firstResponse = await _client.PostAsJsonAsync($"/api/chats/{chatId}/messages", new
+        {
+            kind = ChatMessageKind.Text,
+            bodyCipher = "first body",
+            clientMessageId
+        });
+
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var firstMessage = await firstResponse.Content.ReadFromJsonAsync<ChatMessageResponse>();
+        firstMessage.Should().NotBeNull();
+
+        var secondResponse = await _client.PostAsJsonAsync($"/api/chats/{chatId}/messages", new
+        {
+            kind = ChatMessageKind.Text,
+            bodyCipher = "second body should be ignored",
+            clientMessageId
+        });
+
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+        var secondMessage = await secondResponse.Content.ReadFromJsonAsync<ChatMessageResponse>();
+        secondMessage.Should().NotBeNull();
+
+        secondMessage!.Id.Should().Be(firstMessage!.Id);
+
+        var listResponse = await _client.GetAsync($"/api/chats/{chatId}/messages");
+        listResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        var messages = await listResponse.Content.ReadFromJsonAsync<List<ChatMessageListItemResponse>>();
+        messages.Should().NotBeNull();
+        messages!.Count(m => m.Id == firstMessage.Id).Should().Be(1);
+    }
+
+    [Fact]
     public async Task DeleteMessage_LeavesTombstoneInMessageHistory()
     {
         var peerId = await CreateWorkspaceUserAsync("Delete Peer");
@@ -178,6 +218,32 @@ public class ChatApiTests : TestBase
 
         var secondDownloadResponse = await _client.GetAsync($"/api/chats/{chatId}/attachments/{attachment.Id}");
         secondDownloadResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task ChatEndpoints_WhenFeatureDisabled_ReturnNotFound()
+    {
+        var disabledFactory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Chat:Enabled"] = "false"
+                });
+            });
+        });
+
+        using var disabledClient = disabledFactory.CreateClient();
+
+        var chatsResponse = await disabledClient.GetAsync($"/api/chats?workspaceId={TestWorkspaceId}");
+        chatsResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var taskChatResponse = await disabledClient.PostAsync($"/api/tasks/1/chat/open?workspaceId={TestWorkspaceId}", null);
+        taskChatResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        var hubResponse = await disabledClient.GetAsync("/hubs/chat");
+        hubResponse.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     private async Task<int> CreateWorkspaceUserAsync(string name)

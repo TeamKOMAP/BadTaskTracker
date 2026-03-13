@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using TaskManager.Application.Exceptions;
 
@@ -33,14 +34,7 @@ public sealed class ApiExceptionHandlingMiddleware
 
     private async Task HandleExceptionAsync(HttpContext context, Exception exception)
     {
-        var (statusCode, title) = exception switch
-        {
-            ValidationException => (StatusCodes.Status400BadRequest, "Validation failed"),
-            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
-            NotFoundException => (StatusCodes.Status404NotFound, "Not found"),
-            ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
-            _ => (StatusCodes.Status500InternalServerError, "Internal server error")
-        };
+        var (statusCode, title) = MapException(exception);
 
         if (statusCode >= 500)
         {
@@ -67,5 +61,58 @@ public sealed class ApiExceptionHandlingMiddleware
         problem.Extensions["traceId"] = context.TraceIdentifier;
 
         await context.Response.WriteAsJsonAsync(problem);
+    }
+
+    private static (int StatusCode, string Title) MapException(Exception exception)
+    {
+        if (TryMapDatabaseException(exception, out var mapped))
+        {
+            return mapped;
+        }
+
+        return exception switch
+        {
+            ValidationException => (StatusCodes.Status400BadRequest, "Validation failed"),
+            ForbiddenException => (StatusCodes.Status403Forbidden, "Forbidden"),
+            NotFoundException => (StatusCodes.Status404NotFound, "Not found"),
+            ConflictException => (StatusCodes.Status409Conflict, "Conflict"),
+            _ => (StatusCodes.Status500InternalServerError, "Internal server error")
+        };
+    }
+
+    private static bool TryMapDatabaseException(Exception exception, out (int StatusCode, string Title) mapped)
+    {
+        if (exception is DbUpdateConcurrencyException)
+        {
+            mapped = (StatusCodes.Status409Conflict, "Conflict");
+            return true;
+        }
+
+        if (exception is not DbUpdateException dbUpdateException)
+        {
+            mapped = default;
+            return false;
+        }
+
+        var message = dbUpdateException.InnerException?.Message ?? dbUpdateException.Message;
+
+        if (message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("duplicate key value violates unique constraint", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("23505", StringComparison.OrdinalIgnoreCase))
+        {
+            mapped = (StatusCodes.Status409Conflict, "Conflict");
+            return true;
+        }
+
+        if (message.Contains("FOREIGN KEY constraint failed", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("violates foreign key constraint", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("23503", StringComparison.OrdinalIgnoreCase))
+        {
+            mapped = (StatusCodes.Status409Conflict, "Conflict");
+            return true;
+        }
+
+        mapped = default;
+        return false;
     }
 }

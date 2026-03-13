@@ -328,6 +328,7 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.UseMiddleware<ChatFeatureFlagMiddleware>();
 app.UseMiddleware<ApiExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())

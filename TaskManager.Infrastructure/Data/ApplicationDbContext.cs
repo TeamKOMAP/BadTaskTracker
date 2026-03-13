@@ -354,7 +354,10 @@ namespace TaskManager.Infrastructure.Data
                 entity.HasIndex(m => m.ChatRoomId);
                 entity.HasIndex(m => m.SenderUserId);
                 entity.HasIndex(m => m.CreatedAtUtc);
-                entity.HasIndex(m => m.ClientMessageId);
+                entity.HasIndex(m => new { m.ChatRoomId, m.ClientMessageId })
+                    .HasFilter("\"ClientMessageId\" IS NOT NULL")
+                    .IsUnique()
+                    .HasDatabaseName("UX_ChatMessages_ChatRoomId_ClientMessageId");
                 entity.HasIndex(m => new { m.ChatRoomId, m.CreatedAtUtc });
             });
 

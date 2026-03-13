@@ -74,17 +74,16 @@ public class ChatRepository : IChatRepository
             .FirstOrDefaultAsync(ct);
     }
 
-    public async Task<ChatRoom> AddAsync(ChatRoom chatRoom, CancellationToken ct = default)
+    public Task<ChatRoom> AddAsync(ChatRoom chatRoom, CancellationToken ct = default)
     {
         _db.ChatRooms.Add(chatRoom);
-        await _db.SaveChangesAsync(ct);
-        return chatRoom;
+        return Task.FromResult(chatRoom);
     }
 
-    public async Task UpdateAsync(ChatRoom chatRoom, CancellationToken ct = default)
+    public Task UpdateAsync(ChatRoom chatRoom, CancellationToken ct = default)
     {
         _db.ChatRooms.Update(chatRoom);
-        await _db.SaveChangesAsync(ct);
+        return Task.CompletedTask;
     }
 
     public async Task<bool> ExistsAsync(Guid chatId, CancellationToken ct = default)
@@ -129,10 +128,10 @@ public class ChatRoomMemberRepository : IChatRoomMemberRepository
         return await _db.ChatRoomMembers.AnyAsync(m => m.ChatRoomId == chatRoomId && m.UserId == userId, ct);
     }
 
-    public async Task AddMemberAsync(ChatRoomMember member, CancellationToken ct = default)
+    public Task AddMemberAsync(ChatRoomMember member, CancellationToken ct = default)
     {
         _db.ChatRoomMembers.Add(member);
-        await _db.SaveChangesAsync(ct);
+        return Task.CompletedTask;
     }
 
     public async Task RemoveMemberAsync(Guid chatRoomId, int userId, CancellationToken ct = default)
@@ -142,7 +141,6 @@ public class ChatRoomMemberRepository : IChatRoomMemberRepository
         if (member != null)
         {
             _db.ChatRoomMembers.Remove(member);
-            await _db.SaveChangesAsync(ct);
         }
     }
 
@@ -153,7 +151,6 @@ public class ChatRoomMemberRepository : IChatRoomMemberRepository
         if (member != null)
         {
             member.Role = role;
-            await _db.SaveChangesAsync(ct);
         }
     }
 }
@@ -195,17 +192,16 @@ public class ChatMessageRepository : IChatMessageRepository
             .ToListAsync(ct);
     }
 
-    public async Task<ChatMessage> AddAsync(ChatMessage message, CancellationToken ct = default)
+    public Task<ChatMessage> AddAsync(ChatMessage message, CancellationToken ct = default)
     {
         _db.ChatMessages.Add(message);
-        await _db.SaveChangesAsync(ct);
-        return message;
+        return Task.FromResult(message);
     }
 
-    public async Task UpdateAsync(ChatMessage message, CancellationToken ct = default)
+    public Task UpdateAsync(ChatMessage message, CancellationToken ct = default)
     {
         _db.ChatMessages.Update(message);
-        await _db.SaveChangesAsync(ct);
+        return Task.CompletedTask;
     }
 
     public async Task<long> GetCountByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default)
@@ -241,11 +237,10 @@ public class ChatMessageAttachmentRepository : IChatMessageAttachmentRepository
             .ToListAsync(ct);
     }
 
-    public async Task<ChatMessageAttachment> AddAsync(ChatMessageAttachment attachment, CancellationToken ct = default)
+    public Task<ChatMessageAttachment> AddAsync(ChatMessageAttachment attachment, CancellationToken ct = default)
     {
         _db.ChatMessageAttachments.Add(attachment);
-        await _db.SaveChangesAsync(ct);
-        return attachment;
+        return Task.FromResult(attachment);
     }
 
     public async Task DeleteAsync(Guid attachmentId, CancellationToken ct = default)
@@ -254,7 +249,6 @@ public class ChatMessageAttachmentRepository : IChatMessageAttachmentRepository
         if (attachment != null)
         {
             _db.ChatMessageAttachments.Remove(attachment);
-            await _db.SaveChangesAsync(ct);
         }
     }
 }
@@ -292,8 +286,6 @@ public class ChatReadStateRepository : IChatReadStateRepository
                 LastReadMessageId = lastReadMessageId
             });
         }
-
-        await _db.SaveChangesAsync(ct);
     }
 
     public async Task<List<ChatReadState>> GetByUserIdAsync(int userId, CancellationToken ct = default)

@@ -1,9 +1,13 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using TaskManager.Application.Exceptions;
 using TaskManager.Application.Interfaces;
 using TaskManager.Application.Realtime;
 using TaskManager.Application.Services;
+using TaskManager.Chat.Application.Configuration;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
+using TaskManager.Infrastructure.Data;
 
 namespace TaskManager.Chat.Infrastructure.Services;
 
@@ -15,6 +19,8 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
     private readonly IChatReadStateRepository _readStateRepository;
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly IChatRealtimeNotifier _chatRealtimeNotifier;
+    private readonly ApplicationDbContext _dbContext;
+    private readonly ChatSettings _chatSettings;
 
     public ChatMessageServiceImpl(
         IChatRepository chatRepository,
@@ -22,7 +28,9 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
         IChatRoomMemberRepository memberRepository,
         IChatReadStateRepository readStateRepository,
         IWorkspaceMemberRepository workspaceMemberRepository,
-        IChatRealtimeNotifier chatRealtimeNotifier)
+        IChatRealtimeNotifier chatRealtimeNotifier,
+        ApplicationDbContext dbContext,
+        IOptions<ChatSettings> chatOptions)
     {
         _chatRepository = chatRepository;
         _messageRepository = messageRepository;
@@ -30,6 +38,8 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
         _readStateRepository = readStateRepository;
         _workspaceMemberRepository = workspaceMemberRepository;
         _chatRealtimeNotifier = chatRealtimeNotifier;
+        _dbContext = dbContext;
+        _chatSettings = chatOptions.Value;
     }
 
     public async Task<List<ChatMessageDto>> GetMessagesAsync(Guid chatId, int userId, int limit = 50, long? beforeMessageId = null, CancellationToken ct = default)
@@ -65,14 +75,18 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
             }
         }
 
+        var bodyCipher = request.BodyCipher ?? string.Empty;
+        ValidateMessageBody(request.Kind, bodyCipher);
+
         var message = new ChatMessage
         {
             ChatRoomId = chatId,
             SenderUserId = senderUserId,
             Kind = request.Kind,
-            BodyCipher = request.BodyCipher ?? string.Empty,
+            BodyCipher = bodyCipher,
             ClientMessageId = request.ClientMessageId,
             ReplyToMessageId = request.ReplyToMessageId,
+            ForwardedFromMessageId = request.ForwardedFromMessageId,
             CreatedAtUtc = DateTime.UtcNow
         };
 
@@ -80,6 +94,21 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
 
         chat.UpdatedAtUtc = DateTime.UtcNow;
         await _chatRepository.UpdateAsync(chat, ct);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (!string.IsNullOrWhiteSpace(request.ClientMessageId) && IsUniqueConstraintViolation(ex))
+        {
+            var existing = await _messageRepository.GetByClientMessageIdAsync(chatId, request.ClientMessageId!, ct);
+            if (existing != null)
+            {
+                return MapToDto(existing);
+            }
+
+            throw new ConflictException("Message with this clientMessageId already exists.");
+        }
 
         await _chatRealtimeNotifier.MessageCreatedAsync(ToRealtimeMessage(message), ct);
 
@@ -116,9 +145,15 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
             throw new ForbiddenException("Cannot edit a deleted message");
         }
 
+        if (newBodyCipher != null)
+        {
+            ValidateMessageBody(message.Kind, newBodyCipher);
+        }
+
         message.BodyCipher = newBodyCipher ?? message.BodyCipher;
         message.EditedAtUtc = DateTime.UtcNow;
         await _messageRepository.UpdateAsync(message, ct);
+        await _dbContext.SaveChangesAsync(ct);
 
         await _chatRealtimeNotifier.MessageUpdatedAsync(ToRealtimeMessage(message), ct);
 
@@ -153,6 +188,7 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
         message.BodyCipher = "Сообщение удалено";
         message.DeletedAtUtc = DateTime.UtcNow;
         await _messageRepository.UpdateAsync(message, ct);
+        await _dbContext.SaveChangesAsync(ct);
 
         await _chatRealtimeNotifier.MessageDeletedAsync(
             new ChatMessageDeletedRealtimeEvent(chatId, messageId, message.DeletedAtUtc.Value),
@@ -223,6 +259,7 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
         }
 
         await _readStateRepository.SetAsync(chatId, userId, lastReadMessageId, ct);
+        await _dbContext.SaveChangesAsync(ct);
 
         await _chatRealtimeNotifier.ReadStateUpdatedAsync(
             new ChatReadStateRealtimeEvent(chatId, userId, lastReadMessageId, DateTime.UtcNow),
@@ -266,5 +303,26 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
             message.CreatedAtUtc,
             message.EditedAtUtc,
             message.DeletedAtUtc);
+    }
+
+    private void ValidateMessageBody(ChatMessageKind kind, string bodyCipher)
+    {
+        if (bodyCipher.Length > _chatSettings.MaxMessageLength)
+        {
+            throw new ValidationException($"Message body exceeds max length of {_chatSettings.MaxMessageLength}.");
+        }
+
+        if (kind == ChatMessageKind.Text && string.IsNullOrWhiteSpace(bodyCipher))
+        {
+            throw new ValidationException("Message body is required.");
+        }
+    }
+
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
+    {
+        var message = ex.InnerException?.Message ?? ex.Message;
+        return message.Contains("UNIQUE constraint failed", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("duplicate key value violates unique constraint", StringComparison.OrdinalIgnoreCase)
+               || message.Contains("23505", StringComparison.OrdinalIgnoreCase);
     }
 }

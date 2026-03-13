@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -41,6 +42,14 @@ public class TestBase : IClassFixture<WebApplicationFactory<Program>>, IDisposab
         
         _factory = factory.WithWebHostBuilder(builder =>
         {
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Chat:Enabled"] = "true"
+                });
+            });
+
             builder.ConfigureServices(services =>
             {
                 var descriptor = services.SingleOrDefault(

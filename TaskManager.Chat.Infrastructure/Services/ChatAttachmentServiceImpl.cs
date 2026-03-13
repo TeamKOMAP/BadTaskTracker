@@ -7,6 +7,7 @@ using TaskManager.Application.Services;
 using TaskManager.Application.Storage;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
+using TaskManager.Infrastructure.Data;
 using ChatSettings = TaskManager.Chat.Application.Configuration.ChatSettings;
 
 namespace TaskManager.Chat.Infrastructure.Services;
@@ -22,6 +23,7 @@ public sealed class ChatAttachmentServiceImpl : IChatAttachmentService
     private readonly StorageSettings _storageSettings;
     private readonly ChatSettings _chatSettings;
     private readonly IChatRealtimeNotifier _chatRealtimeNotifier;
+    private readonly ApplicationDbContext _dbContext;
 
     private static readonly HashSet<string> AllowedImageMimeTypes = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -50,7 +52,8 @@ public sealed class ChatAttachmentServiceImpl : IChatAttachmentService
         IObjectStorage objectStorage,
         StorageSettings storageSettings,
         IOptions<ChatSettings> chatOptions,
-        IChatRealtimeNotifier chatRealtimeNotifier)
+        IChatRealtimeNotifier chatRealtimeNotifier,
+        ApplicationDbContext dbContext)
     {
         _chatRepository = chatRepository;
         _messageRepository = messageRepository;
@@ -61,6 +64,7 @@ public sealed class ChatAttachmentServiceImpl : IChatAttachmentService
         _storageSettings = storageSettings;
         _chatSettings = chatOptions.Value;
         _chatRealtimeNotifier = chatRealtimeNotifier;
+        _dbContext = dbContext;
     }
 
     public async Task<ChatMessageAttachmentDto> UploadAsync(Guid chatId, long messageId, int userId, IFormFile file, CancellationToken ct = default)
@@ -124,6 +128,7 @@ public sealed class ChatAttachmentServiceImpl : IChatAttachmentService
 
         chat.UpdatedAtUtc = DateTime.UtcNow;
         await _chatRepository.UpdateAsync(chat, ct);
+        await _dbContext.SaveChangesAsync(ct);
 
         await _chatRealtimeNotifier.AttachmentUploadedAsync(
             new ChatAttachmentRealtimeEvent(
@@ -196,6 +201,7 @@ public sealed class ChatAttachmentServiceImpl : IChatAttachmentService
 
         await _objectStorage.DeleteAsync(_storageSettings.PrivateBucket, attachment.ObjectKey, ct);
         await _attachmentRepository.DeleteAsync(attachmentId, ct);
+        await _dbContext.SaveChangesAsync(ct);
 
         await _chatRealtimeNotifier.AttachmentDeletedAsync(
             new ChatAttachmentDeletedRealtimeEvent(
