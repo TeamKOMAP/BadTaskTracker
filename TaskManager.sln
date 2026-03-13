@@ -21,6 +21,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.Chat.Applicatio
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.Chat.Infrastructure", "TaskManager.Chat.Infrastructure\TaskManager.Chat.Infrastructure.csproj", "{36187938-7698-426F-B26C-905C2310DA36}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaskManager.Chat.Tests", "TaskManager.Chat.Tests\TaskManager.Chat.Tests.csproj", "{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -127,6 +129,18 @@ Global
 		{36187938-7698-426F-B26C-905C2310DA36}.Release|x64.Build.0 = Release|Any CPU
 		{36187938-7698-426F-B26C-905C2310DA36}.Release|x86.ActiveCfg = Release|Any CPU
 		{36187938-7698-426F-B26C-905C2310DA36}.Release|x86.Build.0 = Release|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Debug|x64.Build.0 = Debug|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Debug|x86.Build.0 = Debug|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Release|x64.ActiveCfg = Release|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Release|x64.Build.0 = Release|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Release|x86.ActiveCfg = Release|Any CPU
+		{F2A4BFB2-1C22-4AD7-A690-F9C772D06289}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

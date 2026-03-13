@@ -1,7 +1,11 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using TaskManager.Application.Interfaces;
+using TaskManager.Application.Realtime;
+using TaskManager.Application.Services;
 using TaskManager.Chat.Application.Configuration;
 using TaskManager.Chat.Application.Interfaces;
+using TaskManager.Chat.Infrastructure.Repositories;
 using TaskManager.Chat.Infrastructure.Services;
 
 namespace TaskManager.Chat.Infrastructure.DependencyInjection
@@ -38,6 +42,17 @@ namespace TaskManager.Chat.Infrastructure.DependencyInjection
                 .ValidateOnStart();
 
             services.AddSingleton<IChatModuleState, ChatModuleState>();
+
+            services.AddScoped<IChatRepository, ChatRepository>();
+            services.AddScoped<IChatRoomMemberRepository, ChatRoomMemberRepository>();
+            services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
+            services.AddScoped<IChatMessageAttachmentRepository, ChatMessageAttachmentRepository>();
+            services.AddScoped<IChatReadStateRepository, ChatReadStateRepository>();
+
+            services.AddScoped<IChatService, ChatServiceImpl>();
+            services.AddScoped<IChatMessageService, ChatMessageServiceImpl>();
+            services.AddScoped<IChatAttachmentService, ChatAttachmentServiceImpl>();
+            services.AddSingleton<IChatRealtimeNotifier, NoOpChatRealtimeNotifier>();
 
             return services;
         }

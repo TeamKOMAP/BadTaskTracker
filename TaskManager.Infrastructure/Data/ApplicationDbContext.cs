@@ -277,6 +277,7 @@ namespace TaskManager.Infrastructure.Data
                 entity.HasKey(c => c.Id);
                 entity.Property(c => c.Type).IsRequired().HasConversion<int>();
                 entity.Property(c => c.Title).HasMaxLength(200);
+                entity.Property(c => c.DirectKey).HasMaxLength(64);
                 entity.Property(c => c.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 entity.Property(c => c.UpdatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
 
@@ -286,12 +287,17 @@ namespace TaskManager.Infrastructure.Data
                     .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasIndex(c => c.WorkspaceId);
-                entity.HasIndex(c => new { c.WorkspaceId, c.Type });
-                entity.HasIndex(c => c.TaskId).IsUnique();
-                entity.HasIndex(c => new { c.WorkspaceId, c.Type, c.Title })
-                    .HasFilter("\"Type\" = 1");
                 entity.HasIndex(c => new { c.WorkspaceId, c.Type })
-                    .HasFilter("\"Type\" = 3");
+                    .HasDatabaseName("IX_ChatRooms_WorkspaceId_Type");
+                entity.HasIndex(c => c.TaskId).IsUnique();
+                entity.HasIndex(c => new { c.WorkspaceId, c.Type })
+                    .HasFilter("\"Type\" = 1")
+                    .IsUnique()
+                    .HasDatabaseName("UX_ChatRooms_WorkspaceId_General");
+                entity.HasIndex(c => new { c.WorkspaceId, c.Type, c.DirectKey })
+                    .HasFilter("\"Type\" = 3 AND \"DirectKey\" IS NOT NULL")
+                    .IsUnique()
+                    .HasDatabaseName("UX_ChatRooms_WorkspaceId_DirectKey");
             });
 
             modelBuilder.Entity<ChatRoomMember>(entity =>

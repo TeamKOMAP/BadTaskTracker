@@ -8,9 +8,13 @@ using System.Text;
 using System.Threading.RateLimiting;
 using TaskManager.API.Background;
 using TaskManager.API.Configuration;
+using TaskManager.API.Hubs;
+using TaskManager.API.Middleware;
+using TaskManager.API.Realtime;
 using TaskManager.API.Security;
 using TaskManager.Application.Auth;
 using TaskManager.Application.Interfaces;
+using TaskManager.Application.Realtime;
 using TaskManager.Application.Storage;
 using TaskManager.Application.Services;
 using TaskManager.Chat.Infrastructure.DependencyInjection;
@@ -29,6 +33,7 @@ builder.Logging.AddDebug();
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSignalR();
 builder.Services.AddChatModule(builder.Configuration);
 
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
@@ -182,11 +187,6 @@ builder.Services.AddScoped<IWorkspaceMemberRepository, WorkspaceMemberRepository
 builder.Services.AddScoped<IEmailAuthCodeRepository, EmailAuthCodeRepository>();
 builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
 builder.Services.AddScoped<IWorkspaceInvitationRepository, WorkspaceInvitationRepository>();
-builder.Services.AddScoped<IChatRepository, ChatRepository>();
-builder.Services.AddScoped<IChatRoomMemberRepository, ChatRoomMemberRepository>();
-builder.Services.AddScoped<IChatMessageRepository, ChatMessageRepository>();
-builder.Services.AddScoped<IChatMessageAttachmentRepository, ChatMessageAttachmentRepository>();
-builder.Services.AddScoped<IChatReadStateRepository, ChatReadStateRepository>();
 
 // Add Services
 builder.Services.AddScoped<ITaskService, TaskService>();
@@ -197,8 +197,7 @@ builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ITaskAttachmentService, TaskAttachmentService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IWorkspaceInvitationService, WorkspaceInvitationService>();
-builder.Services.AddScoped<IChatService, ChatService>();
-builder.Services.AddScoped<IChatMessageService, ChatMessageService>();
+builder.Services.AddSingleton<IChatRealtimeNotifier, SignalRChatRealtimeNotifier>();
 builder.Services.AddScoped<SmtpEmailSender>();
 builder.Services.AddHttpClient<HttpApiEmailSender>((sp, client) =>
 {
@@ -329,6 +328,8 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.UseMiddleware<ApiExceptionHandlingMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -371,6 +372,7 @@ app.MapGet("/healthz", async (ApplicationDbContext dbContext, CancellationToken 
     }
 });
 app.MapControllers();
+app.MapHub<ChatHub>("/hubs/chat");
 
 // Apply migrations and seed data
 using (var scope = app.Services.CreateScope())

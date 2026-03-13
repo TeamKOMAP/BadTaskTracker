@@ -4,7 +4,7 @@ using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
 using TaskManager.Infrastructure.Data;
 
-namespace TaskManager.Infrastructure.Repositories;
+namespace TaskManager.Chat.Infrastructure.Repositories;
 
 public class ChatRepository : IChatRepository
 {
@@ -51,10 +51,27 @@ public class ChatRepository : IChatRepository
 
     public async Task<ChatRoom?> GetDirectChatAsync(int workspaceId, int userId1, int userId2, CancellationToken ct = default)
     {
-        var directKey1 = $"{Math.Min(userId1, userId2)}_{Math.Max(userId1, userId2)}";
-        var chat = await _db.ChatRooms
-            .FirstOrDefaultAsync(c => c.WorkspaceId == workspaceId && c.Type == ChatRoomType.Direct, ct);
-        return chat;
+        var directKey = ChatRoom.BuildDirectKey(userId1, userId2);
+
+        var directChat = await _db.ChatRooms
+            .Where(c => c.WorkspaceId == workspaceId && c.Type == ChatRoomType.Direct)
+            .Where(c => c.DirectKey == directKey)
+            .OrderByDescending(c => c.UpdatedAtUtc)
+            .FirstOrDefaultAsync(ct);
+
+        if (directChat != null)
+        {
+            return directChat;
+        }
+
+        return await _db.ChatRooms
+            .Where(c => c.WorkspaceId == workspaceId && c.Type == ChatRoomType.Direct)
+            .Where(c => c.DirectKey == null)
+            .Where(c => c.Members.Any(m => m.UserId == userId1))
+            .Where(c => c.Members.Any(m => m.UserId == userId2))
+            .Where(c => c.Members.Count == 2)
+            .OrderByDescending(c => c.UpdatedAtUtc)
+            .FirstOrDefaultAsync(ct);
     }
 
     public async Task<ChatRoom> AddAsync(ChatRoom chatRoom, CancellationToken ct = default)
@@ -161,7 +178,7 @@ public class ChatMessageRepository : IChatMessageRepository
     {
         var query = _db.ChatMessages
             .Include(m => m.SenderUser)
-            .Where(m => m.ChatRoomId == chatRoomId && m.DeletedAtUtc == null);
+            .Where(m => m.ChatRoomId == chatRoomId);
 
         if (beforeMessageId.HasValue)
         {

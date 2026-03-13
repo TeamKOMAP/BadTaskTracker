@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TaskManager.Infrastructure.Data;
 
@@ -10,9 +11,11 @@ using TaskManager.Infrastructure.Data;
 namespace TaskManager.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260312165420_AddChatEntities")]
+    partial class AddChatEntities
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.4");
@@ -143,10 +146,6 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<int>("CreatedByUserId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("DirectKey")
-                        .HasMaxLength(64)
-                        .HasColumnType("TEXT");
-
                     b.Property<int?>("TaskId")
                         .HasColumnType("INTEGER");
 
@@ -173,14 +172,10 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.HasIndex("WorkspaceId");
 
                     b.HasIndex("WorkspaceId", "Type")
-                        .IsUnique()
-                        .HasDatabaseName("UX_ChatRooms_WorkspaceId_General")
-                        .HasFilter("\"Type\" = 1");
+                        .HasFilter("\"Type\" = 3");
 
-                    b.HasIndex("WorkspaceId", "Type", "DirectKey")
-                        .IsUnique()
-                        .HasDatabaseName("UX_ChatRooms_WorkspaceId_DirectKey")
-                        .HasFilter("\"Type\" = 3 AND \"DirectKey\" IS NOT NULL");
+                    b.HasIndex("WorkspaceId", "Type", "Title")
+                        .HasFilter("\"Type\" = 1");
 
                     b.ToTable("ChatRooms");
                 });

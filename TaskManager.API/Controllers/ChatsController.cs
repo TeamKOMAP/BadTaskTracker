@@ -12,10 +12,12 @@ namespace TaskManager.API.Controllers;
 public class ChatsController : ControllerBase
 {
     private readonly IChatService _chatService;
+    private readonly IChatMessageService _messageService;
 
-    public ChatsController(IChatService chatService)
+    public ChatsController(IChatService chatService, IChatMessageService messageService)
     {
         _chatService = chatService;
+        _messageService = messageService;
     }
 
     [HttpGet]
@@ -123,6 +125,19 @@ public class ChatsController : ControllerBase
             return Unauthorized(new { error = "Actor user id is required" });
 
         await _chatService.UpdateMemberRoleAsync(chatId, userId, request.Role, actorUserId.Value);
+        return NoContent();
+    }
+
+    [HttpPost("{chatId:guid}/read")]
+    public async Task<IActionResult> MarkAsRead(
+        [FromRoute] Guid chatId,
+        [FromBody] MarkAsReadRequest request)
+    {
+        var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+        if (!actorUserId.HasValue)
+            return Unauthorized(new { error = "Actor user id is required" });
+
+        await _messageService.MarkAsReadAsync(chatId, actorUserId.Value, request.LastReadMessageId);
         return NoContent();
     }
 }
