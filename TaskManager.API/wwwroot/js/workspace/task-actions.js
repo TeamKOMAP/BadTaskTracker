@@ -136,7 +136,7 @@ export const createWorkspaceTaskActions = (deps = {}) => {
     }
 
     const assigneeIdParsed = Number.parseInt(String(uiTaskData.assigneeId ?? ""), 10);
-    const assigneeId = Number.isFinite(assigneeIdParsed) && assigneeId > 0 ? assigneeIdParsed : null;
+    const assigneeId = Number.isFinite(assigneeIdParsed) && assigneeIdParsed > 0 ? assigneeIdParsed : null;
     const priorityParsed = Number.parseInt(String(uiTaskData.priorityValue ?? defaultPriorityValue), 10);
     const priority = Number.isFinite(priorityParsed)
       ? clampValue(priorityParsed, 1, 3)

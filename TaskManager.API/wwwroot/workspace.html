@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css?v=base6">
   <link rel="stylesheet" href="css/components.css?v=comp2">
-  <link rel="stylesheet" href="css/workspace.css?v=perf66">
+  <link rel="stylesheet" href="css/workspace.css?v=perf68">
   <link rel="stylesheet" href="css/workspace-members.css?v=wm1">
 </head>
 <body data-theme="dark">
@@ -113,7 +113,59 @@
       </div>
       </header>
 
-    <main class="board" id="board" data-view="board" data-style="columns">
+      <div class="workspace-content" id="workspace-content">
+        <aside class="chat-rail is-expanded" id="chat-rail" aria-label="Список чатов">
+          <button class="chat-rail-home is-active" id="chat-home-btn" type="button" aria-label="Открыть задачи" title="Задачи">
+            <span class="chat-rail-avatar chat-rail-avatar--home">TS</span>
+            <span class="chat-rail-meta">
+              <span class="chat-rail-name">Задачи</span>
+              <span class="chat-rail-preview">Вернуться к текущей доске</span>
+            </span>
+          </button>
+
+          <div class="chat-rail-divider"></div>
+          <div class="chat-rail-list" id="chat-rail-list"></div>
+          <div class="chat-rail-empty" id="chat-rail-empty" hidden>Чаты пока недоступны.</div>
+
+          <div
+            class="chat-rail-resizer"
+            id="chat-rail-resizer"
+            role="separator"
+            aria-label="Изменить ширину панели чатов"
+            aria-orientation="vertical"
+            tabindex="0"
+          ></div>
+        </aside>
+
+        <div class="workspace-main" id="workspace-main">
+          <section class="chat-shell" id="chat-shell" aria-label="Диалог чата" hidden>
+            <header class="chat-shell-header">
+              <div class="chat-shell-avatar" id="chat-shell-avatar" aria-hidden="true">CH</div>
+              <div class="chat-shell-meta-head">
+                <span class="chat-shell-title" id="chat-shell-title">Выберите чат</span>
+                <span class="chat-shell-sub" id="chat-shell-sub">Диалог внутри проекта</span>
+              </div>
+            </header>
+
+            <div class="chat-shell-feed" id="chat-shell-feed">
+              <div class="chat-shell-empty" id="chat-shell-empty">Выберите чат слева, чтобы открыть диалог.</div>
+              <div class="chat-shell-messages" id="chat-shell-messages" hidden></div>
+            </div>
+
+            <form class="chat-shell-form" id="chat-shell-form" autocomplete="off">
+              <input
+                class="chat-shell-input"
+                id="chat-shell-input"
+                type="text"
+                maxlength="4000"
+                placeholder="Введите сообщение"
+                disabled
+              >
+              <button class="primary-btn chat-shell-send" id="chat-shell-send" type="submit" disabled>Отправить</button>
+            </form>
+          </section>
+
+          <main class="board" id="board" data-view="board" data-style="columns">
         <div class="board-toolbar" id="board-toolbar" aria-label="Инструменты">
           <div class="board-toolbar-left">
             <div class="board-toolbar-left-main">
@@ -379,7 +431,9 @@
           </div>
         </section>
       </section>
-      </main>
+          </main>
+        </div>
+      </div>
 
       <footer class="app-footer" aria-label="Футер">
         <div class="app-footer-bar">
@@ -781,6 +835,6 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow83"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow85"></script>
 </body>
 </html>

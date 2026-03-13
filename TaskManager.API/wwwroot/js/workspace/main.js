@@ -5,6 +5,22 @@ import {
   topbar,
   brandToggle,
   userPanel,
+  workspaceContent,
+  workspaceMain,
+  chatRail,
+  chatRailList,
+  chatRailEmpty,
+  chatRailResizer,
+  chatHomeBtn,
+  chatShell,
+  chatShellTitle,
+  chatShellSub,
+  chatShellAvatar,
+  chatShellMessages,
+  chatShellEmpty,
+  chatShellForm,
+  chatShellInput,
+  chatShellSendBtn,
   columnsWrap,
   addColumnControl,
   addColumnBtn,
@@ -118,7 +134,7 @@ import {
   confirmModalInputWrap,
   confirmModalInputHintEl,
   confirmModalInputEl
-} from "./dom.js?v=authflow12";
+} from "./dom.js?v=authflow13";
 
 import {
   buildApiUrl,
@@ -189,9 +205,10 @@ import {
   removeTaskFromList,
   updateTaskAttachmentCountInList
 } from "./task-state.js?v=state1";
-import { createWorkspaceTaskActions } from "./task-actions.js?v=actions1";
+import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
+import { createWorkspaceChatController } from "./chat-shell.js?v=chat2";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
@@ -264,6 +281,7 @@ let workspaceMembers = [];
 
 let inviteControls = null;
 let taskDetailController = null;
+let chatController = null;
 
 const canCreateTasks = () => isAdmin();
 
@@ -383,6 +401,12 @@ const getAssigneeLabelById = (assigneeId) => {
   const match = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === id);
   if (!match) return "";
   return normalizeToken(match.name) || "";
+};
+
+const getWorkspaceMemberById = (userId) => {
+  const id = Number.parseInt(String(userId ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((member) => Number(member?.id) === id) || null;
 };
 
 const PRIORITY_HISTORY_LABELS = {
@@ -1412,6 +1436,8 @@ const loadUsersFromApi = async () => {
   } else {
     setAllUsersMode();
   }
+
+  chatController?.syncMembers();
 };
 
 const updateMyMemberItem = (displayName, email, avatarPath) => {
@@ -1693,21 +1719,68 @@ const setWorkspaceContext = (space) => {
     tagByName.clear();
     currentUserId = null;
     currentAssigneeIdFilter = null;
+    chatController?.clearWorkspaceData();
   }
 };
 
 const setAppScreen = (screen) => {
-  const showBoard = screen === "board";
-  if (topbar) topbar.hidden = !showBoard;
+  const showChat = screen === "chat";
+  const showBoard = !showChat;
+  if (topbar) topbar.hidden = false;
   if (board) board.hidden = !showBoard;
-  if (brandToggle) brandToggle.hidden = !showBoard;
-  if (viewToggle) viewToggle.hidden = !showBoard;
-  if (styleSwitch) styleSwitch.hidden = !showBoard;
-  if (openSpacesHomeBtn) openSpacesHomeBtn.hidden = !showBoard;
-  if (!showBoard) {
+  if (chatShell) chatShell.hidden = !showChat;
+  if (brandToggle) brandToggle.hidden = false;
+  if (viewToggle) viewToggle.hidden = showChat;
+  if (styleSwitch) styleSwitch.hidden = showChat;
+  if (openSpacesHomeBtn) openSpacesHomeBtn.hidden = false;
+  if (workspaceContent) {
+    workspaceContent.classList.toggle("is-chat-active", showChat);
+  }
+  if (workspaceMain) {
+    workspaceMain.classList.toggle("is-chat-active", showChat);
+  }
+  if (appShell) {
+    appShell.classList.toggle("is-chat-active", showChat);
+  }
+  if (showChat) {
     setPanelOpen(false);
   }
 };
+
+chatController = createWorkspaceChatController({
+  chatRail,
+  chatRailList,
+  chatRailEmpty,
+  chatRailResizer,
+  chatHomeBtn,
+  chatShell,
+  chatShellTitle,
+  chatShellSub,
+  chatShellAvatar,
+  chatShellMessages,
+  chatShellEmpty,
+  chatShellForm,
+  chatShellInput,
+  chatShellSendBtn,
+  buildApiUrl,
+  apiFetch,
+  handleApiError,
+  normalizeToken,
+  toInitials,
+  getWorkspaceId: () => currentWorkspaceId,
+  getActorUserId,
+  getActorDisplayName,
+  getMemberById: getWorkspaceMemberById,
+  getWorkspaceMembers: () => (Array.isArray(workspaceMembers) ? workspaceMembers : []),
+  onOpenTasks: () => {
+    setAppScreen("board");
+  },
+  onOpenChat: () => {
+    setAppScreen("chat");
+  }
+});
+
+chatController.init();
 
 const loadCurrentUserFromApi = async () => {
   const me = await fetchJsonOrNull(buildApiUrl("/auth/me"), "Загрузка аккаунта", {
@@ -1786,6 +1859,7 @@ const openWorkspace = async (space) => {
   await loadTagsFromApi();
   await loadUsersFromApi();
   await loadTasksFromApi();
+  await chatController?.refreshChats();
 };
 
 const applyTaskBgToCards = (id, dataUrl) => {

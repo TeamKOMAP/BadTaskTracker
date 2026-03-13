@@ -5,6 +5,24 @@ export const appShell = document.getElementById("app-shell");
 export const topbar = document.querySelector(".topbar");
 export const brandToggle = document.getElementById("brand-toggle");
 export const userPanel = document.getElementById("user-panel");
+export const workspaceContent = document.getElementById("workspace-content");
+export const workspaceMain = document.getElementById("workspace-main");
+
+export const chatRail = document.getElementById("chat-rail");
+export const chatRailList = document.getElementById("chat-rail-list");
+export const chatRailEmpty = document.getElementById("chat-rail-empty");
+export const chatRailResizer = document.getElementById("chat-rail-resizer");
+export const chatHomeBtn = document.getElementById("chat-home-btn");
+
+export const chatShell = document.getElementById("chat-shell");
+export const chatShellTitle = document.getElementById("chat-shell-title");
+export const chatShellSub = document.getElementById("chat-shell-sub");
+export const chatShellAvatar = document.getElementById("chat-shell-avatar");
+export const chatShellMessages = document.getElementById("chat-shell-messages");
+export const chatShellEmpty = document.getElementById("chat-shell-empty");
+export const chatShellForm = document.getElementById("chat-shell-form");
+export const chatShellInput = document.getElementById("chat-shell-input");
+export const chatShellSendBtn = document.getElementById("chat-shell-send");
 
 export const columnsWrap = document.getElementById("board-columns");
 export const addColumnControl = document.getElementById("add-column-control");
