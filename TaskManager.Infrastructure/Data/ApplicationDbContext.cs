@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Domain.Entities;
+using TaskManager.Domain.Enums;
 
 namespace TaskManager.Infrastructure.Data
 {
@@ -20,6 +21,12 @@ namespace TaskManager.Infrastructure.Data
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<WorkspaceInvitation> WorkspaceInvitations { get; set; }
         public DbSet<TaskAttachment> TaskAttachments { get; set; }
+        public DbSet<ChatRoom> ChatRooms { get; set; }
+        public DbSet<ChatRoomMember> ChatRoomMembers { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<ChatMessageAttachment> ChatMessageAttachments { get; set; }
+        public DbSet<ChatReadState> ChatReadStates { get; set; }
+        public DbSet<ChatUserPreferences> ChatUserPreferences { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -263,6 +270,146 @@ namespace TaskManager.Infrastructure.Data
                 entity.HasIndex(i => new { i.InvitedUserId, i.Status });
                 entity.HasIndex(i => i.ExpiresAtUtc);
                 entity.HasIndex(i => i.CreatedAtUtc);
+            });
+
+            modelBuilder.Entity<ChatRoom>(entity =>
+            {
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.Type).IsRequired().HasConversion<int>();
+                entity.Property(c => c.Title).HasMaxLength(200);
+                entity.Property(c => c.DirectKey).HasMaxLength(64);
+                entity.Property(c => c.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(c => c.UpdatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.HasOne(c => c.Workspace)
+                    .WithMany(w => w.ChatRooms)
+                    .HasForeignKey(c => c.WorkspaceId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(c => c.WorkspaceId);
+                entity.HasIndex(c => new { c.WorkspaceId, c.Type })
+                    .HasDatabaseName("IX_ChatRooms_WorkspaceId_Type");
+                entity.HasIndex(c => c.TaskId).IsUnique();
+                entity.HasIndex(c => new { c.WorkspaceId, c.Type })
+                    .HasFilter("\"Type\" = 1")
+                    .IsUnique()
+                    .HasDatabaseName("UX_ChatRooms_WorkspaceId_General");
+                entity.HasIndex(c => new { c.WorkspaceId, c.Type, c.DirectKey })
+                    .HasFilter("\"Type\" = 3 AND \"DirectKey\" IS NOT NULL")
+                    .IsUnique()
+                    .HasDatabaseName("UX_ChatRooms_WorkspaceId_DirectKey");
+            });
+
+            modelBuilder.Entity<ChatRoomMember>(entity =>
+            {
+                entity.HasKey(m => new { m.ChatRoomId, m.UserId });
+
+                entity.Property(m => m.Role)
+                    .IsRequired()
+                    .HasConversion<int>();
+
+                entity.Property(m => m.JoinedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.HasOne(m => m.ChatRoom)
+                    .WithMany(c => c.Members)
+                    .HasForeignKey(m => m.ChatRoomId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(m => m.User)
+                    .WithMany(u => u.ChatRoomMemberships)
+                    .HasForeignKey(m => m.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(m => m.UserId);
+                entity.HasIndex(m => m.Role);
+            });
+
+            modelBuilder.Entity<ChatMessage>(entity =>
+            {
+                entity.HasKey(m => m.Id);
+
+                entity.Property(m => m.Kind)
+                    .IsRequired()
+                    .HasConversion<int>();
+
+                entity.Property(m => m.BodyCipher).IsRequired();
+                entity.Property(m => m.ClientMessageId).HasMaxLength(100);
+                entity.Property(m => m.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.HasOne(m => m.ChatRoom)
+                    .WithMany(c => c.Messages)
+                    .HasForeignKey(m => m.ChatRoomId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(m => m.SenderUser)
+                    .WithMany(u => u.SentMessages)
+                    .HasForeignKey(m => m.SenderUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(m => m.ReplyToMessage)
+                    .WithMany()
+                    .HasForeignKey(m => m.ReplyToMessageId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(m => m.ChatRoomId);
+                entity.HasIndex(m => m.SenderUserId);
+                entity.HasIndex(m => m.CreatedAtUtc);
+                entity.HasIndex(m => m.ClientMessageId);
+                entity.HasIndex(m => new { m.ChatRoomId, m.CreatedAtUtc });
+            });
+
+            modelBuilder.Entity<ChatMessageAttachment>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.ObjectKey).IsRequired().HasMaxLength(500);
+                entity.Property(a => a.FileName).IsRequired().HasMaxLength(255);
+                entity.Property(a => a.ContentType).IsRequired().HasMaxLength(150);
+
+                entity.HasOne(a => a.Message)
+                    .WithMany(m => m.Attachments)
+                    .HasForeignKey(a => a.MessageId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(a => a.MessageId);
+            });
+
+            modelBuilder.Entity<ChatReadState>(entity =>
+            {
+                entity.HasKey(r => new { r.ChatRoomId, r.UserId });
+
+                entity.HasOne(r => r.ChatRoom)
+                    .WithMany()
+                    .HasForeignKey(r => r.ChatRoomId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(r => r.User)
+                    .WithMany(u => u.ChatReadStates)
+                    .HasForeignKey(r => r.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(r => r.UserId);
+            });
+
+            modelBuilder.Entity<ChatUserPreferences>(entity =>
+            {
+                entity.HasKey(p => new { p.UserId, p.ChatRoomId });
+                entity.Property(p => p.IsMuted).HasDefaultValue(false);
+                entity.Property(p => p.SoundEnabled).HasDefaultValue(true);
+                entity.Property(p => p.BackgroundImageKey).HasMaxLength(500);
+                entity.Property(p => p.UpdatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.HasOne(p => p.User)
+                    .WithMany()
+                    .HasForeignKey(p => p.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(p => p.ChatRoom)
+                    .WithMany()
+                    .HasForeignKey(p => p.ChatRoomId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(p => p.UserId);
+                entity.HasIndex(p => p.ChatRoomId);
             });
         }
     }

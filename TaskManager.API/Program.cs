@@ -8,11 +8,16 @@ using System.Text;
 using System.Threading.RateLimiting;
 using TaskManager.API.Background;
 using TaskManager.API.Configuration;
+using TaskManager.API.Hubs;
+using TaskManager.API.Middleware;
+using TaskManager.API.Realtime;
 using TaskManager.API.Security;
 using TaskManager.Application.Auth;
 using TaskManager.Application.Interfaces;
+using TaskManager.Application.Realtime;
 using TaskManager.Application.Storage;
 using TaskManager.Application.Services;
+using TaskManager.Chat.Infrastructure.DependencyInjection;
 using TaskManager.Infrastructure.Data;
 using TaskManager.Infrastructure.Email;
 using TaskManager.Infrastructure.Repositories;
@@ -28,6 +33,8 @@ builder.Logging.AddDebug();
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSignalR();
+builder.Services.AddChatModule(builder.Configuration);
 
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
 if (string.IsNullOrWhiteSpace(jwtSettings.Issuer)
@@ -190,6 +197,7 @@ builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddScoped<ITaskAttachmentService, TaskAttachmentService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IWorkspaceInvitationService, WorkspaceInvitationService>();
+builder.Services.AddSingleton<IChatRealtimeNotifier, SignalRChatRealtimeNotifier>();
 builder.Services.AddScoped<SmtpEmailSender>();
 builder.Services.AddHttpClient<HttpApiEmailSender>((sp, client) =>
 {
@@ -320,6 +328,8 @@ app.Use(async (context, next) =>
     await next();
 });
 
+app.UseMiddleware<ApiExceptionHandlingMiddleware>();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -339,41 +349,92 @@ app.UseRouting();
 app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
+app.MapGet("/healthz", async (ApplicationDbContext dbContext, CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var canConnect = await dbContext.Database.CanConnectAsync(cancellationToken);
+        if (!canConnect)
+        {
+            return Results.Problem(
+                title: "Database connection failed",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        return Results.Ok(new { status = "ok", database = "ok" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            title: "Database health check failed",
+            detail: app.Environment.IsDevelopment() ? ex.Message : null,
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+});
 app.MapControllers();
+app.MapHub<ChatHub>("/hubs/chat");
 
 // Apply migrations and seed data
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var logger = services.GetRequiredService<ILogger<Program>>();
+    var startupSection = builder.Configuration.GetSection("DatabaseStartup");
+    var applyMigrations = startupSection.GetValue<bool>("ApplyMigrations", true);
+    var seed = startupSection.GetValue<bool>("Seed", true);
+    var migrateLegacyFiles = startupSection.GetValue<bool>("MigrateLegacyFiles", true);
+    var smokeCheckConnection = startupSection.GetValue<bool>("SmokeCheckConnection", true);
+    var failFast = startupSection.GetValue<bool>("FailFast", true);
 
     try
     {
         var dbContext = services.GetRequiredService<ApplicationDbContext>();
-
-        var startupSection = builder.Configuration.GetSection("DatabaseStartup");
-        var applyMigrations = startupSection.GetValue<bool>("ApplyMigrations", true);
-        var seed = startupSection.GetValue<bool>("Seed", true);
-        var migrateLegacyFiles = startupSection.GetValue<bool>("MigrateLegacyFiles", true);
+        var isRelationalProvider = dbContext.Database.IsRelational();
 
         if (applyMigrations)
         {
-            var pendingMigrations = dbContext.Database.GetPendingMigrations().ToList();
-            if (pendingMigrations.Any())
+            if (isRelationalProvider)
             {
-                logger.LogInformation("Applying {Count} pending migrations...", pendingMigrations.Count);
-                dbContext.Database.Migrate();
-                logger.LogInformation("Migrations applied successfully.");
+                var pendingMigrations = dbContext.Database.GetPendingMigrations().ToList();
+                if (pendingMigrations.Any())
+                {
+                    logger.LogInformation("Applying {Count} pending migrations...", pendingMigrations.Count);
+                    dbContext.Database.Migrate();
+                    logger.LogInformation("Migrations applied successfully.");
+                }
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Skipping migrations for non-relational provider {ProviderName}.",
+                    dbContext.Database.ProviderName ?? "unknown");
+            }
+        }
+
+        if (smokeCheckConnection && isRelationalProvider)
+        {
+            var canConnect = await dbContext.Database.CanConnectAsync();
+            if (!canConnect)
+            {
+                throw new InvalidOperationException("Database connectivity check failed.");
             }
         }
 
         if (migrateLegacyFiles)
         {
-            logger.LogInformation("Running legacy storage migration...");
-            var migrator = services.GetRequiredService<LegacyStorageMigrator>();
-            await migrator.MigrateAsync();
-            logger.LogInformation("Legacy storage migration complete.");
+            if (isRelationalProvider)
+            {
+                logger.LogInformation("Running legacy storage migration...");
+                var migrator = services.GetRequiredService<LegacyStorageMigrator>();
+                await migrator.MigrateAsync();
+                logger.LogInformation("Legacy storage migration complete.");
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Skipping legacy storage migration for non-relational provider {ProviderName}.",
+                    dbContext.Database.ProviderName ?? "unknown");
+            }
         }
 
         if (seed)
@@ -384,7 +445,7 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         logger.LogError(ex, "An error occurred while migrating or seeding the database.");
-        if (!app.Environment.IsDevelopment())
+        if (failFast || !app.Environment.IsDevelopment())
         {
             throw;
         }

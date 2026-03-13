@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TaskManager.API\TaskManager.API.csproj" />
+    <ProjectReference Include="..\TaskManager.Chat.Infrastructure\TaskManager.Chat.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

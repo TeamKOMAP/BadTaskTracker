@@ -23,5 +23,6 @@ namespace TaskManager.Domain.Entities
         public virtual ICollection<WorkspaceMember> Members { get; set; } = new List<WorkspaceMember>();
         public virtual ICollection<TaskItem> Tasks { get; set; } = new List<TaskItem>();
         public virtual ICollection<Tag> Tags { get; set; } = new List<Tag>();
+        public virtual ICollection<ChatRoom> ChatRooms { get; set; } = new List<ChatRoom>();
     }
 }

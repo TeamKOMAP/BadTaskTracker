@@ -252,6 +252,34 @@ Storage__ForcePathStyle=true
 | GET | `/api/tasks/{taskId}/attachments/{id}` | Скачать вложение |
 | DELETE | `/api/tasks/{taskId}/attachments/{id}` | Удалить вложение |
 
+### Чаты
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/api/chats?workspaceId={id}` | Список чатов пользователя в workspace |
+| GET | `/api/chats/{chatId}` | Получить чат |
+| POST | `/api/chats/groups` | Создать групповой чат |
+| POST | `/api/chats/direct/{userId}?workspaceId={id}` | Создать/получить direct чат |
+| POST | `/api/tasks/{taskId}/chat/open?workspaceId={id}` | Открыть task-чат |
+| GET | `/api/chats/{chatId}/messages` | История сообщений |
+| POST | `/api/chats/{chatId}/messages` | Отправить сообщение |
+| PATCH | `/api/chats/{chatId}/messages/{messageId}` | Редактировать сообщение |
+| DELETE | `/api/chats/{chatId}/messages/{messageId}` | Soft-delete сообщение (tombstone в истории) |
+| POST | `/api/chats/{chatId}/messages/{messageId}/reply` | Ответить на сообщение |
+| POST | `/api/chats/{chatId}/messages/{messageId}/forward` | Переслать сообщение |
+| POST | `/api/chats/{chatId}/read` | Отметить сообщения как прочитанные |
+| POST | `/api/chats/{chatId}/messages/read` | Legacy endpoint (deprecated) |
+| GET | `/api/chats/{chatId}/attachments?messageId={id}` | Список вложений сообщения |
+| POST | `/api/chats/{chatId}/attachments` | Загрузить вложение сообщения (form-data: `messageId`, `file`) |
+| GET | `/api/chats/{chatId}/attachments/{attachmentId}` | Скачать вложение чата |
+| DELETE | `/api/chats/{chatId}/attachments/{attachmentId}` | Удалить вложение чата |
+
+### Chat real-time (SignalR)
+
+- Hub endpoint: `/hubs/chat`
+- Hub methods: `JoinChat(chatId)`, `LeaveChat(chatId)`
+- Server events: `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.read.updated`, `chat.attachment.uploaded`, `chat.attachment.deleted`
+
 ### Отчеты
 
 | Метод | Путь | Описание |
@@ -310,7 +338,7 @@ Authorization: Bearer {token}
 dotnet test
 ```
 
-Для запуска интеграционных тестов `PostgresObjectStorage` задайте одну из переменных окружения:
+Для запуска интеграционных тестов `PostgresObjectStorage` и smoke-тестов провайдера БД (`DatabaseProviderSmokeTests`) задайте одну из переменных окружения:
 
 ```env
 TEST_POSTGRES_CONNECTION_STRING=Host=localhost;Port=5432;Database=taskmanager_tests;Username=postgres;Password=postgres
