@@ -37,6 +37,25 @@ public class ChatHub : Hub
         return Groups.RemoveFromGroupAsync(Context.ConnectionId, BuildGroupName(chatId));
     }
 
+    public async Task SetTyping(Guid chatId, bool isTyping)
+    {
+        var userId = ResolveUserId(Context.User);
+        if (!userId.HasValue)
+        {
+            throw new HubException("Unauthorized");
+        }
+
+        var isMember = await _memberRepository.IsMemberAsync(chatId, userId.Value, Context.ConnectionAborted);
+        if (!isMember)
+        {
+            throw new HubException("Forbidden");
+        }
+
+        var payload = new ChatTypingRealtimeEvent(chatId, userId.Value, isTyping, DateTime.UtcNow);
+        await Clients.GroupExcept(BuildGroupName(chatId), Context.ConnectionId)
+            .SendAsync("chat.typing.updated", payload, Context.ConnectionAborted);
+    }
+
     public static string BuildGroupName(Guid chatId)
     {
         return $"chat:{chatId:N}";
@@ -59,3 +78,9 @@ public class ChatHub : Hub
             : null;
     }
 }
+
+public sealed record ChatTypingRealtimeEvent(
+    Guid ChatId,
+    int UserId,
+    bool IsTyping,
+    DateTime AtUtc);

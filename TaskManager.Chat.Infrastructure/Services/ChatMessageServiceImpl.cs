@@ -300,6 +300,7 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
             message.BodyCipher,
             message.ReplyToMessageId,
             message.ForwardedFromMessageId,
+            message.ClientMessageId,
             message.CreatedAtUtc,
             message.EditedAtUtc,
             message.DeletedAtUtc);

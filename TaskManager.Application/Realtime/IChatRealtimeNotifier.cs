@@ -28,6 +28,7 @@ public sealed record ChatMessageRealtimeEvent(
     string BodyCipher,
     long? ReplyToMessageId,
     long? ForwardedFromMessageId,
+    string? ClientMessageId,
     DateTime CreatedAtUtc,
     DateTime? EditedAtUtc,
     DateTime? DeletedAtUtc);

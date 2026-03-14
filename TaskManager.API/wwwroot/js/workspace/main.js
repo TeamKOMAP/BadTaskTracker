@@ -16,11 +16,53 @@ import {
   chatShellTitle,
   chatShellSub,
   chatShellAvatar,
+  chatShellBulkActions,
+  chatShellBulkCancelBtn,
+  chatShellBulkForwardBtn,
+  chatShellBulkDeleteBtn,
+  chatShellSettingsBtn,
+  chatSettingsPanel,
+  chatSettingsMuted,
+  chatSettingsSound,
+  chatSettingsSkipActive,
+  chatSettingsRoomBlock,
+  chatSettingsTitleWrap,
+  chatSettingsTitle,
+  chatSettingsBgBlock,
+  chatSettingsBgHeading,
+  chatSettingsSwatches,
+  chatSettingsNote,
+  chatSettingsSaveBtn,
+  chatShellFeed,
   chatShellMessages,
   chatShellEmpty,
+  chatMsgMenu,
+  chatMsgMenuReplyBtn,
+  chatMsgMenuForwardBtn,
+  chatMsgMenuEditBtn,
+  chatMsgMenuDeleteBtn,
   chatShellForm,
+  chatShellRecording,
+  chatShellRecordingMain,
+  chatShellRecordingStatus,
+  chatShellRecordingTime,
+  chatShellRecordingWave,
+  chatShellRecordingCancelBtn,
+  chatShellRecordingPauseBtn,
+  chatShellRecordingSendBtn,
   chatShellInput,
   chatShellSendBtn,
+  chatShellLoadMoreBtn,
+  chatShellContext,
+  chatShellContextLabel,
+  chatShellContextText,
+  chatShellContextCancelBtn,
+  chatShellAttachBtn,
+  chatShellVoiceBtn,
+  chatShellVoiceStatus,
+  chatShellUploadList,
+  chatShellFileInput,
+  chatShellJumpBottomBtn,
   columnsWrap,
   addColumnControl,
   addColumnBtn,
@@ -120,6 +162,8 @@ import {
   taskDetailRejectBtn,
   taskDetailPhotoBtn,
   taskDetailPhotoClearBtn,
+  taskDetailChatBtn,
+  taskDetailChatOpenBtn,
   taskDetailHistoryToggleBtn,
   taskDetailHistoryClearBtn,
   taskAttachBtn,
@@ -134,7 +178,7 @@ import {
   confirmModalInputWrap,
   confirmModalInputHintEl,
   confirmModalInputEl
-} from "./dom.js?v=authflow13";
+} from "./dom.js?v=authflow14";
 
 import {
   buildApiUrl,
@@ -208,12 +252,12 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatController } from "./chat-shell.js?v=chat2";
+import { createWorkspaceChatController } from "../chat/controller.js?v=chat8";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf6";
-import { createTaskDetailController } from "./task-detail.js?v=perf14";
+import { createTaskDetailController } from "./task-detail.js?v=perf15";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
 import { createProfileModalsController } from "./profile-modals.js?v=profile2";
 
@@ -1757,14 +1801,53 @@ chatController = createWorkspaceChatController({
   chatShellTitle,
   chatShellSub,
   chatShellAvatar,
+  chatShellBulkActions,
+  chatShellBulkCancelBtn,
+  chatShellBulkForwardBtn,
+  chatShellBulkDeleteBtn,
+  chatShellSettingsBtn,
+  chatSettingsPanel,
+  chatSettingsMuted,
+  chatSettingsSound,
+  chatSettingsSkipActive,
+  chatSettingsRoomBlock,
+  chatSettingsTitleWrap,
+  chatSettingsTitle,
+  chatSettingsBgBlock,
+  chatSettingsBgHeading,
+  chatSettingsSwatches,
+  chatSettingsNote,
+  chatSettingsSaveBtn,
+  chatShellFeed,
   chatShellMessages,
   chatShellEmpty,
+  chatMsgMenu,
+  chatMsgMenuReplyBtn,
+  chatMsgMenuForwardBtn,
+  chatMsgMenuEditBtn,
+  chatMsgMenuDeleteBtn,
   chatShellForm,
+  chatShellRecording,
+  chatShellRecordingMain,
+  chatShellRecordingStatus,
+  chatShellRecordingTime,
+  chatShellRecordingWave,
+  chatShellRecordingCancelBtn,
+  chatShellRecordingPauseBtn,
+  chatShellRecordingSendBtn,
   chatShellInput,
   chatShellSendBtn,
-  buildApiUrl,
-  apiFetch,
-  handleApiError,
+  chatShellLoadMoreBtn,
+  chatShellContext,
+  chatShellContextLabel,
+  chatShellContextText,
+  chatShellContextCancelBtn,
+  chatShellAttachBtn,
+  chatShellVoiceBtn,
+  chatShellVoiceStatus,
+  chatShellUploadList,
+  chatShellFileInput,
+  chatShellJumpBottomBtn,
   normalizeToken,
   toInitials,
   getWorkspaceId: () => currentWorkspaceId,
@@ -1772,6 +1855,7 @@ chatController = createWorkspaceChatController({
   getActorDisplayName,
   getMemberById: getWorkspaceMemberById,
   getWorkspaceMembers: () => (Array.isArray(workspaceMembers) ? workspaceMembers : []),
+  getWorkspaceRole: () => String(currentWorkspaceRole || "Member"),
   onOpenTasks: () => {
     setAppScreen("board");
   },
@@ -4083,6 +4167,10 @@ taskDetailController = createTaskDetailController({
   canEditTask: isAdmin,
   canClearHistory: isAdmin,
   canManageDoneApproval: isAdmin,
+  canAccessTaskChat: () => Number(currentWorkspaceId) > 0 && Boolean(getWorkspaceMemberById(getActorUserId())),
+  getWorkspaceMemberCount: () => (Array.isArray(workspaceMembers) ? workspaceMembers.length : 0),
+  ensureTaskChat: (taskId, options) => chatController?.ensureTaskChat(taskId, options) ?? null,
+  openTaskChatRoom: (chatId) => chatController?.openChat(chatId),
   approveDone: approveTaskDoneViaApi,
   rejectDone: rejectTaskDoneViaApi,
   ensureTagsLoaded,
@@ -4546,6 +4634,14 @@ if (taskDetailPhotoBtn) {
 
 if (taskDetailPhotoClearBtn) {
   taskDetailPhotoClearBtn.addEventListener("click", taskDetailController.onDetailPhotoClearClick);
+}
+
+if (taskDetailChatBtn) {
+  taskDetailChatBtn.addEventListener("click", taskDetailController.onTaskChatClick);
+}
+
+if (taskDetailChatOpenBtn) {
+  taskDetailChatOpenBtn.addEventListener("click", taskDetailController.onTaskChatOpenClick);
 }
 
 if (taskDetailHistoryToggleBtn) {

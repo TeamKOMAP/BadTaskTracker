@@ -9,6 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css?v=base6">
   <link rel="stylesheet" href="css/components.css?v=comp2">
+  <link rel="stylesheet" href="css/chat.css?v=chat1">
   <link rel="stylesheet" href="css/workspace.css?v=perf70">
   <link rel="stylesheet" href="css/workspace-members.css?v=wm1">
 </head>
@@ -146,23 +147,171 @@
                 <span class="chat-shell-title" id="chat-shell-title">Выберите чат</span>
                 <span class="chat-shell-sub" id="chat-shell-sub">Диалог внутри проекта</span>
               </div>
+              <div class="chat-shell-bulk-actions" id="chat-shell-bulk-actions" hidden>
+                <button class="ghost-btn chat-shell-bulk-btn" id="chat-shell-bulk-cancel" type="button">Отмена</button>
+                <button class="ghost-btn chat-shell-bulk-btn" id="chat-shell-bulk-forward" type="button">Переслать</button>
+                <button class="ghost-btn chat-shell-bulk-btn is-danger" id="chat-shell-bulk-delete" type="button">Удалить</button>
+              </div>
+              <button class="ghost-btn chat-shell-settings-btn" id="chat-shell-settings-btn" type="button">Settings</button>
             </header>
 
-            <div class="chat-shell-feed" id="chat-shell-feed">
+            <section class="chat-settings-panel" id="chat-settings-panel" hidden>
+              <div class="chat-settings-grid">
+                <div class="chat-settings-block">
+                  <span class="chat-settings-heading">User settings</span>
+                  <label class="chat-settings-toggle">
+                    <input id="chat-settings-muted" type="checkbox">
+                    <span>Muted</span>
+                  </label>
+                  <label class="chat-settings-toggle">
+                    <input id="chat-settings-sound" type="checkbox" checked>
+                    <span>Sound enabled</span>
+                  </label>
+                  <label class="chat-settings-toggle">
+                    <input id="chat-settings-skip-active" type="checkbox" checked>
+                    <span>Не играть звук в активной комнате</span>
+                  </label>
+                </div>
+
+                <div class="chat-settings-block" id="chat-settings-room-block" hidden>
+                  <span class="chat-settings-heading">Room settings</span>
+                  <label class="chat-settings-field" id="chat-settings-title-wrap" hidden>
+                    <span>Название</span>
+                    <input id="chat-settings-title" type="text" maxlength="120" placeholder="Название чата">
+                  </label>
+                </div>
+
+                <div class="chat-settings-block" id="chat-settings-bg-block" hidden>
+                  <span class="chat-settings-heading" id="chat-settings-bg-heading">Background</span>
+                  <div class="chat-settings-swatches" id="chat-settings-swatches">
+                    <button class="chat-swatch" type="button" data-bg-value="default">Default</button>
+                    <button class="chat-swatch" type="button" data-bg-value="sand">Sand</button>
+                    <button class="chat-swatch" type="button" data-bg-value="mint">Mint</button>
+                    <button class="chat-swatch" type="button" data-bg-value="ocean">Ocean</button>
+                    <button class="chat-swatch" type="button" data-bg-value="sunset">Sunset</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="chat-settings-actions">
+                <span class="chat-settings-note" id="chat-settings-note">Настройки применяются к текущему чату.</span>
+                <button class="primary-btn" id="chat-settings-save" type="button">Сохранить</button>
+              </div>
+            </section>
+
+            <div class="chat-shell-feed chat-scrollview" id="chat-shell-feed">
               <div class="chat-shell-empty" id="chat-shell-empty">Выберите чат слева, чтобы открыть диалог.</div>
               <div class="chat-shell-messages" id="chat-shell-messages" hidden></div>
+              <button class="icon-btn chat-shell-jump-bottom" id="chat-shell-jump-bottom" type="button" aria-label="Прокрутить вниз" title="Вниз" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 5v14" />
+                  <path d="M6 13l6 6 6-6" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="chat-msg-menu" id="chat-msg-menu" hidden>
+              <button class="chat-msg-menu-item" id="chat-msg-menu-reply" type="button">Ответить</button>
+              <button class="chat-msg-menu-item" id="chat-msg-menu-forward" type="button">Переслать</button>
+              <button class="chat-msg-menu-item" id="chat-msg-menu-edit" type="button">Редактировать</button>
+              <button class="chat-msg-menu-item is-danger" id="chat-msg-menu-delete" type="button">Удалить</button>
+            </div>
+
+            <div class="chat-shell-context" id="chat-shell-context" hidden>
+              <div class="chat-shell-context-main">
+                <span class="chat-shell-context-label" id="chat-shell-context-label"></span>
+                <span class="chat-shell-context-text" id="chat-shell-context-text"></span>
+              </div>
+              <button class="ghost-btn chat-shell-context-cancel" id="chat-shell-context-cancel" type="button">Отменить</button>
+            </div>
+
+            <div class="chat-shell-tools">
+              <div class="chat-shell-upload-list" id="chat-shell-upload-list" hidden></div>
+              <input id="chat-shell-file-input" type="file" hidden multiple>
             </div>
 
             <form class="chat-shell-form" id="chat-shell-form" autocomplete="off">
-              <input
-                class="chat-shell-input"
-                id="chat-shell-input"
-                type="text"
-                maxlength="4000"
-                placeholder="Введите сообщение"
-                disabled
-              >
-              <button class="primary-btn chat-shell-send" id="chat-shell-send" type="submit" disabled>Отправить</button>
+              <div class="chat-shell-composer">
+                <button class="chat-shell-attach" id="chat-shell-attach" type="button" aria-label="Прикрепить файл" title="Прикрепить файл">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 12.5l6.6-6.6a3 3 0 1 1 4.2 4.2L10 18.9a5 5 0 1 1-7.1-7.1l8.1-8.1" />
+                  </svg>
+                </button>
+                <input
+                  class="chat-shell-input"
+                  id="chat-shell-input"
+                  type="text"
+                  maxlength="4000"
+                  placeholder="Введите сообщение"
+                  disabled
+                >
+              </div>
+              <div class="chat-shell-recording" id="chat-shell-recording" hidden>
+                <button class="icon-btn chat-shell-recording-cancel" id="chat-shell-recording-cancel" type="button" aria-label="Отменить запись" title="Отменить запись">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M6 6l12 12" />
+                    <path d="M18 6L6 18" />
+                  </svg>
+                </button>
+                <div class="chat-shell-recording-main" id="chat-shell-recording-main">
+                  <div class="chat-shell-recording-meta">
+                    <span class="chat-shell-recording-status" id="chat-shell-recording-status">Идет запись...</span>
+                    <span class="chat-shell-recording-time" id="chat-shell-recording-time">0:00</span>
+                  </div>
+                  <div class="chat-shell-recording-wave" id="chat-shell-recording-wave" aria-hidden="true">
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                    <span class="chat-shell-recording-bar"></span>
+                  </div>
+                </div>
+                <button class="icon-btn chat-shell-recording-pause" id="chat-shell-recording-pause" type="button" aria-label="Пауза записи" title="Пауза записи">
+                  <svg class="chat-shell-recording-icon-pause" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9 6v12" />
+                    <path d="M15 6v12" />
+                  </svg>
+                  <svg class="chat-shell-recording-icon-resume" viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 6l10 6-10 6z" />
+                  </svg>
+                </button>
+                <button class="icon-btn chat-shell-recording-send" id="chat-shell-recording-send" type="button" aria-label="Отправить запись" title="Отправить запись">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M4 11.5L20 4l-5.5 16-2.8-6.4L4 11.5z" />
+                    <path d="M11.7 13.6L20 4" />
+                  </svg>
+                </button>
+              </div>
+              <button class="icon-btn chat-shell-voice" id="chat-shell-voice" type="button" aria-label="Голосовое сообщение" title="Голосовое сообщение">
+                <svg class="chat-shell-icon-mic" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 15a3 3 0 0 0 3-3V8a3 3 0 1 0-6 0v4a3 3 0 0 0 3 3z" />
+                  <path d="M19 11a7 7 0 0 1-14 0" />
+                  <path d="M12 18v3" />
+                  <path d="M9 21h6" />
+                </svg>
+                <svg class="chat-shell-icon-stop" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="7" y="7" width="10" height="10" rx="2" />
+                </svg>
+              </button>
+              <button class="icon-btn chat-shell-send" id="chat-shell-send" type="submit" disabled aria-label="Отправить сообщение" title="Отправить сообщение">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 11.5L20 4l-5.5 16-2.8-6.4L4 11.5z" />
+                  <path d="M11.7 13.6L20 4" />
+                </svg>
+              </button>
             </form>
           </section>
 
@@ -685,6 +834,19 @@
             <p class="task-detail-text" id="task-detail-description">-</p>
           </div>
 
+          <div class="task-detail-chat" id="task-detail-chat" hidden>
+            <button class="primary-btn task-detail-chat-btn" id="task-detail-chat-btn" type="button">Чат задачи</button>
+
+            <div class="task-detail-chat-card" id="task-detail-chat-card" hidden>
+              <div class="task-detail-chat-meta">
+                <span class="task-detail-chat-kicker">Task chat ready</span>
+                <span class="task-detail-chat-title" id="task-detail-chat-title">Чат задачи</span>
+                <span class="task-detail-chat-sub" id="task-detail-chat-sub">Команда может обсуждать задачу в отдельной комнате.</span>
+              </div>
+              <button class="ghost-btn task-detail-chat-open" id="task-detail-chat-open" type="button">Открыть чат</button>
+            </div>
+          </div>
+
           <div class="task-detail-attachments">
             <div class="task-detail-attachments-head">
               <span class="task-detail-label">Вложения</span>
@@ -837,6 +999,7 @@
 
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
-  <script type="module" src="js/workspace/main.js?v=authflow85"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow89"></script>
 </body>
 </html>

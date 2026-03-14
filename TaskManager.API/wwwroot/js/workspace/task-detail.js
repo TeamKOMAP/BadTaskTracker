@@ -15,6 +15,12 @@ import {
   taskDetailCompletedEl,
   taskDetailTagsEl,
   taskDetailDescriptionEl,
+  taskDetailChatWrap,
+  taskDetailChatBtn,
+  taskDetailChatCard,
+  taskDetailChatTitleEl,
+  taskDetailChatSubEl,
+  taskDetailChatOpenBtn,
   taskDetailPhotoWrap,
   taskDetailPhotoImg,
   taskDetailPhotoBtn,
@@ -34,7 +40,7 @@ import {
   taskAttachmentsEmpty,
   taskAttachmentsInput,
   taskBgInput
-} from "./dom.js?v=authflow9";
+} from "./dom.js?v=authflow14";
 
 import { normalizeToken } from "../shared/utils.js";
 import {
@@ -111,6 +117,18 @@ export const createTaskDetailController = (deps) => {
   const canManageDoneApproval = typeof deps?.canManageDoneApproval === "function"
     ? deps.canManageDoneApproval
     : canEditTask;
+  const canAccessTaskChat = typeof deps?.canAccessTaskChat === "function"
+    ? deps.canAccessTaskChat
+    : () => false;
+  const getWorkspaceMemberCount = typeof deps?.getWorkspaceMemberCount === "function"
+    ? deps.getWorkspaceMemberCount
+    : () => 0;
+  const ensureTaskChat = typeof deps?.ensureTaskChat === "function"
+    ? deps.ensureTaskChat
+    : async () => null;
+  const openTaskChatRoom = typeof deps?.openTaskChatRoom === "function"
+    ? deps.openTaskChatRoom
+    : async () => null;
   const approveDone = typeof deps?.approveDone === "function" ? deps.approveDone : async () => null;
   const rejectDone = typeof deps?.rejectDone === "function" ? deps.rejectDone : async () => null;
   const ensureTagsLoaded = typeof deps?.ensureTagsLoaded === "function" ? deps.ensureTagsLoaded : async () => {};
@@ -133,6 +151,55 @@ export const createTaskDetailController = (deps) => {
   let pendingPhotoTaskId = null;
   let detailRequestSeq = 0;
   let detailAbortController = null;
+  let taskChatBusy = false;
+
+  const taskChatByTaskId = new Map();
+
+  const isTaskChatEligible = () => {
+    return canAccessTaskChat() && Number(getWorkspaceMemberCount()) > 1;
+  };
+
+  const setTaskChatBusy = (busy) => {
+    taskChatBusy = Boolean(busy);
+    if (taskDetailChatBtn instanceof HTMLButtonElement) {
+      taskDetailChatBtn.disabled = taskChatBusy;
+      taskDetailChatBtn.textContent = taskChatBusy ? "Открываем чат..." : "Чат задачи";
+    }
+    if (taskDetailChatOpenBtn instanceof HTMLButtonElement) {
+      taskDetailChatOpenBtn.disabled = taskChatBusy;
+      taskDetailChatOpenBtn.textContent = taskChatBusy ? "Подождите..." : "Открыть чат";
+    }
+  };
+
+  const renderTaskChatState = (taskId = detailTaskId) => {
+    if (!(taskDetailChatWrap instanceof HTMLElement)) return;
+
+    const id = Number(taskId);
+    const eligible = Number.isFinite(id) && id > 0 && isTaskChatEligible();
+    taskDetailChatWrap.hidden = !eligible;
+    if (!eligible) {
+      return;
+    }
+
+    const chat = taskChatByTaskId.get(id) || null;
+    if (taskDetailChatBtn instanceof HTMLButtonElement) {
+      taskDetailChatBtn.hidden = Boolean(chat);
+    }
+    if (taskDetailChatCard instanceof HTMLElement) {
+      taskDetailChatCard.hidden = !chat;
+    }
+
+    if (chat) {
+      if (taskDetailChatTitleEl) {
+        taskDetailChatTitleEl.textContent = normalizeToken(chat?.title) || "Чат задачи";
+      }
+      if (taskDetailChatSubEl) {
+        taskDetailChatSubEl.textContent = "Комната готова: можно открыть чат и обсудить задачу с участниками проекта.";
+      }
+    }
+
+    setTaskChatBusy(false);
+  };
 
   const refreshHistoryClearButton = (options) => {
     if (!taskDetailHistoryClearBtn) return;
@@ -443,6 +510,7 @@ export const createTaskDetailController = (deps) => {
     detailTaskId = null;
     detailTaskCard = null;
     pendingPhotoTaskId = null;
+    setTaskChatBusy(false);
 
     if (taskAttachmentsInput) {
       taskAttachmentsInput.value = "";
@@ -460,6 +528,9 @@ export const createTaskDetailController = (deps) => {
     if (taskDetailHistoryList) taskDetailHistoryList.innerHTML = "";
     if (taskDetailHistoryEmpty) taskDetailHistoryEmpty.hidden = true;
     refreshHistoryClearButton({ hasEntries: false });
+    if (taskDetailChatWrap instanceof HTMLElement) {
+      taskDetailChatWrap.hidden = true;
+    }
   };
 
   const openTaskDetailModalForTask = async (taskId, card) => {
@@ -526,6 +597,7 @@ export const createTaskDetailController = (deps) => {
     if (taskAttachBtn) {
       taskAttachBtn.toggleAttribute("hidden", !canEditTask());
     }
+    renderTaskChatState(id);
 
     const resolveTagName = (tagId) => getTagNameById(Number(tagId)) || "";
     const resolveAssigneeName = (assigneeId) => getAssigneeNameById(Number(assigneeId)) || "";
@@ -713,6 +785,46 @@ export const createTaskDetailController = (deps) => {
     taskAttachmentsInput?.click();
   };
 
+  const onTaskChatClick = async () => {
+    if (!detailTaskId || taskChatBusy || !isTaskChatEligible()) return;
+
+    setTaskChatBusy(true);
+    try {
+      const chat = await ensureTaskChat(detailTaskId, { open: false });
+      if (!chat?.id) {
+        return;
+      }
+
+      taskChatByTaskId.set(detailTaskId, chat);
+      renderTaskChatState(detailTaskId);
+    } finally {
+      setTaskChatBusy(false);
+    }
+  };
+
+  const onTaskChatOpenClick = async () => {
+    if (!detailTaskId || taskChatBusy) return;
+
+    let chat = taskChatByTaskId.get(detailTaskId) || null;
+    if (!chat) {
+      setTaskChatBusy(true);
+      try {
+        chat = await ensureTaskChat(detailTaskId, { open: false });
+        if (!chat?.id) {
+          return;
+        }
+        taskChatByTaskId.set(detailTaskId, chat);
+        renderTaskChatState(detailTaskId);
+      } finally {
+        setTaskChatBusy(false);
+      }
+    }
+
+    if (!chat?.id) return;
+    closeTaskDetailModal();
+    await openTaskChatRoom(chat.id);
+  };
+
   const onAttachmentsInputChange = async () => {
     if (!taskAttachmentsInput) return;
     const files = taskAttachmentsInput.files ? Array.from(taskAttachmentsInput.files) : [];
@@ -775,6 +887,8 @@ export const createTaskDetailController = (deps) => {
     onDetailPhotoClearClick,
     onHistoryToggleClick,
     onHistoryClearClick,
+    onTaskChatClick,
+    onTaskChatOpenClick,
     onAttachClick,
     onAttachmentsInputChange,
     onTaskBgInputChange
