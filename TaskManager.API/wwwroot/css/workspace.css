@@ -2,21 +2,34 @@
   animation: none;
 }
 
+.app-shell {
+  --workspace-edge-x: 14px;
+  --workspace-edge-top: 22px;
+  --workspace-edge-bottom: 16px;
+  --workspace-panel-width: min(var(--panel-width), calc(100vw - (var(--workspace-edge-x) * 2)));
+  --workspace-panel-shift: 0px;
+}
+
 .user-panel {
+  position: fixed;
+  left: var(--workspace-edge-x);
+  top: var(--workspace-edge-top);
+  bottom: var(--workspace-edge-bottom);
+  z-index: 9;
   width: 0;
   overflow: hidden;
   transition: width 0.35s ease;
-  padding-top: 22px;
-  padding-bottom: 16px;
+  pointer-events: none;
 }
 
 .app-shell.is-panel-open .user-panel {
-  width: var(--panel-width);
+  width: var(--workspace-panel-width);
+  pointer-events: auto;
 }
 
 .user-panel-inner {
-  width: var(--panel-width);
-  height: calc(100vh - 38px);
+  width: var(--workspace-panel-width);
+  height: 100%;
   padding: 24px 20px;
   background: rgba(14, 19, 26, 0.95);
   border-right: 1px solid var(--stroke);
@@ -191,20 +204,25 @@ body[data-theme="light"] .task-confirm-input-el:focus {
 
 
 .settings-panel {
+  position: fixed;
+  right: var(--workspace-edge-x);
+  top: var(--workspace-edge-top);
+  bottom: var(--workspace-edge-bottom);
+  z-index: 10;
   width: 0;
   overflow: hidden;
   transition: width 0.35s ease;
-  padding-top: 22px;
-  padding-bottom: 16px;
+  pointer-events: none;
 }
 
 .app-shell.is-settings-open .settings-panel {
-  width: var(--panel-width);
+  width: var(--workspace-panel-width);
+  pointer-events: auto;
 }
 
 .settings-panel-inner {
-  width: var(--panel-width);
-  height: calc(100vh - 38px);
+  width: var(--workspace-panel-width);
+  height: 100%;
   padding: 24px 20px;
   background: rgba(14, 19, 26, 0.95);
   border-left: 1px solid var(--stroke);
@@ -231,20 +249,25 @@ body[data-theme="light"] .settings-panel-inner {
 }
 
 .notifications-panel {
+  position: fixed;
+  right: var(--workspace-edge-x);
+  top: var(--workspace-edge-top);
+  bottom: var(--workspace-edge-bottom);
+  z-index: 10;
   width: 0;
   overflow: hidden;
   transition: width 0.35s ease;
-  padding-top: 22px;
-  padding-bottom: 16px;
+  pointer-events: none;
 }
 
 .app-shell.is-notifications-open .notifications-panel {
-  width: var(--panel-width);
+  width: var(--workspace-panel-width);
+  pointer-events: auto;
 }
 
 .notifications-panel-inner {
-  width: var(--panel-width);
-  height: calc(100vh - 38px);
+  width: var(--workspace-panel-width);
+  height: 100%;
   padding: 24px 20px;
   background: rgba(14, 19, 26, 0.95);
   border-left: 1px solid var(--stroke);
@@ -281,9 +304,14 @@ body[data-theme="light"] .notifications-panel-inner {
 
 .app-shell > .page {
   max-width: none;
-  width: 100%;
-  margin: 0;
+  width: calc(100% - var(--workspace-panel-shift));
+  margin: 0 0 0 var(--workspace-panel-shift);
   padding: 22px 14px 0;
+  transition: width 0.35s ease, margin-left 0.35s ease;
+}
+
+.app-shell.is-panel-open {
+  --workspace-panel-shift: calc(var(--workspace-panel-width) + 8px);
 }
 
 .workspace-content {
@@ -678,8 +706,8 @@ body[data-theme="light"] .chat-shell-input {
   justify-content: space-between;
   gap: 20px;
   padding: 16px 20px;
-  margin-left: 8px;
-  margin-right: 8px;
+  margin-left: 0;
+  margin-right: 0;
   border-radius: 18px;
   border: 1px solid var(--stroke);
   background: var(--panel);
@@ -694,8 +722,8 @@ body[data-theme="light"] .chat-shell-input {
   position: absolute;
   top: -1px;
   bottom: -1px;
-  left: -26px;
-  right: -26px;
+  left: 0;
+  right: 0;
   border-radius: 20px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(10, 15, 22, 0.16);
@@ -5241,14 +5269,16 @@ body[data-theme="light"] .tag-option:hover {
 }
 
 @media (max-width: 1024px) {
-  .topbar {
-    margin-left: 0;
-    margin-right: 0;
+  .app-shell {
+    --workspace-edge-x: 10px;
+    --workspace-edge-top: 14px;
+    --workspace-edge-bottom: 10px;
+    --workspace-panel-shift: 0px;
   }
 
-  .topbar::before {
-    left: -10px;
-    right: -10px;
+  .app-shell.is-panel-open > .page {
+    width: 100%;
+    margin-left: 0;
   }
 
   .workspace-content {
