@@ -7,7 +7,8 @@
   --workspace-edge-top: 22px;
   --workspace-edge-bottom: 16px;
   --workspace-panel-width: min(var(--panel-width), calc(100vw - (var(--workspace-edge-x) * 2)));
-  --workspace-panel-shift: 0px;
+  --workspace-content-left-shift: 0px;
+  --workspace-content-right-shift: 0px;
 }
 
 .user-panel {
@@ -304,14 +305,29 @@ body[data-theme="light"] .notifications-panel-inner {
 
 .app-shell > .page {
   max-width: none;
-  width: calc(100% - var(--workspace-panel-shift));
-  margin: 0 0 0 var(--workspace-panel-shift);
+  width: 100%;
+  margin: 0;
   padding: 22px 14px 0;
-  transition: width 0.35s ease, margin-left 0.35s ease;
+}
+
+.workspace-body {
+  width: calc(100% - var(--workspace-content-left-shift) - var(--workspace-content-right-shift));
+  margin: 0 var(--workspace-content-right-shift) 0 var(--workspace-content-left-shift);
+  transition: width 0.35s ease, margin-left 0.35s ease, margin-right 0.35s ease;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-width: 100%;
 }
 
 .app-shell.is-panel-open {
-  --workspace-panel-shift: calc(var(--workspace-panel-width) + 8px);
+  --workspace-content-left-shift: calc(var(--workspace-panel-width) + 8px);
+}
+
+.app-shell.is-settings-open,
+.app-shell.is-notifications-open {
+  --workspace-content-right-shift: calc(var(--workspace-panel-width) + 8px);
 }
 
 .workspace-content {
@@ -5273,12 +5289,15 @@ body[data-theme="light"] .tag-option:hover {
     --workspace-edge-x: 10px;
     --workspace-edge-top: 14px;
     --workspace-edge-bottom: 10px;
-    --workspace-panel-shift: 0px;
+    --workspace-content-left-shift: 0px;
+    --workspace-content-right-shift: 0px;
   }
 
-  .app-shell.is-panel-open > .page {
-    width: 100%;
-    margin-left: 0;
+  .app-shell.is-panel-open,
+  .app-shell.is-settings-open,
+  .app-shell.is-notifications-open {
+    --workspace-content-left-shift: 0px;
+    --workspace-content-right-shift: 0px;
   }
 
   .workspace-content {
