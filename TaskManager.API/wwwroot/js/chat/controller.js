@@ -113,6 +113,42 @@ const formatMediaTime = (seconds) => {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 };
 
+const isInteractiveMessageTarget = (target) => {
+  return target instanceof Element && Boolean(target.closest("button, input, a, audio, [role='button']"));
+};
+
+const suppressMessageSelectionEvent = (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+};
+
+const getAudioDurationMs = async (fileOrBlob) => {
+  if (!(fileOrBlob instanceof Blob)) return null;
+
+  return await new Promise((resolve) => {
+    const audio = document.createElement("audio");
+    const url = URL.createObjectURL(fileOrBlob);
+    const cleanup = () => {
+      audio.src = "";
+      URL.revokeObjectURL(url);
+    };
+
+    audio.preload = "metadata";
+    audio.addEventListener("loadedmetadata", () => {
+      const duration = Number.isFinite(audio.duration) && audio.duration > 0
+        ? Math.round(audio.duration * 1000)
+        : null;
+      cleanup();
+      resolve(duration);
+    }, { once: true });
+    audio.addEventListener("error", () => {
+      cleanup();
+      resolve(null);
+    }, { once: true });
+    audio.src = url;
+  });
+};
+
 const hashToken = (value) => {
   const source = String(value || "voice");
   let hash = 0;
@@ -182,6 +218,8 @@ const buildMockChats = ({ getActorUserId, getActorDisplayName, getWorkspaceMembe
       id: `mock-direct-${peerId}`,
       type: 3,
       title: peerName,
+      directPeerUserId: peerId,
+      directPeerDisplayName: peerName,
       taskId: null,
       updatedAtUtc: mkIso(-4 * 60 * 1000)
     }
@@ -334,7 +372,16 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const normalizeToken = typeof deps.normalizeToken === "function" ? deps.normalizeToken : (value) => String(value || "").trim();
   const toInitials = typeof deps.toInitials === "function" ? deps.toInitials : (value) => String(value || "").slice(0, 2).toUpperCase();
+  const applyAccountAvatarToElement = typeof deps.applyAccountAvatarToElement === "function" ? deps.applyAccountAvatarToElement : (element, textElement, initials) => {
+    if (textElement) {
+      textElement.textContent = initials;
+    } else if (element) {
+      element.textContent = initials;
+    }
+  };
   const getWorkspaceId = typeof deps.getWorkspaceId === "function" ? deps.getWorkspaceId : () => null;
+  const getWorkspaceName = typeof deps.getWorkspaceName === "function" ? deps.getWorkspaceName : () => "Проект";
+  const getWorkspaceAvatarPath = typeof deps.getWorkspaceAvatarPath === "function" ? deps.getWorkspaceAvatarPath : () => "";
   const getActorUserId = typeof deps.getActorUserId === "function" ? deps.getActorUserId : () => null;
   const getActorDisplayName = typeof deps.getActorDisplayName === "function" ? deps.getActorDisplayName : () => "Вы";
   const getMemberById = typeof deps.getMemberById === "function" ? deps.getMemberById : () => null;
@@ -416,6 +463,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     const type = Number.isFinite(typeRaw) && typeRaw > 0 ? typeRaw : 2;
     const workspaceIdRaw = Number(chat?.workspaceId ?? chat?.WorkspaceId);
     const createdByUserIdRaw = Number(chat?.createdByUserId ?? chat?.CreatedByUserId);
+    const directPeerUserIdRaw = Number(chat?.directPeerUserId ?? chat?.DirectPeerUserId);
+    const directPeerDisplayName = normalizeToken(chat?.directPeerDisplayName ?? chat?.DirectPeerDisplayName);
     const title = normalizeToken(chat?.title ?? chat?.Title);
     const taskIdRaw = Number(chat?.taskId ?? chat?.TaskId);
     const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? taskIdRaw : null;
@@ -425,8 +474,10 @@ export const createWorkspaceChatController = (deps = {}) => {
       id,
       workspaceId: Number.isFinite(workspaceIdRaw) && workspaceIdRaw > 0 ? workspaceIdRaw : null,
       type,
-      title: title || buildFallbackChatTitle({ taskId }),
+      title: (type === 3 ? (directPeerDisplayName || title) : title) || buildFallbackChatTitle({ taskId }),
       taskId,
+      directPeerUserId: Number.isFinite(directPeerUserIdRaw) && directPeerUserIdRaw > 0 ? directPeerUserIdRaw : null,
+      directPeerDisplayName: directPeerDisplayName || null,
       createdByUserId: Number.isFinite(createdByUserIdRaw) && createdByUserIdRaw > 0 ? createdByUserIdRaw : null,
       updatedAtUtc
     };
@@ -440,6 +491,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     const body = normalizeToken(message?.bodyCipher ?? message?.BodyCipher);
     const replyToMessageId = Number(message?.replyToMessageId ?? message?.ReplyToMessageId);
     const forwardedFromMessageId = Number(message?.forwardedFromMessageId ?? message?.ForwardedFromMessageId);
+    const forwardedFromSenderUserId = Number(message?.forwardedFromSenderUserId ?? message?.ForwardedFromSenderUserId);
+    const forwardedFromSenderDisplayName = normalizeToken(message?.forwardedFromSenderDisplayName ?? message?.ForwardedFromSenderDisplayName);
 
     return {
       id,
@@ -448,6 +501,8 @@ export const createWorkspaceChatController = (deps = {}) => {
       body: body || "-",
       replyToMessageId: Number.isFinite(replyToMessageId) && replyToMessageId > 0 ? replyToMessageId : null,
       forwardedFromMessageId: Number.isFinite(forwardedFromMessageId) && forwardedFromMessageId > 0 ? forwardedFromMessageId : null,
+      forwardedFromSenderUserId: Number.isFinite(forwardedFromSenderUserId) && forwardedFromSenderUserId > 0 ? forwardedFromSenderUserId : null,
+      forwardedFromSenderDisplayName: forwardedFromSenderDisplayName || null,
       clientMessageId: normalizeToken(message?.clientMessageId ?? message?.ClientMessageId) || null,
       createdAtUtc: normalizeUtcDateValue(message?.createdAtUtc ?? message?.CreatedAtUtc ?? ""),
       editedAtUtc: normalizeUtcDateValue(message?.editedAtUtc ?? message?.EditedAtUtc ?? ""),
@@ -511,12 +566,28 @@ export const createWorkspaceChatController = (deps = {}) => {
     return CHAT_TYPE_LABELS[Number(type)] || "Chat";
   };
 
-  const getChatAvatarText = (chat) => {
+  const getMemberAvatarPath = (userId) => {
+    const member = getMemberById(userId);
+    return normalizeToken(member?.avatarPath);
+  };
+
+  const applyChatAvatar = (element, chat, fallbackTitle) => {
+    if (!(element instanceof HTMLElement)) return;
+
     const type = Number(chat?.type);
-    if (type === 4) return "TK";
-    if (type === 1) return "GN";
-    if (type === 2) return "GR";
-    return toInitials(chat?.title || "Чат", "DM");
+    if (type === 1 || type === 4) {
+      applyAccountAvatarToElement(element, null, toInitials(getWorkspaceName(), type === 1 ? "GN" : "TK"), getWorkspaceAvatarPath());
+      return;
+    }
+
+    if (type === 3) {
+      const peerUserId = Number(chat?.directPeerUserId);
+      const peerName = normalizeToken(chat?.directPeerDisplayName) || fallbackTitle || chat?.title || "DM";
+      applyAccountAvatarToElement(element, null, toInitials(peerName, "DM"), getMemberAvatarPath(peerUserId));
+      return;
+    }
+
+    applyAccountAvatarToElement(element, null, toInitials(fallbackTitle || chat?.title || "GR", "GR"), "");
   };
 
   const getChatPreview = (chatId) => {
@@ -644,6 +715,23 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
     applyChatBackground(chatId);
     syncSettingsPanel();
+  };
+
+  const loadReadStatesForChat = async (chatId) => {
+    if (!chatId || store.isUsingMockData()) return;
+    const states = await api.getReadStates(chatId);
+    const map = getReadMap(chatId);
+    map.clear();
+    states.forEach((state) => {
+      const userId = Number(state?.userId);
+      const lastReadMessageId = Number(state?.lastReadMessageId);
+      if (Number.isFinite(userId) && userId > 0 && Number.isFinite(lastReadMessageId) && lastReadMessageId > 0) {
+        map.set(userId, lastReadMessageId);
+      }
+    });
+    if (store.getActiveChatId() === chatId) {
+      renderMessages(chatId);
+    }
   };
 
   const closeMessageContextMenu = () => {
@@ -787,21 +875,39 @@ export const createWorkspaceChatController = (deps = {}) => {
     return `${fallbackPrefix} #${messageId}`;
   };
 
-  const getReadStateLabel = (chatId, message) => {
+  const getForwardedFromText = (chatId, messageId) => {
+    const linked = getMessageById(chatId, messageId);
+    if (linked) {
+      return resolveMemberName(linked.senderUserId);
+    }
+    return "неизвестного пользователя";
+  };
+
+  const getForwardedSenderDisplayText = (chatId, message) => {
+    const explicitName = normalizeToken(message?.forwardedFromSenderDisplayName);
+    if (explicitName) {
+      return explicitName;
+    }
+
+    const explicitUserId = Number(message?.forwardedFromSenderUserId);
+    if (Number.isFinite(explicitUserId) && explicitUserId > 0) {
+      return resolveMemberName(explicitUserId);
+    }
+
+    return getForwardedFromText(chatId, message?.forwardedFromMessageId);
+  };
+
+  const getReadStateLevel = (chatId, message) => {
     const actorId = Number(getActorUserId());
-    if (!Number.isFinite(actorId) || actorId <= 0) return "";
-    if (Number(message?.senderUserId) !== actorId) return "";
+    if (!Number.isFinite(actorId) || actorId <= 0) return 0;
+    if (Number(message?.senderUserId) !== actorId) return 0;
     const messageId = Number(message?.id);
-    if (!Number.isFinite(messageId) || messageId <= 0) return "";
+    if (!Number.isFinite(messageId) || messageId <= 0) return 0;
 
     const readers = Array.from(getReadMap(chatId).entries())
       .filter(([userId, lastReadMessageId]) => Number(userId) !== actorId && Number(lastReadMessageId) >= messageId);
 
-    if (!readers.length) return "";
-    if (readers.length === 1) {
-      return `Прочитал(а): ${resolveMemberName(readers[0][0])}`;
-    }
-    return `Прочитали: ${readers.length}`;
+    return readers.length > 0 ? 2 : 1;
   };
 
   const updateHeader = (chat) => {
@@ -812,7 +918,7 @@ export const createWorkspaceChatController = (deps = {}) => {
       chatShellSub.textContent = getChatTypeLabel(chat?.type);
     }
     if (chatShellAvatar) {
-      chatShellAvatar.textContent = getChatAvatarText(chat || {});
+      applyChatAvatar(chatShellAvatar, chat || {}, chat?.title || "Чат");
     }
     const selectionActive = isSelectionMode();
     if (chatShellBulkActions instanceof HTMLElement) {
@@ -1226,9 +1332,30 @@ export const createWorkspaceChatController = (deps = {}) => {
   const setMessageAttachments = (messageId, attachments) => {
     const id = Number(messageId);
     if (!Number.isFinite(id) || id <= 0) return;
-    const list = Array.isArray(attachments)
-      ? attachments.map((attachment) => normalizeAttachment(attachment)).filter(Boolean)
-      : [];
+    const pending = getPendingVoiceUpload(id);
+    const list = [];
+    const seen = new Set();
+
+    (Array.isArray(attachments) ? attachments : [])
+      .map((attachment) => normalizeAttachment(attachment))
+      .filter(Boolean)
+      .forEach((attachment) => {
+        const key = String(attachment.id || "").trim();
+        if (!key || seen.has(key)) {
+          return;
+        }
+
+        seen.add(key);
+        list.push({
+          ...attachment,
+          durationMs: attachment.durationMs ?? pending?.durationMs ?? null
+        });
+
+        if (pending?.localUrl) {
+          setAttachmentUrl(attachment.id, pending.localUrl);
+        }
+      });
+
     attachmentsByMessageId.set(id, list);
     if (list.length > 0) {
       clearPendingVoiceUpload(id);
@@ -1261,6 +1388,8 @@ export const createWorkspaceChatController = (deps = {}) => {
       cancel: typeof state?.cancel === "function" ? state.cancel : null,
       fileName: state?.fileName || "voice-message",
       size: Number(state?.size) || 0,
+      durationMs: Number.isFinite(Number(state?.durationMs)) && Number(state?.durationMs) > 0 ? Number(state.durationMs) : null,
+      localUrl: state?.localUrl || "",
       error: state?.error || ""
     });
   };
@@ -1268,6 +1397,18 @@ export const createWorkspaceChatController = (deps = {}) => {
   const clearPendingVoiceUpload = (messageId) => {
     const id = Number(messageId);
     if (!Number.isFinite(id) || id <= 0) return;
+    const pending = pendingVoiceUploadsByMessageId.get(id);
+    if (pending?.localUrl) {
+      const attachmentList = getMessageAttachments(id);
+      const stillUsed = attachmentList.some((attachment) => getAttachmentUrl(attachment.id) === pending.localUrl);
+      if (!stillUsed) {
+        try {
+          URL.revokeObjectURL(pending.localUrl);
+        } catch {
+          // ignore revoke errors
+        }
+      }
+    }
     pendingVoiceUploadsByMessageId.delete(id);
   };
 
@@ -1440,15 +1581,15 @@ export const createWorkspaceChatController = (deps = {}) => {
         entryId: `chat:${chat.id}`,
         kind: "chat",
         chatId: chat.id,
-        userId: null,
+        userId: Number(chat?.directPeerUserId) > 0 ? Number(chat.directPeerUserId) : null,
         type: 3,
-        title: chat.title
+        title: normalizeToken(chat?.directPeerDisplayName) || chat.title
       }));
 
-    const existingTitles = new Set(
+    const existingUserIds = new Set(
       existingDirectChats
-        .map((chat) => normalizeToken(chat?.title).toLowerCase())
-        .filter(Boolean)
+        .map((chat) => Number(chat?.userId))
+        .filter((userId) => Number.isFinite(userId) && userId > 0)
     );
 
     const candidateEntries = (Array.isArray(getWorkspaceMembers()) ? getWorkspaceMembers() : [])
@@ -1458,7 +1599,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         if (Number.isFinite(actorId) && actorId === userId) return null;
 
         const title = normalizeToken(member?.name) || `User ${userId}`;
-        if (existingTitles.has(title.toLowerCase())) {
+        if (existingUserIds.has(userId)) {
           return null;
         }
 
@@ -1552,9 +1693,12 @@ export const createWorkspaceChatController = (deps = {}) => {
 
           const avatar = document.createElement("span");
           avatar.className = "chat-rail-avatar";
-          avatar.textContent = entry.kind === "chat"
-            ? getChatAvatarText(entry)
-            : toInitials(entry.title || "Чат", "DM");
+          if (entry.kind === "chat") {
+            const chat = store.getChatById(entry.chatId) || entry;
+            applyChatAvatar(avatar, chat, entry.title || "Чат");
+          } else {
+            applyAccountAvatarToElement(avatar, null, toInitials(entry.title || "Чат", "DM"), getMemberAvatarPath(entry.userId));
+          }
 
           const meta = document.createElement("span");
           meta.className = "chat-rail-meta";
@@ -1923,6 +2067,7 @@ export const createWorkspaceChatController = (deps = {}) => {
           }
           syncPlayState();
         });
+        playBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
 
         speedBtn.addEventListener("click", () => {
           const steps = [1, 1.5, 2];
@@ -1931,6 +2076,7 @@ export const createWorkspaceChatController = (deps = {}) => {
           audio.playbackRate = nextRate;
           speedBtn.textContent = `${nextRate}x`;
         });
+        speedBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
 
         progress.addEventListener("input", () => {
           const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : initialDuration;
@@ -1938,6 +2084,7 @@ export const createWorkspaceChatController = (deps = {}) => {
           audio.currentTime = Math.max(0, Math.min(duration, Number(progress.value) * duration));
           syncTime();
         });
+        progress.addEventListener("dblclick", suppressMessageSelectionEvent);
 
         waveform.addEventListener("click", (event) => {
           const duration = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : initialDuration;
@@ -1947,6 +2094,7 @@ export const createWorkspaceChatController = (deps = {}) => {
           audio.currentTime = ratio * duration;
           syncTime();
         });
+        waveform.addEventListener("dblclick", suppressMessageSelectionEvent);
 
         audio.addEventListener("loadedmetadata", syncTime);
         audio.addEventListener("timeupdate", syncTime);
@@ -2021,6 +2169,7 @@ export const createWorkspaceChatController = (deps = {}) => {
           anchor.remove();
           URL.revokeObjectURL(url);
         });
+        downloadBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
         actions.appendChild(downloadBtn);
 
         card.append(meta, actions);
@@ -2052,7 +2201,16 @@ export const createWorkspaceChatController = (deps = {}) => {
     const actorUserId = Number(getActorUserId());
     const fragment = document.createDocumentFragment();
 
-    list.forEach((message) => {
+    list.forEach((message, index) => {
+      const currentChat = store.getChatById(chatId);
+      const isDirectChat = Number(currentChat?.type) === 3;
+      const nextMessage = list[index + 1] || null;
+      const shouldReserveAvatarSlot = !isDirectChat;
+      const showSenderAvatar = shouldReserveAvatarSlot
+        && !message.deletedAtUtc
+        && (!nextMessage || Number(nextMessage?.senderUserId) !== Number(message?.senderUserId));
+      const row = document.createElement("div");
+      row.className = "chat-msg-row";
       const item = document.createElement("article");
       item.className = "chat-msg";
       item.addEventListener("contextmenu", (event) => {
@@ -2060,6 +2218,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         openMessageContextMenu(event, chatId, message);
       });
       item.addEventListener("dblclick", (event) => {
+        if (isInteractiveMessageTarget(event.target)) return;
         if (!canSelectMessage(message)) return;
         event.preventDefault();
         toggleSelectedMessage(message.id);
@@ -2069,6 +2228,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         updateHeader(store.getChatById(chatId));
       });
       item.addEventListener("click", (event) => {
+        if (isInteractiveMessageTarget(event.target)) return;
         if (!canSelectMessage(message)) return;
         if (!isSelectionMode()) return;
         event.preventDefault();
@@ -2081,6 +2241,9 @@ export const createWorkspaceChatController = (deps = {}) => {
       if (Number.isFinite(actorUserId) && Number(message.senderUserId) === actorUserId) {
         item.classList.add("is-own");
       }
+      const isOwnMessage = Number.isFinite(actorUserId) && Number(message.senderUserId) === actorUserId;
+      row.classList.toggle("is-own", isOwnMessage);
+      row.classList.toggle("is-avatar-spaced", shouldReserveAvatarSlot && !showSenderAvatar);
       if (message.deletedAtUtc) {
         item.classList.add("is-deleted");
       }
@@ -2092,16 +2255,16 @@ export const createWorkspaceChatController = (deps = {}) => {
       const meta = document.createElement("div");
       meta.className = "chat-msg-meta";
 
-      const author = document.createElement("span");
-      author.className = "chat-msg-author";
-      author.textContent = resolveMemberName(message.senderUserId);
+      if (!isOwnMessage && !isDirectChat) {
+        const author = document.createElement("span");
+        author.className = "chat-msg-author";
+        author.textContent = resolveMemberName(message.senderUserId);
+        meta.appendChild(author);
+      }
 
-      const time = document.createElement("span");
-      time.className = "chat-msg-time";
-      const editedSuffix = message.editedAtUtc ? " · изм." : "";
-      time.textContent = `${formatMessageTime(message.createdAtUtc)}${editedSuffix}`.trim();
-
-      meta.append(author, time);
+      if (meta.childElementCount > 0) {
+        item.appendChild(meta);
+      }
 
       if (message.replyToMessageId || message.forwardedFromMessageId) {
         const refs = document.createElement("div");
@@ -2117,35 +2280,74 @@ export const createWorkspaceChatController = (deps = {}) => {
         if (message.forwardedFromMessageId) {
           const forward = document.createElement("div");
           forward.className = "chat-msg-ref";
-          forward.textContent = `Переслано: ${getReferenceText(chatId, message.forwardedFromMessageId, "Сообщение")}`;
+          forward.textContent = `Переслано от ${getForwardedSenderDisplayText(chatId, message)}`;
           refs.appendChild(forward);
         }
 
-        item.appendChild(meta);
         item.appendChild(refs);
-      } else {
-        item.appendChild(meta);
       }
 
       const shouldRenderBody = message.deletedAtUtc || Number(message.kind) !== 4;
+      let body = null;
       if (shouldRenderBody) {
-        const body = document.createElement("div");
+        body = document.createElement("div");
         body.className = "chat-msg-body";
-        body.textContent = message.body;
+        const bodyText = document.createElement("span");
+        bodyText.className = "chat-msg-body-text";
+        bodyText.textContent = message.body;
+        body.appendChild(bodyText);
         item.appendChild(body);
       }
 
       renderAttachmentCollection(chatId, message, item);
 
-      const readStateLabel = getReadStateLabel(chatId, message);
-      if (readStateLabel) {
-        const readState = document.createElement("div");
-        readState.className = "chat-msg-read-state";
-        readState.textContent = readStateLabel;
-        item.appendChild(readState);
+      const footer = document.createElement("div");
+      footer.className = "chat-msg-footer";
+
+      const time = document.createElement("span");
+      time.className = "chat-msg-time";
+      const editedSuffix = message.editedAtUtc ? " · изм." : "";
+      time.textContent = `${formatMessageTime(message.createdAtUtc)}${editedSuffix}`.trim();
+      footer.appendChild(time);
+
+      const readStateLevel = getReadStateLevel(chatId, message);
+      if (readStateLevel > 0) {
+        const status = document.createElement("span");
+        status.className = "chat-msg-status";
+        status.classList.toggle("is-read", readStateLevel === 2);
+        status.setAttribute("aria-label", readStateLevel === 2 ? "Прочитано" : "Отправлено");
+        status.title = readStateLevel === 2 ? "Прочитано" : "Отправлено";
+        status.textContent = readStateLevel === 2 ? "✓✓" : "✓";
+        footer.appendChild(status);
       }
 
-      fragment.appendChild(item);
+      if (body && Number(message.kind) === 1) {
+        footer.classList.add("is-inline");
+        body.classList.add("is-with-inline-footer");
+        body.appendChild(footer);
+      } else {
+        item.appendChild(footer);
+      }
+
+      if (showSenderAvatar) {
+        const senderAvatar = document.createElement("div");
+        senderAvatar.className = "chat-msg-sender-avatar";
+        applyAccountAvatarToElement(
+          senderAvatar,
+          null,
+          toInitials(resolveMemberName(message.senderUserId), "U"),
+          getMemberAvatarPath(message.senderUserId)
+        );
+        if (isOwnMessage) {
+          row.append(item, senderAvatar);
+        } else {
+          row.append(senderAvatar, item);
+        }
+      } else {
+        row.appendChild(item);
+      }
+
+      fragment.appendChild(row);
     });
 
     chatShellMessages.appendChild(fragment);
@@ -2167,6 +2369,8 @@ export const createWorkspaceChatController = (deps = {}) => {
       bodyCipher: payload?.bodyCipher,
       replyToMessageId: payload?.replyToMessageId,
       forwardedFromMessageId: payload?.forwardedFromMessageId,
+      forwardedFromSenderUserId: payload?.forwardedFromSenderUserId,
+      forwardedFromSenderDisplayName: payload?.forwardedFromSenderDisplayName,
       clientMessageId: payload?.clientMessageId,
       createdAtUtc: payload?.createdAtUtc,
       editedAtUtc: payload?.editedAtUtc,
@@ -2274,16 +2478,16 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const handleRealtimeAttachmentUploaded = (payload) => {
     const chatId = String(payload?.chatId || "").trim();
+    const pending = getPendingVoiceUpload(payload?.messageId);
     const attachment = normalizeAttachment({
       id: payload?.attachmentId,
       messageId: payload?.messageId,
       fileName: payload?.fileName,
       contentType: payload?.contentType,
       size: payload?.size,
-      durationMs: payload?.durationMs
+      durationMs: payload?.durationMs ?? pending?.durationMs
     });
     if (!chatId || !attachment) return;
-    clearPendingVoiceUpload(attachment.messageId);
     const current = getMessageAttachments(attachment.messageId);
     setMessageAttachments(attachment.messageId, [...current, attachment]);
     if (store.getActiveChatId() === chatId) {
@@ -2614,6 +2818,7 @@ export const createWorkspaceChatController = (deps = {}) => {
 
     if (store.isUsingMockData()) {
       await loadPreferencesForChat(targetId);
+      await loadReadStatesForChat(targetId);
       renderMessages(targetId);
       scrollMessagesToBottom();
       renderRailList();
@@ -2632,6 +2837,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     syncComposerUi();
     renderRealtimePresence();
     await loadPreferencesForChat(targetId);
+    await loadReadStatesForChat(targetId);
 
     if (!loaded && previousChatId && previousChatId !== targetId) {
       store.setActiveChatId(previousChatId);
@@ -2647,6 +2853,12 @@ export const createWorkspaceChatController = (deps = {}) => {
     const targetUserId = Number(userId);
     if (!Number.isFinite(targetUserId) || targetUserId <= 0) return;
 
+    const existingDirectChat = store.getChats().find((chat) => Number(chat?.type) === 3 && Number(chat?.directPeerUserId) === targetUserId);
+    if (existingDirectChat?.id) {
+      await openChat(existingDirectChat.id);
+      return;
+    }
+
     if (store.isUsingMockData()) {
       const targetMember = getMemberById(targetUserId);
       const title = normalizeToken(targetMember?.name) || `User ${targetUserId}`;
@@ -2658,6 +2870,8 @@ export const createWorkspaceChatController = (deps = {}) => {
           id: mockId,
           type: 3,
           title,
+          directPeerUserId: targetUserId,
+          directPeerDisplayName: title,
           taskId: null,
           updatedAtUtc: new Date().toISOString()
         };
@@ -2750,6 +2964,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     const label = String(file?.name || "attachment").trim() || "attachment";
     const isVoiceUpload = kind === 4;
     let voiceMessageId = null;
+    let localVoiceUrl = "";
+    let localVoiceDurationMs = null;
     if (!isVoiceUpload) {
       upsertUploadItem({ id: uploadId, label, status: "queued", progress: 0, error: "" });
     }
@@ -2777,6 +2993,8 @@ export const createWorkspaceChatController = (deps = {}) => {
 
       let attachment = null;
       if (isVoiceUpload) {
+        localVoiceUrl = URL.createObjectURL(file);
+        localVoiceDurationMs = await getAudioDurationMs(file);
         const upload = api.startAttachmentUpload(activeChatId, normalizedMessage.id, file, {
           onProgress: (progress) => {
             setPendingVoiceUpload(normalizedMessage.id, {
@@ -2786,7 +3004,9 @@ export const createWorkspaceChatController = (deps = {}) => {
               progress,
               cancel: upload.cancel,
               fileName: label,
-              size: file.size
+              size: file.size,
+              durationMs: localVoiceDurationMs,
+              localUrl: localVoiceUrl
             });
             renderMessages(activeChatId);
           }
@@ -2799,7 +3019,9 @@ export const createWorkspaceChatController = (deps = {}) => {
           progress: 5,
           cancel: upload.cancel,
           fileName: label,
-          size: file.size
+          size: file.size,
+          durationMs: localVoiceDurationMs,
+          localUrl: localVoiceUrl
         });
         renderMessages(activeChatId);
         attachment = await upload.promise;
@@ -2823,7 +3045,10 @@ export const createWorkspaceChatController = (deps = {}) => {
         throw new Error("Не удалось загрузить файл.");
       }
 
-      setMessageAttachments(normalizedMessage.id, [attachment]);
+      setMessageAttachments(normalizedMessage.id, [{
+        ...attachment,
+        durationMs: attachment?.durationMs ?? localVoiceDurationMs
+      }]);
       clearPendingVoiceUpload(normalizedMessage.id);
       if (!isVoiceUpload) {
         upsertUploadItem({ id: uploadId, label, status: "done", progress: 100, error: "" });

@@ -18,6 +18,7 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
     private readonly IChatRoomMemberRepository _memberRepository;
     private readonly IChatReadStateRepository _readStateRepository;
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
+    private readonly IUserRepository _userRepository;
     private readonly IChatRealtimeNotifier _chatRealtimeNotifier;
     private readonly ApplicationDbContext _dbContext;
     private readonly ChatSettings _chatSettings;
@@ -28,6 +29,7 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
         IChatRoomMemberRepository memberRepository,
         IChatReadStateRepository readStateRepository,
         IWorkspaceMemberRepository workspaceMemberRepository,
+        IUserRepository userRepository,
         IChatRealtimeNotifier chatRealtimeNotifier,
         ApplicationDbContext dbContext,
         IOptions<ChatSettings> chatOptions)
@@ -37,6 +39,7 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
         _memberRepository = memberRepository;
         _readStateRepository = readStateRepository;
         _workspaceMemberRepository = workspaceMemberRepository;
+        _userRepository = userRepository;
         _chatRealtimeNotifier = chatRealtimeNotifier;
         _dbContext = dbContext;
         _chatSettings = chatOptions.Value;
@@ -53,7 +56,7 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
         }
 
         var messages = await _messageRepository.GetByChatRoomIdAsync(chatId, limit, beforeMessageId, ct);
-        return messages.Select(MapToDto).ToList();
+        return (await Task.WhenAll(messages.Select(message => MapToDtoAsync(message, ct)))).ToList();
     }
 
     public async Task<ChatMessageDto> SendMessageAsync(Guid chatId, int senderUserId, SendMessageRequest request, CancellationToken ct = default)
@@ -71,7 +74,7 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
             var existing = await _messageRepository.GetByClientMessageIdAsync(chatId, request.ClientMessageId, ct);
             if (existing != null)
             {
-                return MapToDto(existing);
+                return await MapToDtoAsync(existing, ct);
             }
         }
 
@@ -104,15 +107,15 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
             var existing = await _messageRepository.GetByClientMessageIdAsync(chatId, request.ClientMessageId!, ct);
             if (existing != null)
             {
-                return MapToDto(existing);
+                return await MapToDtoAsync(existing, ct);
             }
 
             throw new ConflictException("Message with this clientMessageId already exists.");
         }
 
-        await _chatRealtimeNotifier.MessageCreatedAsync(ToRealtimeMessage(message), ct);
+        await _chatRealtimeNotifier.MessageCreatedAsync(await ToRealtimeMessageAsync(message, ct), ct);
 
-        return MapToDto(message);
+        return await MapToDtoAsync(message, ct);
     }
 
     public async Task<ChatMessageDto> EditMessageAsync(Guid chatId, long messageId, int userId, string? newBodyCipher, CancellationToken ct = default)
@@ -155,9 +158,9 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
         await _messageRepository.UpdateAsync(message, ct);
         await _dbContext.SaveChangesAsync(ct);
 
-        await _chatRealtimeNotifier.MessageUpdatedAsync(ToRealtimeMessage(message), ct);
+        await _chatRealtimeNotifier.MessageUpdatedAsync(await ToRealtimeMessageAsync(message, ct), ct);
 
-        return MapToDto(message);
+        return await MapToDtoAsync(message, ct);
     }
 
     public async Task DeleteMessageAsync(Guid chatId, long messageId, int userId, CancellationToken ct = default)
@@ -272,8 +275,27 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
         return member?.Role == WorkspaceRole.Admin || member?.Role == WorkspaceRole.Owner;
     }
 
-    private static ChatMessageDto MapToDto(ChatMessage message)
+    private async Task<(int? SenderUserId, string? SenderDisplayName)> ResolveForwardedFromAsync(ChatMessage message, CancellationToken ct)
     {
+        if (!message.ForwardedFromMessageId.HasValue || message.ForwardedFromMessageId.Value <= 0)
+        {
+            return (null, null);
+        }
+
+        var originalMessage = await _messageRepository.GetByIdAsync(message.ForwardedFromMessageId.Value, ct);
+        if (originalMessage == null)
+        {
+            return (null, null);
+        }
+
+        var originalSender = await _userRepository.GetByIdAsync(originalMessage.SenderUserId);
+        return (originalMessage.SenderUserId, originalSender?.Name);
+    }
+
+    private async Task<ChatMessageDto> MapToDtoAsync(ChatMessage message, CancellationToken ct)
+    {
+        var forwardedFrom = await ResolveForwardedFromAsync(message, ct);
+
         return new ChatMessageDto
         {
             Id = message.Id,
@@ -283,6 +305,8 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
             BodyCipher = message.BodyCipher,
             ReplyToMessageId = message.ReplyToMessageId,
             ForwardedFromMessageId = message.ForwardedFromMessageId,
+            ForwardedFromSenderUserId = forwardedFrom.SenderUserId,
+            ForwardedFromSenderDisplayName = forwardedFrom.SenderDisplayName,
             ClientMessageId = message.ClientMessageId,
             CreatedAtUtc = message.CreatedAtUtc,
             EditedAtUtc = message.EditedAtUtc,
@@ -290,8 +314,10 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
         };
     }
 
-    private static ChatMessageRealtimeEvent ToRealtimeMessage(ChatMessage message)
+    private async Task<ChatMessageRealtimeEvent> ToRealtimeMessageAsync(ChatMessage message, CancellationToken ct)
     {
+        var forwardedFrom = await ResolveForwardedFromAsync(message, ct);
+
         return new ChatMessageRealtimeEvent(
             message.ChatRoomId,
             message.Id,
@@ -300,6 +326,8 @@ public sealed class ChatMessageServiceImpl : IChatMessageService
             message.BodyCipher,
             message.ReplyToMessageId,
             message.ForwardedFromMessageId,
+            forwardedFrom.SenderUserId,
+            forwardedFrom.SenderDisplayName,
             message.ClientMessageId,
             message.CreatedAtUtc,
             message.EditedAtUtc,

@@ -448,6 +448,24 @@ export const createChatApi = () => {
     return true;
   };
 
+  const getReadStates = async (chatId) => {
+    const response = await request(
+      buildApiUrl(`/chats/${chatId}/read-states`),
+      { headers: JSON_HEADERS },
+      "Загрузка read-state чата"
+    );
+
+    if (!response || !response.ok) {
+      if (response) {
+        await handleApiError(response, "Загрузка read-state чата");
+      }
+      return [];
+    }
+
+    const payload = await parseJson(response);
+    return Array.isArray(payload) ? payload : [];
+  };
+
   const getLatestPreview = async (chatId) => {
     const result = await getMessages(chatId, { limit: 1 });
     if (!result.ok || !Array.isArray(result.data) || !result.data.length) {
@@ -476,6 +494,7 @@ export const createChatApi = () => {
     replyToMessage,
     forwardMessage,
     markAsRead,
+    getReadStates,
     getLatestPreview
   };
 };

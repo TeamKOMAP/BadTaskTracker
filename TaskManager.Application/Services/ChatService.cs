@@ -22,6 +22,8 @@ public class ChatRoomDto
     public ChatRoomType Type { get; set; }
     public string? Title { get; set; }
     public int? TaskId { get; set; }
+    public int? DirectPeerUserId { get; set; }
+    public string? DirectPeerDisplayName { get; set; }
     public int CreatedByUserId { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }

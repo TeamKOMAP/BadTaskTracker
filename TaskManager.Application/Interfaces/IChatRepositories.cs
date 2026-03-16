@@ -48,5 +48,6 @@ public interface IChatReadStateRepository
 {
     Task<ChatReadState?> GetAsync(Guid chatRoomId, int userId, CancellationToken ct = default);
     Task SetAsync(Guid chatRoomId, int userId, long lastReadMessageId, CancellationToken ct = default);
+    Task<List<ChatReadState>> GetByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default);
     Task<List<ChatReadState>> GetByUserIdAsync(int userId, CancellationToken ct = default);
 }

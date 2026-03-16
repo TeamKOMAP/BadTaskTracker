@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TaskManager.Application.Interfaces;
 using TaskManager.Application.Services;
 using TaskManager.API.Security;
 using TaskManager.Domain.Enums;
@@ -13,11 +14,19 @@ public class ChatsController : ControllerBase
 {
     private readonly IChatService _chatService;
     private readonly IChatMessageService _messageService;
+    private readonly IChatRoomMemberRepository _memberRepository;
+    private readonly IChatReadStateRepository _readStateRepository;
 
-    public ChatsController(IChatService chatService, IChatMessageService messageService)
+    public ChatsController(
+        IChatService chatService,
+        IChatMessageService messageService,
+        IChatRoomMemberRepository memberRepository,
+        IChatReadStateRepository readStateRepository)
     {
         _chatService = chatService;
         _messageService = messageService;
+        _memberRepository = memberRepository;
+        _readStateRepository = readStateRepository;
     }
 
     [HttpGet]
@@ -140,6 +149,30 @@ public class ChatsController : ControllerBase
         await _messageService.MarkAsReadAsync(chatId, actorUserId.Value, request.LastReadMessageId);
         return NoContent();
     }
+
+    [HttpGet("{chatId:guid}/read-states")]
+    public async Task<ActionResult<List<ChatReadStateDto>>> GetReadStates([FromRoute] Guid chatId)
+    {
+        var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+        if (!actorUserId.HasValue)
+            return Unauthorized(new { error = "Actor user id is required" });
+
+        if (!await _memberRepository.IsMemberAsync(chatId, actorUserId.Value))
+            return Forbid();
+
+        var states = await _readStateRepository.GetByChatRoomIdAsync(chatId);
+        return Ok(states.Select(state => new ChatReadStateDto
+        {
+            UserId = state.UserId,
+            LastReadMessageId = state.LastReadMessageId
+        }).ToList());
+    }
+}
+
+public class ChatReadStateDto
+{
+    public int UserId { get; set; }
+    public long LastReadMessageId { get; set; }
 }
 
 public class CreateGroupChatRequest

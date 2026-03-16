@@ -252,7 +252,7 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatController } from "../chat/controller.js?v=chat8";
+import { createWorkspaceChatController } from "../chat/controller.js?v=chat24";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
@@ -267,6 +267,8 @@ let currentAssigneeIdFilter = null;
 let currentUserId = null;
 let currentWorkspaceId = null;
 let currentWorkspaceRole = "Member";
+let currentWorkspaceAvatarPath = "";
+let currentWorkspaceName = "Проект";
 
 const notificationsController = createNotificationsPanelController({
   toggleBtn: notificationsToggleBtn,
@@ -1697,6 +1699,8 @@ const setWorkspaceContext = (space) => {
   currentWorkspaceRole = toWorkspaceRole(space?.currentUserRole);
   const workspaceName = normalizeToken(space?.name) || "Проект";
   const avatarPath = normalizeToken(space?.avatarPath);
+  currentWorkspaceName = workspaceName;
+  currentWorkspaceAvatarPath = avatarPath;
 
   if (currentWorkspaceId) {
     try {
@@ -1851,11 +1855,14 @@ chatController = createWorkspaceChatController({
   normalizeToken,
   toInitials,
   getWorkspaceId: () => currentWorkspaceId,
+  getWorkspaceName: () => currentWorkspaceName,
+  getWorkspaceAvatarPath: () => currentWorkspaceAvatarPath,
   getActorUserId,
   getActorDisplayName,
   getMemberById: getWorkspaceMemberById,
   getWorkspaceMembers: () => (Array.isArray(workspaceMembers) ? workspaceMembers : []),
   getWorkspaceRole: () => String(currentWorkspaceRole || "Member"),
+  applyAccountAvatarToElement,
   onOpenTasks: () => {
     setAppScreen("board");
   },

@@ -294,4 +294,11 @@ public class ChatReadStateRepository : IChatReadStateRepository
             .Where(r => r.UserId == userId)
             .ToListAsync(ct);
     }
+
+    public async Task<List<ChatReadState>> GetByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default)
+    {
+        return await _db.ChatReadStates
+            .Where(r => r.ChatRoomId == chatRoomId)
+            .ToListAsync(ct);
+    }
 }

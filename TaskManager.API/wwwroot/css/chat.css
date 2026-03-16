@@ -681,10 +681,23 @@ body[data-theme="light"] .chat-msg-ref {
   font-style: italic;
 }
 
-.chat-msg-read-state {
-  margin-top: 8px;
-  font-size: 12px;
-  opacity: 0.68;
+.chat-msg-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 13px;
+  height: 13px;
+  margin-left: 0;
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: -1px;
+  font-weight: 700;
+  color: rgba(4, 16, 24, 0.68);
+  transform: translateY(-0.25px);
+}
+
+.chat-msg-status.is-read {
+  color: #5fd4ff;
 }
 
 .chat-msg-attachments {

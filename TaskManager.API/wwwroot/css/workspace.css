@@ -438,6 +438,14 @@ body[data-theme="light"] .chat-rail-home:hover {
   letter-spacing: 0.04em;
   background: rgba(255, 255, 255, 0.1);
   color: var(--text-1);
+  overflow: hidden;
+}
+
+.chat-rail-avatar.has-image {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: transparent;
 }
 
 .chat-rail-avatar--home {
@@ -576,6 +584,14 @@ body[data-theme="light"] .chat-shell {
   font-family: "Space Grotesk", sans-serif;
   font-size: 15px;
   font-weight: 700;
+  overflow: hidden;
+}
+
+.chat-shell-avatar.has-image {
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: transparent;
 }
 
 .chat-shell-meta-head {
@@ -631,8 +647,27 @@ body[data-theme="light"] .chat-shell {
   min-height: min-content;
 }
 
-.chat-msg + .chat-msg {
+.chat-msg-row + .chat-msg-row {
   margin-top: 12px;
+}
+
+.chat-msg-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.chat-msg-row.is-avatar-spaced {
+  padding-left: 36px;
+}
+
+.chat-msg-row.is-own {
+  justify-content: flex-end;
+}
+
+.chat-msg-row.is-own.is-avatar-spaced {
+  padding-left: 0;
+  padding-right: 36px;
 }
 
 .chat-msg {
@@ -642,10 +677,31 @@ body[data-theme="light"] .chat-shell {
   border-radius: 14px;
   border: 1px solid var(--stroke);
   background: rgba(14, 19, 26, 0.68);
-  padding: 10px 12px;
+  padding: 10px 12px 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.chat-msg-sender-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, rgba(68, 210, 199, 0.88), rgba(44, 115, 255, 0.84));
+  color: #061018;
+  font-size: 11px;
+  font-weight: 700;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.chat-msg-sender-avatar.has-image {
+  color: transparent;
 }
 
 .chat-msg.is-own {
@@ -662,8 +718,30 @@ body[data-theme="light"] .chat-shell {
 .chat-msg-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
+}
+
+.chat-msg-meta-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.chat-msg-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 4px;
+  align-self: flex-end;
+}
+
+.chat-msg-footer.is-inline {
+  margin-top: 2px;
+  gap: 3px;
+  align-self: auto;
+  transform: translateY(2px);
 }
 
 .chat-msg-author {
@@ -680,12 +758,28 @@ body[data-theme="light"] .chat-shell {
 .chat-msg-time {
   font-size: 11px;
   color: var(--text-3);
+  white-space: nowrap;
 }
 
 .chat-msg-body {
   white-space: pre-wrap;
   line-height: 1.45;
   font-size: 13px;
+}
+
+.chat-msg-body.is-with-inline-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 6px 8px;
+}
+
+.chat-msg-body-text {
+  min-width: 0;
+}
+
+.chat-msg-body.is-with-inline-footer .chat-msg-body-text {
+  flex: 1 1 auto;
 }
 
 .chat-shell-form {
@@ -732,7 +826,7 @@ body[data-theme="light"] .chat-shell-input {
 .chat-msg.is-selection-mode::before {
   content: "";
   position: absolute;
-  left: -32px;
+  right: -32px;
   top: 50%;
   width: 18px;
   height: 18px;
@@ -740,6 +834,11 @@ body[data-theme="light"] .chat-shell-input {
   border: 2px solid rgba(255, 255, 255, 0.34);
   transform: translateY(-50%);
   background: transparent;
+}
+
+.chat-msg.is-own.is-selection-mode::before {
+  left: -32px;
+  right: auto;
 }
 
 .chat-msg.is-selection-mode.is-selected {
@@ -761,13 +860,18 @@ body[data-theme="light"] .chat-shell-input {
 .chat-msg.is-selection-mode.is-selected::after {
   content: "";
   position: absolute;
-  left: -26px;
-  top: calc(50% - 1px);
+  right: -26px;
+  top: 50%;
   width: 6px;
   height: 10px;
   border-right: 2px solid #041018;
   border-bottom: 2px solid #041018;
-  transform: translateY(-50%) rotate(45deg);
+  transform: translate(-18%, -58%) rotate(45deg);
+}
+
+.chat-msg.is-own.is-selection-mode.is-selected::after {
+  left: -26px;
+  right: auto;
 }
 
 .chat-rail:not(.is-expanded) .chat-rail-home,
