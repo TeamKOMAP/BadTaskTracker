@@ -361,8 +361,8 @@ body[data-theme="light"] .app-footer-gh:focus-visible {
 }
 
 body[data-theme="light"] .app-footer-bar {
-  background: rgba(15, 20, 28, 0.85);
-  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.92);
+  color: rgba(15, 20, 28, 0.92);
 }
 
 .app-footer-bar a {
