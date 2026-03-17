@@ -203,6 +203,24 @@ export const createChatApi = () => {
     return await parseJson(response);
   };
 
+  const getMembers = async (chatId) => {
+    const response = await request(
+      buildApiUrl(`/chats/${chatId}/members`),
+      { headers: JSON_HEADERS },
+      "Загрузка участников чата"
+    );
+
+    if (!response || !response.ok) {
+      if (response) {
+        await handleApiError(response, "Загрузка участников чата");
+      }
+      return [];
+    }
+
+    const payload = await parseJson(response);
+    return Array.isArray(payload) ? payload : [];
+  };
+
   const updatePreferences = async (chatId, payload) => {
     const response = await request(
       buildApiUrl(`/chats/${chatId}/preferences`),
@@ -255,6 +273,24 @@ export const createChatApi = () => {
     if (!response || !response.ok) {
       if (response) {
         await handleApiError(response, "Загрузка вложений сообщения");
+      }
+      return [];
+    }
+
+    const payload = await parseJson(response);
+    return Array.isArray(payload) ? payload : [];
+  };
+
+  const getAllAttachments = async (chatId) => {
+    const response = await request(
+      buildApiUrl(`/chats/${chatId}/attachments/all`),
+      { headers: JSON_HEADERS },
+      "Загрузка всех вложений чата"
+    );
+
+    if (!response || !response.ok) {
+      if (response) {
+        await handleApiError(response, "Загрузка всех вложений чата");
       }
       return [];
     }
@@ -480,10 +516,12 @@ export const createChatApi = () => {
     getMessages,
     openDirectChat,
     openTaskChat,
+    getMembers,
     getPreferences,
     updatePreferences,
     updateChatSettings,
     getAttachments,
+    getAllAttachments,
     uploadAttachment,
     startAttachmentUpload,
     downloadAttachmentBlob,

@@ -1,5 +1,6 @@
 export const createProfileModalsController = ({
   getWorkspaceId,
+  getActorUserId,
   buildApiUrl,
   apiFetch,
   handleApiError,
@@ -8,7 +9,8 @@ export const createProfileModalsController = ({
   applyAccountAvatarToElement,
   getRoleLabel,
   statusLabels,
-  toStatusValue
+  toStatusValue,
+  openDirectChat
 } = {}) => {
   const profileModal = document.getElementById("profile-modal");
   const profileUserNameEl = document.getElementById("profile-user-name");
@@ -16,6 +18,7 @@ export const createProfileModalsController = ({
   const profileAvatarTextEl = document.getElementById("profile-avatar-text");
   const profileUserEmailEl = document.getElementById("profile-user-email");
   const profileUserRoleEl = document.getElementById("profile-user-role");
+  const profileChatBtn = document.getElementById("profile-chat-btn");
 
   const profileStatusesChartEl = document.getElementById("profile-statuses-chart");
   const profileStatusesRoot = document.getElementById("profile-statuses");
@@ -35,6 +38,7 @@ export const createProfileModalsController = ({
   const avatarModalAvatarTextEl = document.getElementById("avatar-modal-avatar-text");
 
   let profileReportsRequestSeq = 0;
+  let profileDetailsRequestSeq = 0;
   let activeProfileMember = null;
 
   const isProfileModalOpen = () => Boolean(profileModal && !profileModal.hasAttribute("hidden"));
@@ -440,19 +444,23 @@ export const createProfileModalsController = ({
     }, 0);
   };
 
-  const openProfileModal = (member) => {
-    if (!profileModal) {
-      const name = normalizeToken(member?.name) || "Пользователь";
-      const email = normalizeToken(member?.email) || "-";
-      const role = normalizeToken(member?.role) || "Member";
-      window.alert(`${name}\n\nПочта: ${email}\nРоль: ${getRoleLabel(role)}`);
-      return;
+  const normalizeRoleValue = (value) => {
+    if (typeof value === "number") {
+      return value === 3 ? "Owner" : value === 2 ? "Admin" : "Member";
     }
 
+    const raw = normalizeToken(value);
+    if (raw === "3") return "Owner";
+    if (raw === "2") return "Admin";
+    if (raw === "1") return "Member";
+    return raw || "Member";
+  };
+
+  const applyProfileMemberToUi = (member) => {
     const id = Number(member?.id);
     const name = normalizeToken(member?.name) || "Пользователь";
     const email = normalizeToken(member?.email) || "-";
-    const role = normalizeToken(member?.role) || "Member";
+    const role = normalizeRoleValue(member?.role);
     const initials = toInitials(name || email, "U");
     const avatarPath = normalizeToken(member?.avatarPath);
 
@@ -468,15 +476,87 @@ export const createProfileModalsController = ({
     if (profileUserEmailEl) profileUserEmailEl.textContent = email;
     if (profileUserRoleEl) profileUserRoleEl.textContent = getRoleLabel(role);
     applyAccountAvatarToElement(profileAvatarEl, profileAvatarTextEl, initials, avatarPath);
+  };
+
+  const fetchWorkspaceMemberById = async (userId) => {
+    const workspaceId = typeof getWorkspaceId === "function" ? Number(getWorkspaceId()) : NaN;
+    if (!Number.isFinite(workspaceId) || workspaceId <= 0) return null;
+
+    const response = await apiFetch(buildApiUrl(`/spaces/${workspaceId}/members`), {
+      headers: { Accept: "application/json" }
+    });
+    if (!response.ok) {
+      await handleApiError(response, "Загрузка профиля участника");
+      return null;
+    }
+
+    let members = null;
+    try {
+      members = await response.json();
+    } catch {
+      return null;
+    }
+
+    if (!Array.isArray(members)) return null;
+    const match = members.find((item) => Number(item?.userId ?? item?.id) === Number(userId));
+    if (!match) return null;
+
+    return {
+      id: Number(match?.userId ?? match?.id),
+      name: normalizeToken(match?.name) || normalizeToken(match?.email) || "Пользователь",
+      email: normalizeToken(match?.email) || "-",
+      role: normalizeToken(match?.role) || "Member",
+      avatarPath: normalizeToken(match?.avatarPath)
+    };
+  };
+
+  const openProfileModal = async (member) => {
+    if (!profileModal) {
+      const name = normalizeToken(member?.name) || "Пользователь";
+      const email = normalizeToken(member?.email) || "-";
+      const role = normalizeRoleValue(member?.role);
+      window.alert(`${name}\n\nПочта: ${email}\nРоль: ${getRoleLabel(role)}`);
+      return;
+    }
+
+    const id = Number(member?.id ?? member?.userId);
+    applyProfileMemberToUi({
+      id,
+      name: normalizeToken(member?.name) || "Пользователь",
+      email: normalizeToken(member?.email) || "-",
+      role: normalizeRoleValue(member?.role),
+      avatarPath: normalizeToken(member?.avatarPath)
+    });
+    if (profileChatBtn instanceof HTMLButtonElement) {
+      const actorId = typeof getActorUserId === "function" ? Number(getActorUserId()) : 0;
+      profileChatBtn.hidden = id <= 0 || id === actorId;
+      profileChatBtn.disabled = id <= 0 || id === actorId;
+    }
 
     profileModal.removeAttribute("hidden");
     void renderProfileReports(activeProfileMember);
+    profileDetailsRequestSeq += 1;
+    const seq = profileDetailsRequestSeq;
     window.setTimeout(() => {
       const btn = profileModal.querySelector("button[data-close-profile]");
       if (btn instanceof HTMLElement) {
         btn.focus();
       }
     }, 0);
+
+    if (Number.isFinite(id) && id > 0) {
+      const freshMember = await fetchWorkspaceMemberById(id);
+      if (seq !== profileDetailsRequestSeq || !isProfileModalOpen() || !freshMember) {
+        return;
+      }
+      applyProfileMemberToUi(freshMember);
+      if (profileChatBtn instanceof HTMLButtonElement) {
+        const actorId = typeof getActorUserId === "function" ? Number(getActorUserId()) : 0;
+        profileChatBtn.hidden = id <= 0 || id === actorId;
+        profileChatBtn.disabled = id <= 0 || id === actorId;
+      }
+      void renderProfileReports(activeProfileMember);
+    }
   };
 
   if (profileAvatarEl) {
@@ -485,6 +565,25 @@ export const createProfileModalsController = ({
       event.stopPropagation();
       if (!activeProfileMember) return;
       openAvatarModal(activeProfileMember);
+    });
+  }
+
+  if (profileChatBtn instanceof HTMLButtonElement) {
+    profileChatBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const userId = Number(activeProfileMember?.id);
+      if (!Number.isFinite(userId) || userId <= 0 || typeof openDirectChat !== "function") {
+        return;
+      }
+
+      profileChatBtn.disabled = true;
+      try {
+        await openDirectChat(userId);
+        closeProfileModal();
+      } finally {
+        profileChatBtn.disabled = false;
+      }
     });
   }
 

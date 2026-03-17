@@ -21,18 +21,31 @@ import {
   chatShellBulkForwardBtn,
   chatShellBulkDeleteBtn,
   chatShellSettingsBtn,
+  chatSettingsModal,
+  chatSettingsModalAvatar,
+  chatSettingsModalMain,
+  chatSettingsModalName,
+  chatSettingsModalSub,
   chatSettingsPanel,
   chatSettingsMuted,
-  chatSettingsSound,
   chatSettingsSkipActive,
   chatSettingsRoomBlock,
   chatSettingsTitleWrap,
   chatSettingsTitle,
   chatSettingsBgBlock,
   chatSettingsBgHeading,
-  chatSettingsSwatches,
+  chatSettingsBgPreview,
+  chatSettingsBgUploadBtn,
+  chatSettingsBgRemoveBtn,
+  chatSettingsBgInput,
   chatSettingsNote,
   chatSettingsSaveBtn,
+  chatSettingsMembersCount,
+  chatSettingsMembers,
+  chatSettingsMembersEmpty,
+  chatSettingsAttachmentTabs,
+  chatSettingsAttachments,
+  chatSettingsAttachmentsEmpty,
   chatShellFeed,
   chatShellMessages,
   chatShellEmpty,
@@ -252,14 +265,14 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatController } from "../chat/controller.js?v=chat24";
+import { createWorkspaceChatController } from "../chat/controller.js?v=chat33";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf6";
 import { createTaskDetailController } from "./task-detail.js?v=perf15";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
-import { createProfileModalsController } from "./profile-modals.js?v=profile2";
+import { createProfileModalsController } from "./profile-modals.js?v=profile5";
 
 let lastNormalizedTasks = [];
 
@@ -1810,18 +1823,31 @@ chatController = createWorkspaceChatController({
   chatShellBulkForwardBtn,
   chatShellBulkDeleteBtn,
   chatShellSettingsBtn,
+  chatSettingsModal,
+  chatSettingsModalAvatar,
+  chatSettingsModalMain,
+  chatSettingsModalName,
+  chatSettingsModalSub,
   chatSettingsPanel,
   chatSettingsMuted,
-  chatSettingsSound,
   chatSettingsSkipActive,
   chatSettingsRoomBlock,
   chatSettingsTitleWrap,
   chatSettingsTitle,
   chatSettingsBgBlock,
   chatSettingsBgHeading,
-  chatSettingsSwatches,
+  chatSettingsBgPreview,
+  chatSettingsBgUploadBtn,
+  chatSettingsBgRemoveBtn,
+  chatSettingsBgInput,
   chatSettingsNote,
   chatSettingsSaveBtn,
+  chatSettingsMembersCount,
+  chatSettingsMembers,
+  chatSettingsMembersEmpty,
+  chatSettingsAttachmentTabs,
+  chatSettingsAttachments,
+  chatSettingsAttachmentsEmpty,
   chatShellFeed,
   chatShellMessages,
   chatShellEmpty,
@@ -1863,6 +1889,7 @@ chatController = createWorkspaceChatController({
   getWorkspaceMembers: () => (Array.isArray(workspaceMembers) ? workspaceMembers : []),
   getWorkspaceRole: () => String(currentWorkspaceRole || "Member"),
   applyAccountAvatarToElement,
+  onOpenProfile: (member) => profileModalsController.openProfileModal(member),
   onOpenTasks: () => {
     setAppScreen("board");
   },
@@ -2030,6 +2057,7 @@ const closeUserMiniMenu = () => {
 
 const profileModalsController = createProfileModalsController({
   getWorkspaceId: () => currentWorkspaceId,
+  getActorUserId,
   buildApiUrl,
   apiFetch,
   handleApiError,
@@ -2038,7 +2066,8 @@ const profileModalsController = createProfileModalsController({
   applyAccountAvatarToElement,
   getRoleLabel,
   statusLabels: STATUS_LABELS,
-  toStatusValue
+  toStatusValue,
+  openDirectChat: (userId) => chatController?.openDirectChatByUser(userId)
 });
 
 const WORKSPACE_ROLE_VALUES = {

@@ -149,6 +149,37 @@ const getAudioDurationMs = async (fileOrBlob) => {
   });
 };
 
+const resizeImageToDataUrl = async (file) => {
+  if (!(file instanceof Blob)) return "";
+
+  return await new Promise((resolve) => {
+    const fileReader = new FileReader();
+    fileReader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        const maxSide = 1400;
+        const scale = Math.min(1, maxSide / Math.max(image.width || 1, image.height || 1));
+        const width = Math.max(1, Math.round((image.width || 1) * scale));
+        const height = Math.max(1, Math.round((image.height || 1) * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+        if (!context) {
+          resolve(String(fileReader.result || ""));
+          return;
+        }
+        context.drawImage(image, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.82));
+      };
+      image.onerror = () => resolve(String(fileReader.result || ""));
+      image.src = String(fileReader.result || "");
+    };
+    fileReader.onerror = () => resolve("");
+    fileReader.readAsDataURL(file);
+  });
+};
+
 const hashToken = (value) => {
   const source = String(value || "voice");
   let hash = 0;
@@ -327,18 +358,31 @@ export const createWorkspaceChatController = (deps = {}) => {
   const chatShellBulkForwardBtn = deps.chatShellBulkForwardBtn ?? null;
   const chatShellBulkDeleteBtn = deps.chatShellBulkDeleteBtn ?? null;
   const chatShellSettingsBtn = deps.chatShellSettingsBtn ?? null;
+  const chatSettingsModal = deps.chatSettingsModal ?? null;
+  const chatSettingsModalAvatar = deps.chatSettingsModalAvatar ?? null;
+  const chatSettingsModalMain = deps.chatSettingsModalMain ?? null;
+  const chatSettingsModalName = deps.chatSettingsModalName ?? null;
+  const chatSettingsModalSub = deps.chatSettingsModalSub ?? null;
   const chatSettingsPanel = deps.chatSettingsPanel ?? null;
   const chatSettingsMuted = deps.chatSettingsMuted ?? null;
-  const chatSettingsSound = deps.chatSettingsSound ?? null;
   const chatSettingsSkipActive = deps.chatSettingsSkipActive ?? null;
   const chatSettingsRoomBlock = deps.chatSettingsRoomBlock ?? null;
   const chatSettingsTitleWrap = deps.chatSettingsTitleWrap ?? null;
   const chatSettingsTitle = deps.chatSettingsTitle ?? null;
   const chatSettingsBgBlock = deps.chatSettingsBgBlock ?? null;
   const chatSettingsBgHeading = deps.chatSettingsBgHeading ?? null;
-  const chatSettingsSwatches = deps.chatSettingsSwatches ?? null;
+  const chatSettingsBgPreview = deps.chatSettingsBgPreview ?? null;
+  const chatSettingsBgUploadBtn = deps.chatSettingsBgUploadBtn ?? null;
+  const chatSettingsBgRemoveBtn = deps.chatSettingsBgRemoveBtn ?? null;
+  const chatSettingsBgInput = deps.chatSettingsBgInput ?? null;
   const chatSettingsNote = deps.chatSettingsNote ?? null;
   const chatSettingsSaveBtn = deps.chatSettingsSaveBtn ?? null;
+  const chatSettingsMembersCount = deps.chatSettingsMembersCount ?? null;
+  const chatSettingsMembers = deps.chatSettingsMembers ?? null;
+  const chatSettingsMembersEmpty = deps.chatSettingsMembersEmpty ?? null;
+  const chatSettingsAttachmentTabs = deps.chatSettingsAttachmentTabs ?? null;
+  const chatSettingsAttachments = deps.chatSettingsAttachments ?? null;
+  const chatSettingsAttachmentsEmpty = deps.chatSettingsAttachmentsEmpty ?? null;
   const chatShellFeed = deps.chatShellFeed ?? null;
   const chatShellMessages = deps.chatShellMessages ?? null;
   const chatShellEmpty = deps.chatShellEmpty ?? null;
@@ -389,6 +433,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const getWorkspaceRole = typeof deps.getWorkspaceRole === "function" ? deps.getWorkspaceRole : () => "Member";
   const onOpenTasks = typeof deps.onOpenTasks === "function" ? deps.onOpenTasks : () => {};
   const onOpenChat = typeof deps.onOpenChat === "function" ? deps.onOpenChat : () => {};
+  const onOpenProfile = typeof deps.onOpenProfile === "function" ? deps.onOpenProfile : () => {};
 
   const api = createChatApi();
   const store = createChatStore();
@@ -412,14 +457,17 @@ export const createWorkspaceChatController = (deps = {}) => {
   let voiceRecordingTimerId = 0;
   let voiceRecordingIntent = "cancel";
   let isSettingsOpen = false;
-  let selectedBackground = "default";
+  let selectedBackground = null;
   let settingsSaving = false;
   let contextMenuState = null;
+  let activeAttachmentTab = "all";
 
   const attachmentsByMessageId = new Map();
   const attachmentLoadingByMessageId = new Map();
   const attachmentObjectUrls = new Map();
   const pendingVoiceUploadsByMessageId = new Map();
+  const modalMembersByChatId = new Map();
+  const modalAttachmentsByChatId = new Map();
   const unreadByChatId = new Map();
   const readStateByChatId = new Map();
   const typingByChatId = new Map();
@@ -525,6 +573,35 @@ export const createWorkspaceChatController = (deps = {}) => {
     };
   };
 
+  const normalizeModalMember = (member) => {
+    const userId = Number(member?.userId ?? member?.UserId);
+    if (!Number.isFinite(userId) || userId <= 0) return null;
+    return {
+      userId,
+      name: normalizeToken(member?.name ?? member?.Name) || `User ${userId}`,
+      email: normalizeToken(member?.email ?? member?.Email) || "",
+      avatarPath: normalizeToken(member?.avatarPath ?? member?.AvatarPath) || "",
+      role: String(member?.role ?? member?.Role ?? "Member")
+    };
+  };
+
+  const normalizeModalAttachment = (attachment) => {
+    const id = toChatId(attachment?.id ?? attachment?.Id);
+    const messageId = Number(attachment?.messageId ?? attachment?.MessageId);
+    const senderUserId = Number(attachment?.senderUserId ?? attachment?.SenderUserId);
+    if (!id || !Number.isFinite(messageId) || messageId <= 0) return null;
+    return {
+      id,
+      messageId,
+      senderUserId: Number.isFinite(senderUserId) && senderUserId > 0 ? senderUserId : null,
+      fileName: normalizeToken(attachment?.fileName ?? attachment?.FileName) || "attachment",
+      contentType: normalizeToken(attachment?.contentType ?? attachment?.ContentType) || "application/octet-stream",
+      size: Number(attachment?.size ?? attachment?.Size) || 0,
+      durationMs: Number(attachment?.durationMs ?? attachment?.DurationMs) || null,
+      createdAtUtc: normalizeUtcDateValue(attachment?.createdAtUtc ?? attachment?.CreatedAtUtc ?? "")
+    };
+  };
+
   const setRailExpandedClass = (width) => {
     if (!(chatRail instanceof HTMLElement)) return;
     chatRail.classList.toggle("is-expanded", isChatRailExpanded(width));
@@ -571,6 +648,12 @@ export const createWorkspaceChatController = (deps = {}) => {
     return normalizeToken(member?.avatarPath);
   };
 
+  const getAttachmentTypeKey = (contentType) => {
+    if (isImageContentType(contentType)) return "images";
+    if (isVoiceContentType(contentType)) return "voice";
+    return "files";
+  };
+
   const applyChatAvatar = (element, chat, fallbackTitle) => {
     if (!(element instanceof HTMLElement)) return;
 
@@ -611,6 +694,27 @@ export const createWorkspaceChatController = (deps = {}) => {
     const memberName = normalizeToken(member?.name);
     if (memberName) return memberName;
     return `User ${normalizedUserId}`;
+  };
+
+  const openProfileForUser = (userId) => {
+    const normalizedUserId = Number(userId);
+    if (!Number.isFinite(normalizedUserId) || normalizedUserId <= 0) {
+      return;
+    }
+
+    const member = getMemberById(normalizedUserId);
+    if (member) {
+      onOpenProfile(member);
+      return;
+    }
+
+    onOpenProfile({
+      id: normalizedUserId,
+      name: resolveMemberName(normalizedUserId),
+      email: "",
+      role: "Member",
+      avatarPath: ""
+    });
   };
 
   const getMessageById = (chatId, messageId) => {
@@ -731,6 +835,149 @@ export const createWorkspaceChatController = (deps = {}) => {
     });
     if (store.getActiveChatId() === chatId) {
       renderMessages(chatId);
+    }
+  };
+
+  const renderSettingsMembers = (chatId) => {
+    if (!(chatSettingsMembers instanceof HTMLElement)) return;
+    const members = Array.isArray(modalMembersByChatId.get(String(chatId || ""))) ? modalMembersByChatId.get(String(chatId || "")) : [];
+    chatSettingsMembers.innerHTML = "";
+    if (chatSettingsMembersCount instanceof HTMLElement) {
+      chatSettingsMembersCount.textContent = `${members.length} участников`;
+    }
+    if (!members.length) {
+      if (chatSettingsMembersEmpty instanceof HTMLElement) {
+        chatSettingsMembersEmpty.hidden = false;
+      }
+      return;
+    }
+
+    if (chatSettingsMembersEmpty instanceof HTMLElement) {
+      chatSettingsMembersEmpty.hidden = true;
+    }
+
+    const fragment = document.createDocumentFragment();
+    members.forEach((member) => {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "chat-settings-member";
+
+      const avatar = document.createElement("span");
+      avatar.className = "chat-settings-member-avatar";
+      applyAccountAvatarToElement(avatar, null, toInitials(member.name, "U"), member.avatarPath);
+
+      const meta = document.createElement("span");
+      meta.className = "chat-settings-member-meta";
+      const name = document.createElement("span");
+      name.className = "chat-settings-member-name";
+      name.textContent = member.name;
+      const sub = document.createElement("span");
+      sub.className = "chat-settings-member-sub";
+      sub.textContent = member.email || member.role;
+      meta.append(name, sub);
+
+      item.append(avatar, meta);
+      item.addEventListener("click", () => {
+        closeSettingsModal();
+        onOpenProfile({
+          id: member.userId,
+          name: member.name,
+          email: member.email,
+          role: member.role,
+          avatarPath: member.avatarPath
+        });
+      });
+      fragment.appendChild(item);
+    });
+
+    chatSettingsMembers.appendChild(fragment);
+  };
+
+  const renderSettingsAttachments = (chatId) => {
+    if (!(chatSettingsAttachments instanceof HTMLElement)) return;
+    const allAttachments = Array.isArray(modalAttachmentsByChatId.get(String(chatId || ""))) ? modalAttachmentsByChatId.get(String(chatId || "")) : [];
+    const filtered = activeAttachmentTab === "all"
+      ? allAttachments
+      : allAttachments.filter((attachment) => getAttachmentTypeKey(attachment.contentType) === activeAttachmentTab);
+
+    if (chatSettingsAttachmentTabs instanceof HTMLElement) {
+      chatSettingsAttachmentTabs.querySelectorAll("[data-attachment-tab]").forEach((button) => {
+        button.classList.toggle("is-active", String(button.getAttribute("data-attachment-tab") || "") === activeAttachmentTab);
+      });
+    }
+
+    chatSettingsAttachments.innerHTML = "";
+    if (!filtered.length) {
+      if (chatSettingsAttachmentsEmpty instanceof HTMLElement) {
+        chatSettingsAttachmentsEmpty.hidden = false;
+        chatSettingsAttachmentsEmpty.textContent = allAttachments.length ? "Нет вложений этого типа." : "Нет вложений.";
+      }
+      return;
+    }
+
+    if (chatSettingsAttachmentsEmpty instanceof HTMLElement) {
+      chatSettingsAttachmentsEmpty.hidden = true;
+    }
+
+    const fragment = document.createDocumentFragment();
+    filtered.forEach((attachment) => {
+      const item = document.createElement("div");
+      item.className = "chat-settings-attachment-item";
+      const title = document.createElement("div");
+      title.className = "chat-settings-attachment-title";
+      title.textContent = attachment.fileName;
+      const sub = document.createElement("div");
+      sub.className = "chat-settings-attachment-sub";
+      const sender = attachment.senderUserId ? resolveMemberName(attachment.senderUserId) : "Участник";
+      sub.textContent = `${sender} · ${formatBytes(attachment.size)}${attachment.createdAtUtc ? ` · ${formatMessageTime(attachment.createdAtUtc)}` : ""}`;
+      const actions = document.createElement("div");
+      actions.className = "chat-settings-attachment-actions";
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.className = "chat-msg-action";
+      openBtn.textContent = "Открыть";
+      openBtn.addEventListener("click", async () => {
+        const blob = await api.downloadAttachmentBlob(chatId, attachment.id);
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        window.open(url, "_blank", "noopener,noreferrer");
+        window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+      });
+      const downloadBtn = document.createElement("button");
+      downloadBtn.type = "button";
+      downloadBtn.className = "chat-msg-action";
+      downloadBtn.textContent = "Скачать";
+      downloadBtn.addEventListener("click", async () => {
+        const blob = await api.downloadAttachmentBlob(chatId, attachment.id);
+        if (!blob) return;
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = attachment.fileName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      });
+      actions.append(openBtn, downloadBtn);
+      item.append(title, sub, actions);
+      fragment.appendChild(item);
+    });
+
+    chatSettingsAttachments.appendChild(fragment);
+  };
+
+  const loadSettingsModalData = async (chatId) => {
+    if (!chatId) return;
+    const [members, attachments] = await Promise.all([
+      api.getMembers(chatId),
+      api.getAllAttachments(chatId)
+    ]);
+    modalMembersByChatId.set(String(chatId), members.map((member) => normalizeModalMember(member)).filter(Boolean));
+    modalAttachmentsByChatId.set(String(chatId), attachments.map((attachment) => normalizeModalAttachment(attachment)).filter(Boolean));
+    if (store.getActiveChatId() === chatId && isSettingsOpen) {
+      renderSettingsMembers(chatId);
+      renderSettingsAttachments(chatId);
     }
   };
 
@@ -1066,7 +1313,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
     isTypingSent = false;
     preferencesByChatId.clear();
-    selectedBackground = "default";
+    selectedBackground = null;
   };
 
   const getStoredUiSetting = (chatId) => {
@@ -1095,7 +1342,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     return {
       isMuted: Boolean(persisted?.isMuted),
       soundEnabled: persisted?.soundEnabled !== false,
-      backgroundImageKey: String(persisted?.backgroundImageKey || "").trim() || "default",
+      backgroundImageKey: "",
+      backgroundImageDataUrl: String(ui?.chatBackgroundImageDataUrl || "").trim(),
       suppressActiveSound: ui?.suppressActiveSound !== false
     };
   };
@@ -1106,7 +1354,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     preferencesByChatId.set(key, {
       isMuted: Boolean(preference?.isMuted),
       soundEnabled: preference?.soundEnabled !== false,
-      backgroundImageKey: String(preference?.backgroundImageKey || "").trim() || "default"
+      backgroundImageKey: ""
     });
   };
 
@@ -1120,6 +1368,7 @@ export const createWorkspaceChatController = (deps = {}) => {
 
     return {
       canEditUserPrefs: Boolean(chat),
+      showRoomSettings: Number(chat?.type) !== 3,
       canEditRoomTitle: Number(chat?.type) === 2
         ? isGroupOwner
         : Number(chat?.type) === 1
@@ -1132,6 +1381,34 @@ export const createWorkspaceChatController = (deps = {}) => {
           : false,
       backgroundLabel: Number(chat?.type) === 3 ? "DM background" : "General background"
     };
+  };
+
+  const isDirectChat = (chat) => Number(chat?.type) === 3;
+
+  const openSettingsModal = () => {
+    const activeChatId = store.getActiveChatId();
+    if (!store.getChatById(activeChatId)) return;
+    selectedBackground = null;
+    isSettingsOpen = true;
+    syncSettingsPanel();
+    void loadSettingsModalData(activeChatId);
+  };
+
+  const closeSettingsModal = () => {
+    if (!isSettingsOpen) return false;
+    selectedBackground = null;
+    isSettingsOpen = false;
+    syncSettingsPanel();
+    return true;
+  };
+
+  const openProfileFromSettingsModal = () => {
+    const chat = store.getChatById(store.getActiveChatId());
+    if (!isDirectChat(chat)) return;
+    const peerUserId = Number(chat?.directPeerUserId);
+    if (!Number.isFinite(peerUserId) || peerUserId <= 0) return;
+    closeSettingsModal();
+    openProfileForUser(peerUserId);
   };
 
   const shouldPlayNotificationSound = (chatId, senderUserId) => {
@@ -1174,15 +1451,16 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const applyChatBackground = (chatId, forcedValue = null) => {
     const preference = getPreference(chatId);
-    const value = String(forcedValue || preference?.backgroundImageKey || "default").trim() || "default";
+    const value = forcedValue !== null
+      ? String(forcedValue || "").trim()
+      : String(preference?.backgroundImageDataUrl || "").trim();
     selectedBackground = value;
     if (chatShell instanceof HTMLElement) {
-      chatShell.dataset.chatBg = value;
-    }
-    if (chatSettingsSwatches instanceof HTMLElement) {
-      chatSettingsSwatches.querySelectorAll("[data-bg-value]").forEach((button) => {
-        button.classList.toggle("is-active", String(button.getAttribute("data-bg-value") || "") === value);
-      });
+      if (value) {
+        chatShell.style.setProperty("--chat-custom-bg", `linear-gradient(180deg, rgba(6, 10, 18, 0.34), rgba(6, 10, 18, 0.14)), url('${value.replace(/'/g, "%27")}')`);
+      } else {
+        chatShell.style.removeProperty("--chat-custom-bg");
+      }
     }
   };
 
@@ -1192,39 +1470,75 @@ export const createWorkspaceChatController = (deps = {}) => {
     const preference = getPreference(activeChatId);
     const permissions = getCurrentChatPermissions();
 
+    if (chatSettingsModal instanceof HTMLElement) {
+      chatSettingsModal.hidden = !isSettingsOpen || !chat;
+    }
     if (chatSettingsPanel instanceof HTMLElement) {
-      chatSettingsPanel.hidden = !isSettingsOpen || !chat;
+      chatSettingsPanel.hidden = !chat;
     }
     if (chatShellSettingsBtn instanceof HTMLButtonElement) {
       chatShellSettingsBtn.disabled = !chat;
-      chatShellSettingsBtn.textContent = isSettingsOpen ? "Close" : "Settings";
+      chatShellSettingsBtn.textContent = "Settings";
     }
     if (!chat) return;
 
+    if (chatSettingsModalName instanceof HTMLElement) {
+      chatSettingsModalName.textContent = chat?.title || "Чат";
+    }
+    if (chatSettingsModalSub instanceof HTMLElement) {
+      chatSettingsModalSub.textContent = getChatTypeLabel(chat?.type);
+    }
+    if (chatSettingsModalAvatar instanceof HTMLElement) {
+      applyChatAvatar(chatSettingsModalAvatar, chat, chat?.title || "Чат");
+      chatSettingsModalAvatar.setAttribute("aria-label", isDirectChat(chat) ? "Открыть профиль пользователя" : "Аватар чата");
+    }
+    if (chatSettingsModalMain instanceof HTMLButtonElement) {
+      chatSettingsModalMain.disabled = !isDirectChat(chat);
+    }
+    if (chatSettingsModalAvatar instanceof HTMLButtonElement) {
+      chatSettingsModalAvatar.disabled = !isDirectChat(chat);
+    }
+
     if (chatSettingsMuted instanceof HTMLInputElement) {
       chatSettingsMuted.checked = Boolean(preference.isMuted);
-    }
-    if (chatSettingsSound instanceof HTMLInputElement) {
-      chatSettingsSound.checked = preference.soundEnabled !== false;
     }
     if (chatSettingsSkipActive instanceof HTMLInputElement) {
       chatSettingsSkipActive.checked = preference.suppressActiveSound !== false;
     }
     if (chatSettingsTitleWrap instanceof HTMLElement) {
-      chatSettingsTitleWrap.hidden = !permissions.canEditRoomTitle;
+      chatSettingsTitleWrap.hidden = !permissions.showRoomSettings || !permissions.canEditRoomTitle;
     }
     if (chatSettingsTitle instanceof HTMLInputElement) {
       chatSettingsTitle.value = chat?.title || "";
       chatSettingsTitle.disabled = !permissions.canEditRoomTitle || settingsSaving;
     }
     if (chatSettingsRoomBlock instanceof HTMLElement) {
-      chatSettingsRoomBlock.hidden = !permissions.canEditRoomTitle;
+      chatSettingsRoomBlock.hidden = !permissions.showRoomSettings;
     }
     if (chatSettingsBgBlock instanceof HTMLElement) {
       chatSettingsBgBlock.hidden = !permissions.canEditBackground;
     }
     if (chatSettingsBgHeading instanceof HTMLElement) {
       chatSettingsBgHeading.textContent = permissions.backgroundLabel;
+    }
+    const backgroundValue = selectedBackground !== null
+      ? String(selectedBackground || "")
+      : String(preference.backgroundImageDataUrl || "");
+
+    if (chatSettingsBgPreview instanceof HTMLElement) {
+      chatSettingsBgPreview.textContent = backgroundValue ? "" : "Фон не установлен";
+      if (backgroundValue) {
+        chatSettingsBgPreview.style.backgroundImage = `linear-gradient(180deg, rgba(6, 10, 18, 0.22), rgba(6, 10, 18, 0.08)), url('${backgroundValue.replace(/'/g, "%27")}')`;
+        chatSettingsBgPreview.style.backgroundSize = "cover";
+        chatSettingsBgPreview.style.backgroundPosition = "center";
+      } else {
+        chatSettingsBgPreview.style.removeProperty("background-image");
+        chatSettingsBgPreview.style.removeProperty("background-size");
+        chatSettingsBgPreview.style.removeProperty("background-position");
+      }
+    }
+    if (chatSettingsBgRemoveBtn instanceof HTMLButtonElement) {
+      chatSettingsBgRemoveBtn.hidden = !backgroundValue;
     }
     if (chatSettingsNote instanceof HTMLElement) {
       if (Number(chat?.type) === 2 && !permissions.canEditRoomTitle) {
@@ -1241,7 +1555,9 @@ export const createWorkspaceChatController = (deps = {}) => {
       chatSettingsSaveBtn.disabled = settingsSaving;
       chatSettingsSaveBtn.textContent = settingsSaving ? "Сохраняем..." : "Сохранить";
     }
-    applyChatBackground(activeChatId, selectedBackground || preference.backgroundImageKey);
+    applyChatBackground(activeChatId, backgroundValue);
+    renderSettingsMembers(activeChatId);
+    renderSettingsAttachments(activeChatId);
   };
 
   const getUnreadCount = (chatId) => {
@@ -1513,9 +1829,6 @@ export const createWorkspaceChatController = (deps = {}) => {
     const main = document.createElement("div");
     main.className = "chat-voice-main";
 
-    const top = document.createElement("div");
-    top.className = "chat-voice-top";
-
     const time = document.createElement("div");
     time.className = "chat-voice-time";
     time.textContent = `${Math.round(Number(pending.progress) || 0)}%`;
@@ -1523,8 +1836,6 @@ export const createWorkspaceChatController = (deps = {}) => {
     const status = document.createElement("div");
     status.className = "chat-voice-meta";
     status.textContent = "Отправка голосового сообщения";
-
-    top.append(time, status);
 
     const waveform = document.createElement("div");
     waveform.className = "chat-voice-waveform is-uploading";
@@ -1537,10 +1848,16 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
 
     const meta = document.createElement("div");
-    meta.className = "chat-voice-meta";
-    meta.textContent = formatBytes(pending.size);
+    meta.className = "chat-voice-footer";
+    const metaLeft = document.createElement("div");
+    metaLeft.className = "chat-voice-meta-stack";
+    metaLeft.append(time, status);
+    const metaRight = document.createElement("div");
+    metaRight.className = "chat-voice-meta-extra";
+    metaRight.textContent = formatBytes(pending.size);
+    meta.append(metaLeft, metaRight);
 
-    main.append(top, waveform, meta);
+    main.append(waveform, meta);
     player.append(cancelWrap, main);
     card.appendChild(player);
     parent.appendChild(card);
@@ -1969,9 +2286,6 @@ export const createWorkspaceChatController = (deps = {}) => {
         const main = document.createElement("div");
         main.className = "chat-voice-main";
 
-        const top = document.createElement("div");
-        top.className = "chat-voice-top";
-
         const time = document.createElement("div");
         time.className = "chat-voice-time";
         const initialDuration = Number(attachment.durationMs) > 0 ? Number(attachment.durationMs) / 1000 : 0;
@@ -1981,8 +2295,6 @@ export const createWorkspaceChatController = (deps = {}) => {
         speedBtn.type = "button";
         speedBtn.className = "chat-voice-speed";
         speedBtn.textContent = "1x";
-
-        top.append(time, speedBtn);
 
         const waveform = document.createElement("button");
         waveform.type = "button";
@@ -2009,17 +2321,25 @@ export const createWorkspaceChatController = (deps = {}) => {
         progress.step = "0.01";
         progress.value = "0";
 
-        const meta = document.createElement("div");
-        meta.className = "chat-voice-meta";
-        meta.textContent = formatBytes(attachment.size);
+        const footer = document.createElement("div");
+        footer.className = "chat-voice-footer";
+
+        const metaLeft = document.createElement("div");
+        metaLeft.className = "chat-voice-meta-stack";
+        const size = document.createElement("div");
+        size.className = "chat-voice-meta";
+        size.textContent = formatBytes(attachment.size);
+        metaLeft.append(time, size);
 
         const actions = document.createElement("div");
-        actions.className = "chat-attachment-actions";
+        actions.className = "chat-voice-actions";
 
         const downloadBtn = document.createElement("button");
         downloadBtn.type = "button";
-        downloadBtn.className = "chat-msg-action";
-        downloadBtn.textContent = "Скачать";
+        downloadBtn.className = "chat-voice-download";
+        downloadBtn.setAttribute("aria-label", "Скачать голосовое сообщение");
+        downloadBtn.title = "Скачать";
+        downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 18h14" /></svg>';
         downloadBtn.addEventListener("click", async () => {
           const blob = await api.downloadAttachmentBlob(chatId, attachment.id);
           if (!blob) return;
@@ -2032,7 +2352,9 @@ export const createWorkspaceChatController = (deps = {}) => {
           anchor.remove();
           URL.revokeObjectURL(url);
         });
+        downloadBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
         actions.appendChild(downloadBtn);
+        actions.prepend(speedBtn);
 
         const syncTime = () => {
           const duration = Number.isFinite(audio.duration) && audio.duration > 0
@@ -2122,7 +2444,8 @@ export const createWorkspaceChatController = (deps = {}) => {
             syncTime();
           });
         }
-        main.append(top, waveform, progress, meta, actions);
+        footer.append(metaLeft, actions);
+        main.append(waveform, progress, footer);
         player.append(playBtn, main, audio);
         card.appendChild(player);
       }
@@ -2256,9 +2579,16 @@ export const createWorkspaceChatController = (deps = {}) => {
       meta.className = "chat-msg-meta";
 
       if (!isOwnMessage && !isDirectChat) {
-        const author = document.createElement("span");
-        author.className = "chat-msg-author";
+        const author = document.createElement("button");
+        author.type = "button";
+        author.className = "chat-msg-author chat-msg-author-btn";
         author.textContent = resolveMemberName(message.senderUserId);
+        author.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openProfileForUser(message.senderUserId);
+        });
+        author.addEventListener("dblclick", suppressMessageSelectionEvent);
         meta.appendChild(author);
       }
 
@@ -2330,7 +2660,8 @@ export const createWorkspaceChatController = (deps = {}) => {
       }
 
       if (showSenderAvatar) {
-        const senderAvatar = document.createElement("div");
+        const senderAvatar = document.createElement("button");
+        senderAvatar.type = "button";
         senderAvatar.className = "chat-msg-sender-avatar";
         applyAccountAvatarToElement(
           senderAvatar,
@@ -2338,6 +2669,12 @@ export const createWorkspaceChatController = (deps = {}) => {
           toInitials(resolveMemberName(message.senderUserId), "U"),
           getMemberAvatarPath(message.senderUserId)
         );
+        senderAvatar.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          openProfileForUser(message.senderUserId);
+        });
+        senderAvatar.addEventListener("dblclick", suppressMessageSelectionEvent);
         if (isOwnMessage) {
           row.append(item, senderAvatar);
         } else {
@@ -2568,8 +2905,11 @@ export const createWorkspaceChatController = (deps = {}) => {
   };
 
   const setSettingsOpen = (open) => {
-    isSettingsOpen = Boolean(open);
-    syncSettingsPanel();
+    if (open) {
+      openSettingsModal();
+      return;
+    }
+    closeSettingsModal();
   };
 
   const applyContextMenuAction = async (action) => {
@@ -2643,6 +2983,10 @@ export const createWorkspaceChatController = (deps = {}) => {
     const activeChatId = store.getActiveChatId();
     const chat = store.getChatById(activeChatId);
     if (!activeChatId || !chat) return;
+    const currentPreference = getPreference(activeChatId);
+    const backgroundToPersist = selectedBackground !== null
+      ? String(selectedBackground || "")
+      : String(currentPreference.backgroundImageDataUrl || "");
 
     settingsSaving = true;
     syncSettingsPanel();
@@ -2650,8 +2994,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     const permissions = getCurrentChatPermissions();
     const nextPreference = {
       isMuted: chatSettingsMuted instanceof HTMLInputElement ? chatSettingsMuted.checked : false,
-      soundEnabled: chatSettingsSound instanceof HTMLInputElement ? chatSettingsSound.checked : true,
-      backgroundImageKey: selectedBackground || "default"
+      soundEnabled: true,
+      backgroundImageKey: null
     };
 
     const savedPreference = store.isUsingMockData()
@@ -2663,7 +3007,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
 
     setStoredUiSetting(activeChatId, {
-      suppressActiveSound: chatSettingsSkipActive instanceof HTMLInputElement ? chatSettingsSkipActive.checked : true
+      suppressActiveSound: chatSettingsSkipActive instanceof HTMLInputElement ? chatSettingsSkipActive.checked : true,
+      chatBackgroundImageDataUrl: backgroundToPersist || ""
     });
 
     if (permissions.canEditRoomTitle && chatSettingsTitle instanceof HTMLInputElement) {
@@ -2679,7 +3024,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
 
     settingsSaving = false;
-    applyChatBackground(activeChatId);
+    selectedBackground = backgroundToPersist;
+    applyChatBackground(activeChatId, backgroundToPersist || "");
     renderRailList();
     updateHeader(store.getChatById(activeChatId) || chat);
     syncSettingsPanel();
@@ -2911,6 +3257,10 @@ export const createWorkspaceChatController = (deps = {}) => {
     await realtimeClient.joinChat(normalized.id);
     renderRailList();
     await openChat(normalized.id);
+  };
+
+  const openDirectChatByUser = async (userId) => {
+    await openDirectChat(userId);
   };
 
   const ensureTaskChat = async (taskId, options = {}) => {
@@ -3644,7 +3994,37 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (chatShellSettingsBtn instanceof HTMLButtonElement) {
       chatShellSettingsBtn.addEventListener("click", () => {
         if (!store.getActiveChatId()) return;
-        setSettingsOpen(!isSettingsOpen);
+        openSettingsModal();
+      });
+    }
+
+    if (chatShellAvatar instanceof HTMLElement) {
+      chatShellAvatar.addEventListener("click", () => {
+        if (!store.getActiveChatId()) return;
+        openSettingsModal();
+      });
+    }
+
+    if (chatShellTitle instanceof HTMLElement) {
+      chatShellTitle.addEventListener("click", () => {
+        if (!store.getActiveChatId()) return;
+        openSettingsModal();
+      });
+    }
+
+    if (chatSettingsModalAvatar instanceof HTMLButtonElement) {
+      chatSettingsModalAvatar.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openProfileFromSettingsModal();
+      });
+    }
+
+    if (chatSettingsModalMain instanceof HTMLButtonElement) {
+      chatSettingsModalMain.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openProfileFromSettingsModal();
       });
     }
 
@@ -3678,13 +4058,38 @@ export const createWorkspaceChatController = (deps = {}) => {
       });
     }
 
-    if (chatSettingsSwatches instanceof HTMLElement) {
-      chatSettingsSwatches.querySelectorAll("[data-bg-value]").forEach((button) => {
+    if (chatSettingsAttachmentTabs instanceof HTMLElement) {
+      chatSettingsAttachmentTabs.querySelectorAll("[data-attachment-tab]").forEach((button) => {
         button.addEventListener("click", () => {
-          selectedBackground = String(button.getAttribute("data-bg-value") || "default");
-          applyChatBackground(store.getActiveChatId(), selectedBackground);
-          syncSettingsPanel();
+          activeAttachmentTab = String(button.getAttribute("data-attachment-tab") || "all");
+          renderSettingsAttachments(store.getActiveChatId());
         });
+      });
+    }
+
+    if (chatSettingsBgUploadBtn instanceof HTMLButtonElement) {
+      chatSettingsBgUploadBtn.addEventListener("click", () => {
+        chatSettingsBgInput?.click();
+      });
+    }
+
+    if (chatSettingsBgRemoveBtn instanceof HTMLButtonElement) {
+      chatSettingsBgRemoveBtn.addEventListener("click", () => {
+        selectedBackground = "";
+        applyChatBackground(store.getActiveChatId(), "");
+        syncSettingsPanel();
+      });
+    }
+
+    if (chatSettingsBgInput instanceof HTMLInputElement) {
+      chatSettingsBgInput.addEventListener("change", async () => {
+        const file = chatSettingsBgInput.files?.[0] || null;
+        chatSettingsBgInput.value = "";
+        if (!file) return;
+        const dataUrl = await resizeImageToDataUrl(file);
+        selectedBackground = String(dataUrl || "");
+        applyChatBackground(store.getActiveChatId(), selectedBackground);
+        syncSettingsPanel();
       });
     }
 
@@ -3772,6 +4177,15 @@ export const createWorkspaceChatController = (deps = {}) => {
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         closeMessageContextMenu();
+        closeSettingsModal();
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target || !(chatSettingsModal instanceof HTMLElement) || chatSettingsModal.hidden) return;
+      if (target.closest("[data-close-chat-settings]")) {
+        closeSettingsModal();
       }
     });
 
@@ -3842,6 +4256,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     init,
     refreshChats,
     openChat,
+    openDirectChatByUser,
     ensureTaskChat,
     activateTasks,
     clearWorkspaceData,

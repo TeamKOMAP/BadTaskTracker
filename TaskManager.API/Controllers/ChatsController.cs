@@ -110,6 +110,27 @@ public class ChatsController : ControllerBase
         return NoContent();
     }
 
+    [HttpGet("{chatId:guid}/members")]
+    public async Task<ActionResult<List<ChatMemberDto>>> GetMembers([FromRoute] Guid chatId)
+    {
+        var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+        if (!actorUserId.HasValue)
+            return Unauthorized(new { error = "Actor user id is required" });
+
+        if (!await _memberRepository.IsMemberAsync(chatId, actorUserId.Value))
+            return Forbid();
+
+        var members = await _memberRepository.GetMembersByChatRoomIdAsync(chatId);
+        return Ok(members.Select(member => new ChatMemberDto
+        {
+            UserId = member.UserId,
+            Name = member.User?.Name ?? string.Empty,
+            Email = member.User?.Email ?? string.Empty,
+            AvatarPath = member.User?.AvatarPath,
+            Role = member.Role.ToString()
+        }).ToList());
+    }
+
     [HttpDelete("{chatId:guid}/members/{userId:int}")]
     public async Task<IActionResult> RemoveMember(
         [FromRoute] Guid chatId,
@@ -173,6 +194,15 @@ public class ChatReadStateDto
 {
     public int UserId { get; set; }
     public long LastReadMessageId { get; set; }
+}
+
+public class ChatMemberDto
+{
+    public int UserId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string? AvatarPath { get; set; }
+    public string Role { get; set; } = string.Empty;
 }
 
 public class CreateGroupChatRequest

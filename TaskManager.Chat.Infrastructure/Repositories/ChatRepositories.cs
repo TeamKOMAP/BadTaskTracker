@@ -237,6 +237,13 @@ public class ChatMessageAttachmentRepository : IChatMessageAttachmentRepository
             .ToListAsync(ct);
     }
 
+    public async Task<List<ChatMessageAttachment>> GetByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default)
+    {
+        return await _db.ChatMessageAttachments
+            .Where(a => _db.ChatMessages.Any(m => m.Id == a.MessageId && m.ChatRoomId == chatRoomId))
+            .ToListAsync(ct);
+    }
+
     public Task<ChatMessageAttachment> AddAsync(ChatMessageAttachment attachment, CancellationToken ct = default)
     {
         _db.ChatMessageAttachments.Add(attachment);

@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css?v=base6">
   <link rel="stylesheet" href="css/components.css?v=comp2">
-  <link rel="stylesheet" href="css/chat.css?v=chat3">
+  <link rel="stylesheet" href="css/chat.css?v=chat6">
   <link rel="stylesheet" href="css/workspace.css?v=perf70">
   <link rel="stylesheet" href="css/workspace-members.css?v=wm1">
 </head>
@@ -152,52 +152,7 @@
                 <button class="ghost-btn chat-shell-bulk-btn" id="chat-shell-bulk-forward" type="button">Переслать</button>
                 <button class="ghost-btn chat-shell-bulk-btn is-danger" id="chat-shell-bulk-delete" type="button">Удалить</button>
               </div>
-              <button class="ghost-btn chat-shell-settings-btn" id="chat-shell-settings-btn" type="button">Settings</button>
             </header>
-
-            <section class="chat-settings-panel" id="chat-settings-panel" hidden>
-              <div class="chat-settings-grid">
-                <div class="chat-settings-block">
-                  <span class="chat-settings-heading">User settings</span>
-                  <label class="chat-settings-toggle">
-                    <input id="chat-settings-muted" type="checkbox">
-                    <span>Muted</span>
-                  </label>
-                  <label class="chat-settings-toggle">
-                    <input id="chat-settings-sound" type="checkbox" checked>
-                    <span>Sound enabled</span>
-                  </label>
-                  <label class="chat-settings-toggle">
-                    <input id="chat-settings-skip-active" type="checkbox" checked>
-                    <span>Не играть звук в активной комнате</span>
-                  </label>
-                </div>
-
-                <div class="chat-settings-block" id="chat-settings-room-block" hidden>
-                  <span class="chat-settings-heading">Room settings</span>
-                  <label class="chat-settings-field" id="chat-settings-title-wrap" hidden>
-                    <span>Название</span>
-                    <input id="chat-settings-title" type="text" maxlength="120" placeholder="Название чата">
-                  </label>
-                </div>
-
-                <div class="chat-settings-block" id="chat-settings-bg-block" hidden>
-                  <span class="chat-settings-heading" id="chat-settings-bg-heading">Background</span>
-                  <div class="chat-settings-swatches" id="chat-settings-swatches">
-                    <button class="chat-swatch" type="button" data-bg-value="default">Default</button>
-                    <button class="chat-swatch" type="button" data-bg-value="sand">Sand</button>
-                    <button class="chat-swatch" type="button" data-bg-value="mint">Mint</button>
-                    <button class="chat-swatch" type="button" data-bg-value="ocean">Ocean</button>
-                    <button class="chat-swatch" type="button" data-bg-value="sunset">Sunset</button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="chat-settings-actions">
-                <span class="chat-settings-note" id="chat-settings-note">Настройки применяются к текущему чату.</span>
-                <button class="primary-btn" id="chat-settings-save" type="button">Сохранить</button>
-              </div>
-            </section>
 
             <div class="chat-shell-feed chat-scrollview" id="chat-shell-feed">
               <div class="chat-shell-empty" id="chat-shell-empty">Выберите чат слева, чтобы открыть диалог.</div>
@@ -928,7 +883,10 @@
         <div class="profile-hero-meta">
           <div class="profile-user-name" id="profile-user-name">Пользователь</div>
           <div class="profile-user-email" id="profile-user-email">-</div>
-          <span class="profile-role" id="profile-user-role">-</span>
+          <div class="profile-hero-actions">
+            <span class="profile-role" id="profile-user-role">-</span>
+            <button class="ghost-btn profile-chat-btn" id="profile-chat-btn" type="button">Перейти в чат</button>
+          </div>
         </div>
       </div>
 
@@ -974,6 +932,96 @@
     </div>
   </div>
 
+  <div class="task-modal" id="chat-settings-modal" hidden>
+    <div class="task-modal-backdrop" data-close-chat-settings></div>
+    <div class="task-modal-card chat-settings-modal-card" role="dialog" aria-modal="true" aria-labelledby="chat-settings-modal-title">
+      <div class="task-modal-header">
+        <div>
+          <span class="task-modal-kicker">Чат</span>
+          <h3 class="task-modal-title" id="chat-settings-modal-title">Настройки чата</h3>
+        </div>
+        <button class="icon-btn" type="button" data-close-chat-settings aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 7l10 10M17 7L7 17" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="chat-settings-hero">
+        <button class="chat-settings-hero-avatar" id="chat-settings-modal-avatar" type="button" aria-label="Открыть профиль или чат">CH</button>
+        <button class="chat-settings-hero-main" id="chat-settings-modal-main" type="button">
+          <span class="chat-settings-hero-title" id="chat-settings-modal-name">Чат</span>
+          <span class="chat-settings-hero-sub" id="chat-settings-modal-sub">Настройки текущего чата</span>
+        </button>
+      </div>
+
+      <section class="chat-settings-panel" id="chat-settings-panel" hidden>
+        <div class="chat-settings-grid">
+          <div class="chat-settings-block">
+            <span class="chat-settings-heading">User settings</span>
+            <label class="chat-settings-toggle">
+              <input id="chat-settings-muted" type="checkbox">
+              <span>Muted</span>
+            </label>
+            <label class="chat-settings-toggle">
+              <input id="chat-settings-skip-active" type="checkbox" checked>
+              <span>Не играть звук в активной комнате</span>
+            </label>
+          </div>
+
+          <div class="chat-settings-block" id="chat-settings-room-block" hidden>
+            <span class="chat-settings-heading">Room settings</span>
+            <label class="chat-settings-field" id="chat-settings-title-wrap" hidden>
+              <span>Название</span>
+              <input id="chat-settings-title" type="text" maxlength="120" placeholder="Название чата">
+            </label>
+          </div>
+
+          <div class="chat-settings-block" id="chat-settings-bg-block" hidden>
+            <span class="chat-settings-heading" id="chat-settings-bg-heading">Background</span>
+            <div class="chat-settings-background-card">
+              <div class="chat-settings-background-preview" id="chat-settings-bg-preview">Фон не установлен</div>
+              <div class="chat-settings-background-actions">
+                <button class="ghost-btn" id="chat-settings-bg-upload" type="button">Загрузить картинку</button>
+                <button class="ghost-btn" id="chat-settings-bg-remove" type="button" hidden>Убрать фон</button>
+              </div>
+              <input id="chat-settings-bg-input" type="file" accept="image/*" hidden>
+            </div>
+          </div>
+        </div>
+
+        <div class="chat-settings-actions">
+          <span class="chat-settings-note" id="chat-settings-note">Настройки применяются к текущему чату.</span>
+          <button class="primary-btn" id="chat-settings-save" type="button">Сохранить</button>
+        </div>
+      </section>
+
+      <section class="chat-settings-section">
+        <div class="chat-settings-section-head">
+          <span class="chat-settings-section-title">Участники</span>
+          <span class="chat-settings-section-sub" id="chat-settings-members-count">0 участников</span>
+        </div>
+        <div class="chat-settings-members" id="chat-settings-members"></div>
+        <div class="chat-settings-empty" id="chat-settings-members-empty" hidden>Нет участников.</div>
+      </section>
+
+      <section class="chat-settings-section">
+        <div class="chat-settings-section-head">
+          <span class="chat-settings-section-title">Вложения</span>
+          <span class="chat-settings-section-sub">Все вложения этого чата</span>
+        </div>
+        <div class="chat-settings-tabs" id="chat-settings-attachment-tabs">
+          <button class="chat-settings-tab is-active" type="button" data-attachment-tab="all">Все</button>
+          <button class="chat-settings-tab" type="button" data-attachment-tab="images">Изображения</button>
+          <button class="chat-settings-tab" type="button" data-attachment-tab="voice">Голосовые</button>
+          <button class="chat-settings-tab" type="button" data-attachment-tab="files">Файлы</button>
+        </div>
+        <div class="chat-settings-attachments" id="chat-settings-attachments"></div>
+        <div class="chat-settings-empty" id="chat-settings-attachments-empty" hidden>Нет вложений.</div>
+      </section>
+    </div>
+  </div>
+
   <div class="task-modal" id="avatar-modal" hidden>
     <div class="task-modal-backdrop" data-close-avatar></div>
     <div class="task-modal-card avatar-modal-card" role="dialog" aria-modal="true" aria-labelledby="avatar-modal-title">
@@ -1000,6 +1048,6 @@
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
-  <script type="module" src="js/workspace/main.js?v=authflow105"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow116"></script>
 </body>
 </html>

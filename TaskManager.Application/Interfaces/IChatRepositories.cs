@@ -40,6 +40,7 @@ public interface IChatMessageAttachmentRepository
 {
     Task<ChatMessageAttachment?> GetByIdAsync(Guid attachmentId, CancellationToken ct = default);
     Task<List<ChatMessageAttachment>> GetByMessageIdAsync(long messageId, CancellationToken ct = default);
+    Task<List<ChatMessageAttachment>> GetByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default);
     Task<ChatMessageAttachment> AddAsync(ChatMessageAttachment attachment, CancellationToken ct = default);
     Task DeleteAsync(Guid attachmentId, CancellationToken ct = default);
 }

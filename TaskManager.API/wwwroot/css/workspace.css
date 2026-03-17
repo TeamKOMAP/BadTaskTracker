@@ -684,6 +684,7 @@ body[data-theme="light"] .chat-shell {
 }
 
 .chat-msg-sender-avatar {
+  appearance: none;
   width: 28px;
   height: 28px;
   border-radius: 999px;
@@ -698,10 +699,30 @@ body[data-theme="light"] .chat-shell {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  border: 0;
+  cursor: pointer;
 }
 
 .chat-msg-sender-avatar.has-image {
   color: transparent;
+}
+
+.chat-msg-author-btn {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chat-msg-author-btn:hover,
+.chat-msg-author-btn:focus-visible,
+.chat-msg-sender-avatar:hover,
+.chat-msg-sender-avatar:focus-visible {
+  opacity: 0.86;
+  outline: none;
 }
 
 .chat-msg.is-own {
@@ -3414,6 +3435,17 @@ body[data-theme="light"] .profile-avatar:focus-visible {
   flex-direction: column;
   gap: 6px;
   min-width: 0;
+}
+
+.profile-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.profile-chat-btn[hidden] {
+  display: none !important;
 }
 
 .profile-user-name {
