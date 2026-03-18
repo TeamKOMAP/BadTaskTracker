@@ -9,6 +9,7 @@ import {
   workspaceMain,
   chatRail,
   chatRailList,
+  chatRailTabs,
   chatRailEmpty,
   chatRailResizer,
   chatHomeBtn,
@@ -265,7 +266,7 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatController } from "../chat/controller.js?v=chat33";
+import { createWorkspaceChatController } from "../chat/controller.js?v=chat40";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
@@ -1811,6 +1812,7 @@ const setAppScreen = (screen) => {
 chatController = createWorkspaceChatController({
   chatRail,
   chatRailList,
+  chatRailTabs,
   chatRailEmpty,
   chatRailResizer,
   chatHomeBtn,

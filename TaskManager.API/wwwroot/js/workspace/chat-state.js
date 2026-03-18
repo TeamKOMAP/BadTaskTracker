@@ -1,9 +1,9 @@
 export const CHAT_RAIL_MIN_WIDTH = 78;
-export const CHAT_RAIL_MAX_WIDTH = 360;
-export const CHAT_RAIL_DEFAULT_WIDTH = 248;
-export const CHAT_RAIL_EXPANDED_THRESHOLD = 188;
+export const CHAT_RAIL_MAX_WIDTH = 345;
+export const CHAT_RAIL_DEFAULT_WIDTH = 345;
+export const CHAT_RAIL_EXPANDED_THRESHOLD = 225;
 
-const CHAT_RAIL_WIDTH_STORAGE_KEY = "gtt-chat-rail-width";
+const CHAT_RAIL_WIDTH_STORAGE_KEY = "gtt-chat-rail-width-v2";
 
 export const clampChatRailWidth = (value) => {
   const raw = Number(value);
@@ -21,7 +21,8 @@ export const isChatRailExpanded = (width) => {
 export const readStoredChatRailWidth = () => {
   try {
     const raw = localStorage.getItem(CHAT_RAIL_WIDTH_STORAGE_KEY);
-    return clampChatRailWidth(raw);
+    const width = clampChatRailWidth(raw);
+    return width >= CHAT_RAIL_EXPANDED_THRESHOLD ? width : CHAT_RAIL_DEFAULT_WIDTH;
   } catch {
     return CHAT_RAIL_DEFAULT_WIDTH;
   }

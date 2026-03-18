@@ -509,6 +509,8 @@ body[data-theme="light"] .chat-rail-home:hover {
   border: none;
   background: transparent;
   padding: 0;
+  z-index: 6;
+  touch-action: none;
 }
 
 .chat-rail-resizer::before {

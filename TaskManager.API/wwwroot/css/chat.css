@@ -25,33 +25,43 @@
   background-clip: padding-box;
 }
 
-.chat-rail-section {
-  display: grid;
+.chat-rail-tabs {
+  display: flex;
   gap: 8px;
+  padding: 8px 4px 10px 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
-.chat-rail-section + .chat-rail-section {
-  margin-top: 10px;
+.chat-rail-tabs::-webkit-scrollbar {
+  display: none;
 }
 
-.chat-rail-section-title {
-  padding: 0 10px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  opacity: 0.72;
-}
-
-.chat-rail-section-list {
-  display: grid;
-  gap: 6px;
-}
-
-.chat-rail-section-empty {
-  padding: 0 10px;
+.chat-rail-tab {
+  appearance: none;
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  font: inherit;
   font-size: 12px;
-  opacity: 0.58;
+  cursor: pointer;
+}
+
+.chat-rail-tab.is-active {
+  border-color: rgba(68, 210, 199, 0.42);
+  background: rgba(68, 210, 199, 0.12);
+}
+
+.chat-rail:not(.is-expanded) .chat-rail-tab:not(.is-active) {
+  display: none;
+}
+
+.chat-rail:not(.is-expanded) .chat-rail-tabs {
+  justify-content: center;
 }
 
 .chat-rail-badge {

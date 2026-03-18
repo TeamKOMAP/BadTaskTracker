@@ -6,7 +6,7 @@ import {
   isChatRailExpanded,
   readStoredChatRailWidth,
   storeChatRailWidth
-} from "../workspace/chat-state.js?v=chatstate1";
+} from "../workspace/chat-state.js?v=chatstate2";
 import { createChatApi } from "./api.js?v=chat5";
 import { createChatStore } from "./store.js?v=chat4";
 import { createChatSignalRClient } from "./signalr-client.js?v=chatrt1";
@@ -16,6 +16,8 @@ const CHAT_PAGE_SIZE = 30;
 const CHAT_SETTINGS_STORAGE_KEY = "gtt-chat-ui-settings-v1";
 const CHAT_BOTTOM_THRESHOLD_PX = 96;
 const CHAT_TOP_THRESHOLD_PX = 56;
+const CHAT_RAIL_COLLAPSE_DRAG_OFFSET = 22;
+const CHAT_RAIL_EXPAND_DRAG_OFFSET = 18;
 
 const CHAT_TYPE_LABELS = {
   1: "General",
@@ -23,6 +25,14 @@ const CHAT_TYPE_LABELS = {
   3: "DM",
   4: "Task"
 };
+
+const CHAT_RAIL_TABS = [
+  { key: "all", label: "Все" },
+  { key: "general", label: "Общие" },
+  { key: "groups", label: "Группы" },
+  { key: "tasks", label: "Задачи" },
+  { key: "direct", label: "ЛС" }
+];
 
 const createComposerState = () => ({
   mode: "compose",
@@ -345,6 +355,7 @@ const buildMockChats = ({ getActorUserId, getActorDisplayName, getWorkspaceMembe
 export const createWorkspaceChatController = (deps = {}) => {
   const chatRail = deps.chatRail ?? null;
   const chatRailList = deps.chatRailList ?? null;
+  const chatRailTabs = deps.chatRailTabs ?? null;
   const chatRailEmpty = deps.chatRailEmpty ?? null;
   const chatRailResizer = deps.chatRailResizer ?? null;
   const chatHomeBtn = deps.chatHomeBtn ?? null;
@@ -440,6 +451,7 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   let initialized = false;
   let currentRailWidth = CHAT_RAIL_DEFAULT_WIDTH;
+  let activeRailTab = "all";
   let isLoadingMessages = false;
   let isLoadingOlderMessages = false;
   let isSendingMessage = false;
@@ -611,8 +623,11 @@ export const createWorkspaceChatController = (deps = {}) => {
     currentRailWidth = clampChatRailWidth(width);
     if (chatRail instanceof HTMLElement) {
       chatRail.style.setProperty("--chat-rail-width", `${currentRailWidth}px`);
+      chatRail.style.flex = `0 0 ${currentRailWidth}px`;
+      chatRail.style.flexBasis = `${currentRailWidth}px`;
       chatRail.style.width = `${currentRailWidth}px`;
       chatRail.style.minWidth = `${currentRailWidth}px`;
+      chatRail.style.maxWidth = `${currentRailWidth}px`;
     }
     setRailExpandedClass(currentRailWidth);
     if (persist) {
@@ -671,6 +686,13 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
 
     applyAccountAvatarToElement(element, null, toInitials(fallbackTitle || chat?.title || "GR", "GR"), "");
+  };
+
+  const syncHomeButtonAvatar = () => {
+    if (!(chatHomeBtn instanceof HTMLButtonElement)) return;
+    const avatar = chatHomeBtn.querySelector(".chat-rail-avatar--home");
+    if (!(avatar instanceof HTMLElement)) return;
+    applyAccountAvatarToElement(avatar, null, toInitials(getWorkspaceName(), "TS"), getWorkspaceAvatarPath());
   };
 
   const getChatPreview = (chatId) => {
@@ -1967,94 +1989,99 @@ export const createWorkspaceChatController = (deps = {}) => {
     ];
   };
 
+  const renderRailTabs = () => {
+    if (!(chatRailTabs instanceof HTMLElement)) return;
+    chatRailTabs.innerHTML = "";
+
+    const fragment = document.createDocumentFragment();
+    CHAT_RAIL_TABS.forEach((tab) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "chat-rail-tab";
+      button.textContent = tab.label;
+      button.classList.toggle("is-active", tab.key === activeRailTab);
+      button.addEventListener("click", () => {
+        activeRailTab = tab.key;
+        renderRailTabs();
+        renderRailList();
+      });
+      fragment.appendChild(button);
+    });
+
+    chatRailTabs.appendChild(fragment);
+  };
+
+  const getEntriesForActiveRailTab = (sections) => {
+    if (activeRailTab === "all") {
+      return sections.flatMap((section) => section.entries);
+    }
+    const match = sections.find((section) => section.key === activeRailTab);
+    return match?.entries || [];
+  };
+
   const renderRailList = () => {
     if (!(chatRailList instanceof HTMLElement)) return;
 
     chatRailList.innerHTML = "";
+    syncHomeButtonAvatar();
     const fragment = document.createDocumentFragment();
     const sections = buildSections();
+    const entries = getEntriesForActiveRailTab(sections);
     const activeChatId = store.getActiveChatId();
-    let totalEntries = 0;
+    entries.forEach((entry) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "chat-rail-item";
+      if (entry.chatId) {
+        button.dataset.chatId = entry.chatId;
+      }
+      if (Number.isFinite(Number(entry.userId)) && Number(entry.userId) > 0) {
+        button.dataset.userId = String(entry.userId);
+      }
+      button.classList.toggle("is-active", Boolean(entry.chatId) && entry.chatId === activeChatId);
 
-    sections.forEach((section) => {
-      totalEntries += section.entries.length;
-
-      const sectionEl = document.createElement("section");
-      sectionEl.className = "chat-rail-section";
-
-      const heading = document.createElement("div");
-      heading.className = "chat-rail-section-title";
-      heading.textContent = section.title;
-      sectionEl.appendChild(heading);
-
-      const list = document.createElement("div");
-      list.className = "chat-rail-section-list";
-
-      if (!section.entries.length) {
-        const empty = document.createElement("div");
-        empty.className = "chat-rail-section-empty";
-        empty.textContent = "Пока пусто";
-        list.appendChild(empty);
+      const avatar = document.createElement("span");
+      avatar.className = "chat-rail-avatar";
+      if (entry.kind === "chat") {
+        const chat = store.getChatById(entry.chatId) || entry;
+        applyChatAvatar(avatar, chat, entry.title || "Чат");
       } else {
-        section.entries.forEach((entry) => {
-          const button = document.createElement("button");
-          button.type = "button";
-          button.className = "chat-rail-item";
-          if (entry.chatId) {
-            button.dataset.chatId = entry.chatId;
-          }
-          if (Number.isFinite(Number(entry.userId)) && Number(entry.userId) > 0) {
-            button.dataset.userId = String(entry.userId);
-          }
-          button.classList.toggle("is-active", Boolean(entry.chatId) && entry.chatId === activeChatId);
-
-          const avatar = document.createElement("span");
-          avatar.className = "chat-rail-avatar";
-          if (entry.kind === "chat") {
-            const chat = store.getChatById(entry.chatId) || entry;
-            applyChatAvatar(avatar, chat, entry.title || "Чат");
-          } else {
-            applyAccountAvatarToElement(avatar, null, toInitials(entry.title || "Чат", "DM"), getMemberAvatarPath(entry.userId));
-          }
-
-          const meta = document.createElement("span");
-          meta.className = "chat-rail-meta";
-
-          const name = document.createElement("span");
-          name.className = "chat-rail-name";
-          name.textContent = entry.title;
-
-          const preview = document.createElement("span");
-          preview.className = "chat-rail-preview";
-          preview.textContent = entry.chatId ? getChatPreview(entry.chatId) : "Открыть диалог";
-
-          meta.append(name, preview);
-          button.append(avatar, meta);
-
-          if (entry.chatId) {
-            const unread = getUnreadCount(entry.chatId);
-            if (unread > 0) {
-              const badge = document.createElement("span");
-              badge.className = "chat-rail-badge";
-              badge.textContent = unread > 99 ? "99+" : String(unread);
-              button.appendChild(badge);
-            }
-          }
-
-          button.addEventListener("click", async () => {
-            if (entry.kind === "direct") {
-              await openDirectChat(entry.userId);
-              return;
-            }
-            await openChat(entry.chatId);
-          });
-
-          list.appendChild(button);
-        });
+        applyAccountAvatarToElement(avatar, null, toInitials(entry.title || "Чат", "DM"), getMemberAvatarPath(entry.userId));
       }
 
-      sectionEl.appendChild(list);
-      fragment.appendChild(sectionEl);
+      const meta = document.createElement("span");
+      meta.className = "chat-rail-meta";
+
+      const name = document.createElement("span");
+      name.className = "chat-rail-name";
+      name.textContent = entry.title;
+
+      const preview = document.createElement("span");
+      preview.className = "chat-rail-preview";
+      preview.textContent = entry.chatId ? getChatPreview(entry.chatId) : "Открыть диалог";
+
+      meta.append(name, preview);
+      button.append(avatar, meta);
+
+      if (entry.chatId) {
+        const unread = getUnreadCount(entry.chatId);
+        if (unread > 0) {
+          const badge = document.createElement("span");
+          badge.className = "chat-rail-badge";
+          badge.textContent = unread > 99 ? "99+" : String(unread);
+          button.appendChild(badge);
+        }
+      }
+
+      button.addEventListener("click", async () => {
+        if (entry.kind === "direct") {
+          await openDirectChat(entry.userId);
+          return;
+        }
+        await openChat(entry.chatId);
+      });
+
+      fragment.appendChild(button);
     });
 
     chatRailList.appendChild(fragment);
@@ -2064,7 +2091,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
 
     if (chatRailEmpty instanceof HTMLElement) {
-      chatRailEmpty.toggleAttribute("hidden", totalEntries > 0 || !store.isFeatureEnabled());
+      chatRailEmpty.textContent = store.isFeatureEnabled() ? "В этой вкладке пока пусто." : "Чаты недоступны в этом окружении.";
+      chatRailEmpty.toggleAttribute("hidden", entries.length > 0 || !store.isFeatureEnabled());
     }
   };
 
@@ -3929,6 +3957,13 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const stopResize = () => {
     if (!dragState) return;
+    if (chatRailResizer instanceof HTMLElement && Number.isFinite(dragState.pointerId)) {
+      try {
+        chatRailResizer.releasePointerCapture(dragState.pointerId);
+      } catch {
+        // ignore pointer capture failures
+      }
+    }
     dragState = null;
     document.body.classList.remove("is-chat-rail-resizing");
     document.removeEventListener("pointermove", handleResizeMove);
@@ -3939,15 +3974,56 @@ export const createWorkspaceChatController = (deps = {}) => {
   const handleResizeMove = (event) => {
     if (!dragState) return;
     const deltaX = event.clientX - dragState.startX;
-    setRailWidth(dragState.startWidth + deltaX, true);
+    const requestedWidth = clampChatRailWidth(dragState.startWidth + deltaX);
+    const collapseTriggerWidth = CHAT_RAIL_EXPANDED_THRESHOLD - CHAT_RAIL_COLLAPSE_DRAG_OFFSET;
+    const expandTriggerWidth = CHAT_RAIL_MIN_WIDTH + CHAT_RAIL_EXPAND_DRAG_OFFSET;
+
+    if (dragState.startWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
+      if (requestedWidth <= expandTriggerWidth) {
+        setRailWidth(CHAT_RAIL_MIN_WIDTH, true);
+      } else {
+        setRailWidth(Math.max(CHAT_RAIL_EXPANDED_THRESHOLD, requestedWidth), true);
+      }
+      return;
+    }
+
+    if (dragState.startWidth > CHAT_RAIL_EXPANDED_THRESHOLD && requestedWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
+      dragState.thresholdHold = true;
+      setRailWidth(CHAT_RAIL_EXPANDED_THRESHOLD, true);
+      return;
+    }
+
+    if ((dragState.thresholdHold || dragState.startWidth === CHAT_RAIL_EXPANDED_THRESHOLD) && requestedWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
+      if (requestedWidth <= collapseTriggerWidth) {
+        setRailWidth(CHAT_RAIL_MIN_WIDTH, true);
+      } else {
+        setRailWidth(CHAT_RAIL_EXPANDED_THRESHOLD, true);
+      }
+      return;
+    }
+
+    if (requestedWidth >= CHAT_RAIL_EXPANDED_THRESHOLD) {
+      dragState.thresholdHold = false;
+    }
+
+    setRailWidth(requestedWidth, true);
   };
 
   const startResize = (event) => {
     event.preventDefault();
     dragState = {
       startX: event.clientX,
-      startWidth: currentRailWidth
+      startWidth: currentRailWidth,
+      thresholdHold: false,
+      pointerId: event.pointerId
     };
+    if (chatRailResizer instanceof HTMLElement && Number.isFinite(event.pointerId)) {
+      try {
+        chatRailResizer.setPointerCapture(event.pointerId);
+      } catch {
+        // ignore pointer capture failures
+      }
+    }
     document.body.classList.add("is-chat-rail-resizing");
     document.addEventListener("pointermove", handleResizeMove);
     document.addEventListener("pointerup", stopResize);
@@ -3958,11 +4034,23 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (!event) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
+      if (currentRailWidth > CHAT_RAIL_EXPANDED_THRESHOLD) {
+        setRailWidth(Math.max(CHAT_RAIL_EXPANDED_THRESHOLD, currentRailWidth - 16), true);
+        return;
+      }
+      if (currentRailWidth === CHAT_RAIL_EXPANDED_THRESHOLD) {
+        setRailWidth(CHAT_RAIL_MIN_WIDTH, true);
+        return;
+      }
       setRailWidth(currentRailWidth - 16, true);
       return;
     }
     if (event.key === "ArrowRight") {
       event.preventDefault();
+      if (currentRailWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
+        setRailWidth(CHAT_RAIL_EXPANDED_THRESHOLD, true);
+        return;
+      }
       setRailWidth(currentRailWidth + 16, true);
       return;
     }
@@ -3982,6 +4070,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     initialized = true;
 
     setRailWidth(readStoredChatRailWidth(), false);
+    renderRailTabs();
     renderRailList();
     showChatPlaceholder("Выберите чат", "Диалог внутри проекта", "Выберите чат слева, чтобы открыть диалог.");
 

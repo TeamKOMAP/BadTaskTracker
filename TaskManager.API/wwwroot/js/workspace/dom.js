@@ -10,6 +10,7 @@ export const workspaceMain = document.getElementById("workspace-main");
 
 export const chatRail = document.getElementById("chat-rail");
 export const chatRailList = document.getElementById("chat-rail-list");
+export const chatRailTabs = document.getElementById("chat-rail-tabs");
 export const chatRailEmpty = document.getElementById("chat-rail-empty");
 export const chatRailResizer = document.getElementById("chat-rail-resizer");
 export const chatHomeBtn = document.getElementById("chat-home-btn");
