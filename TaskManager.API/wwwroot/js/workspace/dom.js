@@ -87,10 +87,6 @@ export const addColumnMenu = document.getElementById("add-column-menu");
 
 export const viewButtons = document.querySelectorAll(".view-btn");
 export const viewToggle = document.querySelector(".view-toggle");
-export const styleToggle = document.getElementById("style-toggle");
-export const styleSwitch = document.getElementById("style-switch");
-export const styleToggleTitleEl = document.getElementById("style-toggle-title");
-export const styleToggleSubEl = document.getElementById("style-toggle-sub");
 
 export const boardToolbar = document.getElementById("board-toolbar");
 export const boardSearchInput = document.getElementById("board-search");

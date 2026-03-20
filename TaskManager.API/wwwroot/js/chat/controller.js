@@ -2,6 +2,7 @@ import {
   CHAT_RAIL_MIN_WIDTH,
   CHAT_RAIL_MAX_WIDTH,
   CHAT_RAIL_DEFAULT_WIDTH,
+  CHAT_RAIL_EXPANDED_THRESHOLD,
   clampChatRailWidth,
   isChatRailExpanded,
   readStoredChatRailWidth,
@@ -16,6 +17,8 @@ const CHAT_PAGE_SIZE = 30;
 const CHAT_SETTINGS_STORAGE_KEY = "gtt-chat-ui-settings-v1";
 const CHAT_BOTTOM_THRESHOLD_PX = 96;
 const CHAT_TOP_THRESHOLD_PX = 56;
+const CHAT_MESSAGE_WINDOW_SIZE = 140;
+const CHAT_MESSAGE_WINDOW_EXPAND_STEP = 70;
 const CHAT_RAIL_COLLAPSE_DRAG_OFFSET = 22;
 const CHAT_RAIL_EXPAND_DRAG_OFFSET = 18;
 
@@ -480,6 +483,8 @@ export const createWorkspaceChatController = (deps = {}) => {
   const pendingVoiceUploadsByMessageId = new Map();
   const modalMembersByChatId = new Map();
   const modalAttachmentsByChatId = new Map();
+  const messageRenderWindowByChatId = new Map();
+  const pendingMessageRenderByChatId = new Map();
   const unreadByChatId = new Map();
   const readStateByChatId = new Map();
   const typingByChatId = new Map();
@@ -487,6 +492,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const typingTimersByChatId = new Map();
   let typingStopTimeoutId = 0;
   let isTypingSent = false;
+  let messageRenderRafId = 0;
 
   const realtimeClient = createChatSignalRClient({
     onMessageCreated: (payload) => {
@@ -817,7 +823,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     }));
 
     if (store.getActiveChatId() === chatId) {
-      renderMessages(chatId);
+      renderMessages(chatId, { stickToBottom });
       if (stickToBottom) {
         scrollMessagesToBottom();
       }
@@ -1103,7 +1109,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         body: "Сообщение удалено",
         deletedAtUtc: new Date().toISOString()
       });
-      renderMessages(chatId);
+      renderMessages(chatId, { stickToBottom: true });
       scrollMessagesToBottom();
       renderRailList();
       if (composerState.messageId === message.id) {
@@ -1120,7 +1126,7 @@ export const createWorkspaceChatController = (deps = {}) => {
       body: "Сообщение удалено",
       deletedAtUtc: new Date().toISOString()
     });
-    renderMessages(chatId);
+    renderMessages(chatId, { stickToBottom: true });
     scrollMessagesToBottom();
     renderRailList();
     if (composerState.messageId === message.id) {
@@ -1500,7 +1506,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
     if (chatShellSettingsBtn instanceof HTMLButtonElement) {
       chatShellSettingsBtn.disabled = !chat;
-      chatShellSettingsBtn.textContent = "Settings";
+      chatShellSettingsBtn.setAttribute("aria-label", "Настройки чата");
+      chatShellSettingsBtn.title = "Настройки чата";
     }
     if (!chat) return;
 
@@ -2531,13 +2538,47 @@ export const createWorkspaceChatController = (deps = {}) => {
     parent.appendChild(wrap);
   };
 
-  const renderMessages = (chatId) => {
+  const resolveMessageRenderSlice = (chatId, totalCount, options = {}) => {
+    const normalizedChatId = toChatId(chatId);
+    if (!normalizedChatId || totalCount <= CHAT_MESSAGE_WINDOW_SIZE) {
+      if (normalizedChatId) {
+        messageRenderWindowByChatId.set(normalizedChatId, { start: 0, total: totalCount });
+      }
+      return { start: 0, end: totalCount };
+    }
+
+    const stickyToBottom = options?.stickToBottom === true;
+    const prependCount = Number(options?.prependCount);
+    const previous = messageRenderWindowByChatId.get(normalizedChatId);
+    let start = Number(previous?.start);
+    if (!Number.isFinite(start)) {
+      start = Math.max(0, totalCount - CHAT_MESSAGE_WINDOW_SIZE);
+    }
+
+    if (stickyToBottom) {
+      start = Math.max(0, totalCount - CHAT_MESSAGE_WINDOW_SIZE);
+    } else if (Number.isFinite(prependCount) && prependCount > 0) {
+      start += prependCount;
+    }
+
+    const maxStart = Math.max(0, totalCount - CHAT_MESSAGE_WINDOW_SIZE);
+    start = Math.max(0, Math.min(start, maxStart));
+    const end = Math.min(totalCount, start + CHAT_MESSAGE_WINDOW_SIZE);
+
+    messageRenderWindowByChatId.set(normalizedChatId, { start, total: totalCount });
+    return { start, end };
+  };
+
+  const renderMessages = (chatId, options = {}) => {
     if (!(chatShellMessages instanceof HTMLElement)) return;
 
     const list = store.getMessages(chatId);
+    const currentChat = store.getChatById(chatId);
+    const isDirectChat = Number(currentChat?.type) === 3;
     chatShellMessages.innerHTML = "";
 
     if (!list.length) {
+      messageRenderWindowByChatId.delete(toChatId(chatId));
       chatShellMessages.setAttribute("hidden", "");
       if (chatShellEmpty instanceof HTMLElement) {
         chatShellEmpty.textContent = "В этом чате пока нет сообщений.";
@@ -2551,10 +2592,18 @@ export const createWorkspaceChatController = (deps = {}) => {
 
     const actorUserId = Number(getActorUserId());
     const fragment = document.createDocumentFragment();
+    const { start: sliceStart, end: sliceEnd } = resolveMessageRenderSlice(chatId, list.length, options);
 
-    list.forEach((message, index) => {
-      const currentChat = store.getChatById(chatId);
-      const isDirectChat = Number(currentChat?.type) === 3;
+    if (sliceStart > 0) {
+      const marker = document.createElement("div");
+      marker.className = "chat-shell-window-marker";
+      marker.textContent = `Показаны последние ${sliceEnd - sliceStart} из ${list.length}. Прокрутите вверх, чтобы раскрыть историю.`;
+      fragment.appendChild(marker);
+    }
+
+    const visibleMessages = list.slice(sliceStart, sliceEnd);
+    visibleMessages.forEach((message, localIndex) => {
+      const index = sliceStart + localIndex;
       const nextMessage = list[index + 1] || null;
       const shouldReserveAvatarSlot = !isDirectChat;
       const showSenderAvatar = shouldReserveAvatarSlot
@@ -2726,6 +2775,63 @@ export const createWorkspaceChatController = (deps = {}) => {
     syncComposerUi();
   };
 
+  const scheduleRenderMessages = (chatId, options = {}) => {
+    const normalizedChatId = toChatId(chatId);
+    if (!normalizedChatId) return;
+
+    const previous = pendingMessageRenderByChatId.get(normalizedChatId) || { stickToBottom: false, prependCount: 0 };
+    const next = {
+      stickToBottom: previous.stickToBottom || options?.stickToBottom === true,
+      prependCount: Math.max(Number(previous.prependCount) || 0, Number(options?.prependCount) || 0)
+    };
+
+    pendingMessageRenderByChatId.set(normalizedChatId, next);
+    if (messageRenderRafId) return;
+
+    messageRenderRafId = window.requestAnimationFrame(() => {
+      messageRenderRafId = 0;
+      const pending = Array.from(pendingMessageRenderByChatId.entries());
+      pendingMessageRenderByChatId.clear();
+      pending.forEach(([targetChatId, targetOptions]) => {
+        renderMessages(targetChatId, targetOptions);
+      });
+    });
+  };
+
+  const clearScheduledMessageRender = () => {
+    if (messageRenderRafId) {
+      window.cancelAnimationFrame(messageRenderRafId);
+      messageRenderRafId = 0;
+    }
+    pendingMessageRenderByChatId.clear();
+  };
+
+  const expandMessageWindowForActiveChat = () => {
+    const activeChatId = toChatId(store.getActiveChatId());
+    if (!activeChatId || !(chatShellFeed instanceof HTMLElement)) return false;
+    const list = store.getMessages(activeChatId);
+    if (list.length <= CHAT_MESSAGE_WINDOW_SIZE) return false;
+
+    const state = messageRenderWindowByChatId.get(activeChatId);
+    const start = Number(state?.start);
+    if (!Number.isFinite(start) || start <= 0) return false;
+
+    const beforeHeight = chatShellFeed.scrollHeight;
+    const nextStart = Math.max(0, start - CHAT_MESSAGE_WINDOW_EXPAND_STEP);
+    if (nextStart === start) return false;
+
+    messageRenderWindowByChatId.set(activeChatId, {
+      start: nextStart,
+      total: list.length
+    });
+    renderMessages(activeChatId);
+
+    const afterHeight = chatShellFeed.scrollHeight;
+    chatShellFeed.scrollTop += Math.max(0, afterHeight - beforeHeight);
+    syncJumpBottomButton();
+    return true;
+  };
+
   const normalizeRealtimeMessage = (payload) => {
     return normalizeChatMessage({
       id: payload?.messageId,
@@ -2787,7 +2893,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     renderRailList();
     if (store.getActiveChatId() === chatId) {
       const wasNearBottom = isFeedNearBottom();
-      renderMessages(chatId);
+      renderMessages(chatId, { stickToBottom: isOwn || wasNearBottom });
       if (isOwn || wasNearBottom) {
         scrollMessagesToBottom();
       } else {
@@ -2807,7 +2913,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     store.reconcileMessage(chatId, message.clientMessageId, message);
     renderRailList();
     if (store.getActiveChatId() === chatId) {
-      renderMessages(chatId);
+      scheduleRenderMessages(chatId);
     }
   };
 
@@ -2821,7 +2927,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     });
     renderRailList();
     if (store.getActiveChatId() === chatId) {
-      renderMessages(chatId);
+      scheduleRenderMessages(chatId);
     }
   };
 
@@ -2837,7 +2943,7 @@ export const createWorkspaceChatController = (deps = {}) => {
       renderRailList();
     }
     if (store.getActiveChatId() === chatId) {
-      renderMessages(chatId);
+      scheduleRenderMessages(chatId);
     }
   };
 
@@ -2856,7 +2962,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     const current = getMessageAttachments(attachment.messageId);
     setMessageAttachments(attachment.messageId, [...current, attachment]);
     if (store.getActiveChatId() === chatId) {
-      renderMessages(chatId);
+      scheduleRenderMessages(chatId);
     }
   };
 
@@ -2866,7 +2972,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (!chatId || !Number.isFinite(messageId) || messageId <= 0) return;
     removeAttachmentFromMessage(messageId, payload?.attachmentId);
     if (store.getActiveChatId() === chatId) {
-      renderMessages(chatId);
+      scheduleRenderMessages(chatId);
     }
   };
 
@@ -3105,7 +3211,10 @@ export const createWorkspaceChatController = (deps = {}) => {
       store.setMessages(chatId, normalized, { hasMore: result.hasMore });
     }
 
-    renderMessages(chatId);
+    renderMessages(chatId, {
+      stickToBottom: !appendOlder,
+      prependCount: appendOlder ? normalized.length : 0
+    });
     if (!appendOlder) {
       scrollMessagesToBottom();
     }
@@ -3138,6 +3247,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     });
 
     store.clear();
+    messageRenderWindowByChatId.clear();
+    clearScheduledMessageRender();
     clearAttachmentState();
     clearRealtimeState();
     void realtimeClient.stop();
@@ -3193,7 +3304,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (store.isUsingMockData()) {
       await loadPreferencesForChat(targetId);
       await loadReadStatesForChat(targetId);
-      renderMessages(targetId);
+      renderMessages(targetId, { stickToBottom: true });
       scrollMessagesToBottom();
       renderRailList();
       renderRealtimePresence();
@@ -3365,7 +3476,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         ...normalizedMessage,
         clientMessageId: normalizedMessage.clientMessageId || uploadId
       });
-      renderMessages(activeChatId);
+      renderMessages(activeChatId, { stickToBottom: true });
       scrollMessagesToBottom();
       renderRailList();
 
@@ -3386,7 +3497,7 @@ export const createWorkspaceChatController = (deps = {}) => {
               durationMs: localVoiceDurationMs,
               localUrl: localVoiceUrl
             });
-            renderMessages(activeChatId);
+            scheduleRenderMessages(activeChatId);
           }
         });
 
@@ -3401,7 +3512,7 @@ export const createWorkspaceChatController = (deps = {}) => {
           durationMs: localVoiceDurationMs,
           localUrl: localVoiceUrl
         });
-        renderMessages(activeChatId);
+        scheduleRenderMessages(activeChatId);
         attachment = await upload.promise;
       } else {
         upsertUploadItem({ id: uploadId, label, status: "uploading", progress: 5, error: "" });
@@ -3431,7 +3542,7 @@ export const createWorkspaceChatController = (deps = {}) => {
       if (!isVoiceUpload) {
         upsertUploadItem({ id: uploadId, label, status: "done", progress: 100, error: "" });
       }
-      renderMessages(activeChatId);
+      renderMessages(activeChatId, { stickToBottom: true });
       scrollMessagesToBottom();
       await markActiveChatAsRead();
       if (!isVoiceUpload) {
@@ -3665,7 +3776,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         editedAtUtc: new Date().toISOString()
       });
       clearComposerIntent();
-      renderMessages(activeChatId);
+      renderMessages(activeChatId, { stickToBottom: true });
       scrollMessagesToBottom();
       renderRailList();
       return true;
@@ -3687,7 +3798,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         deletedAtUtc: ""
       });
       clearComposerIntent();
-      renderMessages(activeChatId);
+      renderMessages(activeChatId, { stickToBottom: true });
       scrollMessagesToBottom();
       renderRailList();
       return true;
@@ -3707,7 +3818,7 @@ export const createWorkspaceChatController = (deps = {}) => {
       deletedAtUtc: ""
     });
     clearComposerIntent();
-    renderMessages(activeChatId);
+    renderMessages(activeChatId, { stickToBottom: true });
     scrollMessagesToBottom();
     renderRailList();
     return true;
@@ -3753,7 +3864,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         deletedAtUtc: ""
       };
       store.reconcileMessage(activeChatId, optimisticClientMessageId, optimisticMessage);
-      renderMessages(activeChatId);
+      renderMessages(activeChatId, { stickToBottom: true });
       scrollMessagesToBottom();
       renderRailList();
       payload = await api.replyToMessage(activeChatId, composerState.messageId, {
@@ -3777,7 +3888,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         deletedAtUtc: ""
       };
       store.reconcileMessage(activeChatId, optimisticClientMessageId, optimisticMessage);
-      renderMessages(activeChatId);
+      renderMessages(activeChatId, { stickToBottom: true });
       scrollMessagesToBottom();
       renderRailList();
       payload = await api.forwardMessage(activeChatId, composerState.messageId);
@@ -3818,7 +3929,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         deletedAtUtc: ""
       };
       store.reconcileMessage(activeChatId, optimisticClientMessageId, optimisticMessage);
-      renderMessages(activeChatId);
+      renderMessages(activeChatId, { stickToBottom: true });
       scrollMessagesToBottom();
       renderRailList();
       payload = await api.sendMessage(activeChatId, {
@@ -3843,7 +3954,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     const normalized = normalizeChatMessage(payload);
     if (normalized?.id) {
       store.reconcileMessage(activeChatId, optimisticClientMessageId, normalized);
-      renderMessages(activeChatId);
+      renderMessages(activeChatId, { stickToBottom: true });
       scrollMessagesToBottom();
       renderRailList();
       await markActiveChatAsRead();
@@ -3864,6 +3975,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (!Number.isFinite(workspaceId) || workspaceId <= 0) {
       setSettingsOpen(false);
       store.clear();
+      messageRenderWindowByChatId.clear();
+      clearScheduledMessageRender();
       clearAttachmentState();
       clearRealtimeState();
       uploadQueue = [];
@@ -3884,6 +3997,8 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (!result.ok) {
       setSettingsOpen(false);
       store.clear();
+      messageRenderWindowByChatId.clear();
+      clearScheduledMessageRender();
       clearAttachmentState();
       clearRealtimeState();
       setChatAvailabilityState(false, "Не удалось загрузить список чатов.");
@@ -3897,6 +4012,8 @@ export const createWorkspaceChatController = (deps = {}) => {
       .filter(Boolean);
 
     store.clear();
+    messageRenderWindowByChatId.clear();
+    clearScheduledMessageRender();
     clearAttachmentState();
     clearRealtimeState();
     uploadQueue = [];
@@ -3933,6 +4050,8 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const clearWorkspaceData = () => {
     store.clear();
+    messageRenderWindowByChatId.clear();
+    clearScheduledMessageRender();
     clearSelectedMessages();
     clearAttachmentState();
     clearRealtimeState();
@@ -4251,6 +4370,9 @@ export const createWorkspaceChatController = (deps = {}) => {
       chatShellFeed.addEventListener("scroll", () => {
         closeMessageContextMenu();
         syncJumpBottomButton();
+        if (expandMessageWindowForActiveChat()) {
+          return;
+        }
         if (shouldAutoLoadOlderMessages()) {
           void loadOlderMessages();
         }

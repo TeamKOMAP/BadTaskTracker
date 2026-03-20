@@ -7,86 +7,13 @@ import {
   userPanel,
   workspaceContent,
   workspaceMain,
-  chatRail,
-  chatRailList,
-  chatRailTabs,
-  chatRailEmpty,
-  chatRailResizer,
-  chatHomeBtn,
   chatShell,
-  chatShellTitle,
-  chatShellSub,
-  chatShellAvatar,
-  chatShellBulkActions,
-  chatShellBulkCancelBtn,
-  chatShellBulkForwardBtn,
-  chatShellBulkDeleteBtn,
-  chatShellSettingsBtn,
-  chatSettingsModal,
-  chatSettingsModalAvatar,
-  chatSettingsModalMain,
-  chatSettingsModalName,
-  chatSettingsModalSub,
-  chatSettingsPanel,
-  chatSettingsMuted,
-  chatSettingsSkipActive,
-  chatSettingsRoomBlock,
-  chatSettingsTitleWrap,
-  chatSettingsTitle,
-  chatSettingsBgBlock,
-  chatSettingsBgHeading,
-  chatSettingsBgPreview,
-  chatSettingsBgUploadBtn,
-  chatSettingsBgRemoveBtn,
-  chatSettingsBgInput,
-  chatSettingsNote,
-  chatSettingsSaveBtn,
-  chatSettingsMembersCount,
-  chatSettingsMembers,
-  chatSettingsMembersEmpty,
-  chatSettingsAttachmentTabs,
-  chatSettingsAttachments,
-  chatSettingsAttachmentsEmpty,
-  chatShellFeed,
-  chatShellMessages,
-  chatShellEmpty,
-  chatMsgMenu,
-  chatMsgMenuReplyBtn,
-  chatMsgMenuForwardBtn,
-  chatMsgMenuEditBtn,
-  chatMsgMenuDeleteBtn,
-  chatShellForm,
-  chatShellRecording,
-  chatShellRecordingMain,
-  chatShellRecordingStatus,
-  chatShellRecordingTime,
-  chatShellRecordingWave,
-  chatShellRecordingCancelBtn,
-  chatShellRecordingPauseBtn,
-  chatShellRecordingSendBtn,
-  chatShellInput,
-  chatShellSendBtn,
-  chatShellLoadMoreBtn,
-  chatShellContext,
-  chatShellContextLabel,
-  chatShellContextText,
-  chatShellContextCancelBtn,
-  chatShellAttachBtn,
-  chatShellVoiceBtn,
-  chatShellVoiceStatus,
-  chatShellUploadList,
-  chatShellFileInput,
-  chatShellJumpBottomBtn,
   columnsWrap,
   addColumnControl,
   addColumnBtn,
   addColumnMenu,
   viewButtons,
   viewToggle,
-  styleToggle,
-  styleSwitch,
-  styleToggleTitleEl,
-  styleToggleSubEl,
   boardToolbar,
   boardSearchInput,
   boardSearchTags,
@@ -266,7 +193,7 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatController } from "../chat/controller.js?v=chat40";
+import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge1";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
@@ -1189,29 +1116,6 @@ const setLayoutStyle = (style) => {
     flowLayout.setAttribute("aria-hidden", nextStyle !== "flow");
   }
 
-  if (styleToggle) {
-    styleToggle.setAttribute("aria-pressed", nextStyle === "flow" ? "true" : "false");
-    if (nextStyle === "flow") {
-      styleToggle.setAttribute("aria-label", "Переключить на колонки");
-      styleToggle.setAttribute("title", "Переключить на колонки");
-    } else {
-      styleToggle.setAttribute("aria-label", "Переключить на карту потока");
-      styleToggle.setAttribute("title", "Переключить на карту потока");
-    }
-  }
-
-  if (styleSwitch) {
-    styleSwitch.classList.toggle("is-flow", nextStyle === "flow");
-  }
-
-  if (styleToggleTitleEl) {
-    styleToggleTitleEl.textContent = nextStyle === "flow" ? "Карта потока" : "Колонки";
-  }
-
-  if (styleToggleSubEl) {
-    styleToggleSubEl.textContent = "Нажмите, чтобы переключить";
-  }
-
   if (nextStyle === "flow" && calendarLayout) {
     calendarLayout.setAttribute("aria-hidden", "true");
     calendarLayout.innerHTML = "";
@@ -1793,7 +1697,6 @@ const setAppScreen = (screen) => {
   if (chatShell) chatShell.hidden = !showChat;
   if (brandToggle) brandToggle.hidden = false;
   if (viewToggle) viewToggle.hidden = showChat;
-  if (styleSwitch) styleSwitch.hidden = showChat;
   if (openSpacesHomeBtn) openSpacesHomeBtn.hidden = false;
   if (workspaceContent) {
     workspaceContent.classList.toggle("is-chat-active", showChat);
@@ -1809,77 +1712,7 @@ const setAppScreen = (screen) => {
   }
 };
 
-chatController = createWorkspaceChatController({
-  chatRail,
-  chatRailList,
-  chatRailTabs,
-  chatRailEmpty,
-  chatRailResizer,
-  chatHomeBtn,
-  chatShell,
-  chatShellTitle,
-  chatShellSub,
-  chatShellAvatar,
-  chatShellBulkActions,
-  chatShellBulkCancelBtn,
-  chatShellBulkForwardBtn,
-  chatShellBulkDeleteBtn,
-  chatShellSettingsBtn,
-  chatSettingsModal,
-  chatSettingsModalAvatar,
-  chatSettingsModalMain,
-  chatSettingsModalName,
-  chatSettingsModalSub,
-  chatSettingsPanel,
-  chatSettingsMuted,
-  chatSettingsSkipActive,
-  chatSettingsRoomBlock,
-  chatSettingsTitleWrap,
-  chatSettingsTitle,
-  chatSettingsBgBlock,
-  chatSettingsBgHeading,
-  chatSettingsBgPreview,
-  chatSettingsBgUploadBtn,
-  chatSettingsBgRemoveBtn,
-  chatSettingsBgInput,
-  chatSettingsNote,
-  chatSettingsSaveBtn,
-  chatSettingsMembersCount,
-  chatSettingsMembers,
-  chatSettingsMembersEmpty,
-  chatSettingsAttachmentTabs,
-  chatSettingsAttachments,
-  chatSettingsAttachmentsEmpty,
-  chatShellFeed,
-  chatShellMessages,
-  chatShellEmpty,
-  chatMsgMenu,
-  chatMsgMenuReplyBtn,
-  chatMsgMenuForwardBtn,
-  chatMsgMenuEditBtn,
-  chatMsgMenuDeleteBtn,
-  chatShellForm,
-  chatShellRecording,
-  chatShellRecordingMain,
-  chatShellRecordingStatus,
-  chatShellRecordingTime,
-  chatShellRecordingWave,
-  chatShellRecordingCancelBtn,
-  chatShellRecordingPauseBtn,
-  chatShellRecordingSendBtn,
-  chatShellInput,
-  chatShellSendBtn,
-  chatShellLoadMoreBtn,
-  chatShellContext,
-  chatShellContextLabel,
-  chatShellContextText,
-  chatShellContextCancelBtn,
-  chatShellAttachBtn,
-  chatShellVoiceBtn,
-  chatShellVoiceStatus,
-  chatShellUploadList,
-  chatShellFileInput,
-  chatShellJumpBottomBtn,
+chatController = createWorkspaceChatBridge({
   normalizeToken,
   toInitials,
   getWorkspaceId: () => currentWorkspaceId,
@@ -2304,9 +2137,6 @@ const setTrashZoneVisible = (visible) => {
   const show = Boolean(visible && shouldShowTrashZone());
   taskTrashZone.classList.toggle("is-visible", show);
   taskTrashZone.setAttribute("aria-hidden", show ? "false" : "true");
-  if (styleSwitch) {
-    styleSwitch.classList.toggle("has-trash-zone", show);
-  }
   if (boardToolbar) {
     boardToolbar.classList.toggle("is-trash-mode", show);
   }
@@ -3966,14 +3796,6 @@ if (addColumnMenu) {
     event.stopPropagation();
     const type = normalizeToken(target.dataset.columnType).toLowerCase() || "new";
     createColumnFromType(type);
-  });
-}
-
-if (styleToggle) {
-  styleToggle.addEventListener("click", () => {
-    if (!board) return;
-    const nextStyle = board.dataset.style === "flow" ? "columns" : "flow";
-    setLayoutStyle(nextStyle);
   });
 }
 

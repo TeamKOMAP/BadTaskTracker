@@ -9,8 +9,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css?v=base6">
   <link rel="stylesheet" href="css/components.css?v=comp2">
-  <link rel="stylesheet" href="css/chat.css?v=chat7">
-  <link rel="stylesheet" href="css/workspace.css?v=perf70">
+  <link rel="stylesheet" href="css/chat.css?v=chat8">
+  <link rel="stylesheet" href="css/workspace.css?v=perf71">
   <link rel="stylesheet" href="css/workspace-members.css?v=wm1">
 </head>
 <body data-theme="dark">
@@ -153,9 +153,16 @@
                 <button class="ghost-btn chat-shell-bulk-btn" id="chat-shell-bulk-forward" type="button">Переслать</button>
                 <button class="ghost-btn chat-shell-bulk-btn is-danger" id="chat-shell-bulk-delete" type="button">Удалить</button>
               </div>
+              <button class="icon-btn chat-shell-settings-btn" id="chat-shell-settings-btn" type="button" aria-label="Настройки чата" title="Настройки чата">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </button>
             </header>
 
             <div class="chat-shell-feed chat-scrollview" id="chat-shell-feed">
+              <button class="ghost-btn chat-shell-load-more" id="chat-shell-load-more" type="button" hidden>Загрузить более ранние</button>
               <div class="chat-shell-empty" id="chat-shell-empty">Выберите чат слева, чтобы открыть диалог.</div>
               <div class="chat-shell-messages" id="chat-shell-messages" hidden></div>
               <button class="icon-btn chat-shell-jump-bottom" id="chat-shell-jump-bottom" type="button" aria-label="Прокрутить вниз" title="Вниз" hidden>
@@ -269,6 +276,7 @@
                 </svg>
               </button>
             </form>
+            <div class="chat-shell-voice-status" id="chat-shell-voice-status" aria-live="polite">Голосовые сообщения готовы</div>
           </section>
 
           <main class="board" id="board" data-view="board" data-style="columns">
@@ -733,6 +741,7 @@
           </div>
 
           <h3 class="task-modal-title task-detail-title" id="task-detail-title">Задача</h3>
+          <span class="task-detail-id" id="task-detail-id">#-</span>
 
           <div class="task-detail-badges" id="task-detail-badges">
             <span class="task-badge" id="task-detail-status-badge"></span>
@@ -1049,6 +1058,6 @@
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
-  <script type="module" src="js/workspace/main.js?v=authflow123"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow124"></script>
 </body>
 </html>
