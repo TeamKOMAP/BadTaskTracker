@@ -866,6 +866,9 @@ body[data-theme="light"] .view-btn.is-active {
   padding: 8px 12px;
   border-radius: 12px;
   font-size: 12px;
+  margin-top: auto;
+  align-self: flex-start;
+  flex: 0 0 auto;
 }
 
 .settings-panel-title {
@@ -984,6 +987,10 @@ body[data-theme="light"] .settings-nickname-note.is-error {
 .settings-theme-row .ghost-btn.is-selected {
   border-color: rgba(68, 210, 199, 0.65);
   color: var(--text-1);
+}
+
+.app-shell.is-chat-active .app-footer {
+  display: none;
 }
 
 .notifications-btn {
