@@ -587,7 +587,7 @@ body[data-theme="light"] .topbar::before {
   row-gap: 4px;
   align-items: start;
   min-width: 0;
-  flex: 1 1 220px;
+  flex: 1 1 0;
 }
 
 .brand-stack .brand-mark {
@@ -726,12 +726,14 @@ body[data-theme="light"] .topbar::before {
   justify-content: center;
   flex-wrap: wrap;
   gap: 6px;
-  flex: 1 1 280px;
+  flex: 0 1 auto;
   min-width: 0;
   padding: 6px;
   border-radius: 999px;
   border: 1px solid var(--stroke);
   background: rgba(10, 15, 22, 0.6);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 body[data-theme="light"] .view-toggle {
@@ -777,11 +779,10 @@ body[data-theme="light"] .view-btn.is-active {
   display: flex;
   align-items: center;
   gap: 12px;
-  flex: 0 1 auto;
+  flex: 1 1 0;
   flex-wrap: wrap;
   justify-content: flex-end;
   min-width: 0;
-  margin-left: auto;
 }
 
 .topbar-right .avatar {
