@@ -79,6 +79,9 @@ assert(chatCss.includes(".chat-rail.is-docked-tabs .chat-rail-home"), "chat.css 
 assert(chatCss.includes(".chat-rail.is-docked-tabs .chat-rail-tab.is-active"), "chat.css is missing selected state for docked chat folders");
 assert(chatCss.includes(".chat-rail.is-avatar-only .chat-rail-meta"), "chat.css is missing avatar-only compact chat list mode");
 assert(chatCss.includes(".chat-image-viewer"), "chat.css is missing in-app image viewer styles");
+assert(chatCss.includes(".chat-shell-now-playing"), "chat.css is missing top now-playing bar styles");
+assert(chatCss.includes("chat-now-playing-in"), "chat.css is missing now-playing enter animation");
+assert(chatCss.includes(".chat-shell-now-playing-volume-popover"), "chat.css is missing hover volume popover for now-playing bar");
 
 assert(chatControllerSource.includes("CHAT_MESSAGE_WINDOW_SIZE"), "chat/controller.js is missing message window constant");
 assert(chatControllerSource.includes("scheduleRenderMessages"), "chat/controller.js is missing render scheduling");
@@ -91,5 +94,8 @@ assert(chatControllerSource.includes("CHAT_RAIL_AVATAR_ONLY_THRESHOLD"), "chat/c
 assert(chatControllerSource.includes("openImageViewer"), "chat/controller.js is missing in-app image viewer open handler");
 assert(chatControllerSource.includes("downloadAttachmentToFile"), "chat/controller.js is missing unified attachment download helper");
 assert(chatControllerSource.includes("CHAT_IMAGE_VIEWER_MIN_SCALE"), "chat/controller.js is missing image viewer zoom limits");
+assert(chatControllerSource.includes("setActiveAudioPlayback"), "chat/controller.js is missing single active audio playback logic");
+assert(chatControllerSource.includes("is-animate-in"), "chat/controller.js should trigger now-playing enter animation class");
+assert(chatControllerSource.includes("audioOutputMuted"), "chat/controller.js is missing mute/volume state for now-playing bar");
 
 console.log("[workspace-smoke] OK: drawer/chat contracts are valid.");

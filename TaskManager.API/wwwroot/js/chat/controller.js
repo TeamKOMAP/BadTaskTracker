@@ -513,6 +513,20 @@ export const createWorkspaceChatController = (deps = {}) => {
   let imageViewerScale = 1;
   let imageViewerChatId = "";
   let imageViewerAttachment = null;
+  let nowPlayingPanel = null;
+  let nowPlayingToggleBtn = null;
+  let nowPlayingSenderEl = null;
+  let nowPlayingProgressEl = null;
+  let nowPlayingTimeEl = null;
+  let nowPlayingCloseBtn = null;
+  let nowPlayingVolumeWrap = null;
+  let nowPlayingVolumeBtn = null;
+  let nowPlayingVolumeSlider = null;
+  let nowPlayingVolumeHideTimerId = 0;
+  let activeAudioPlayback = null;
+  let audioOutputVolume = 1;
+  let audioOutputUnmutedVolume = 1;
+  let audioOutputMuted = false;
 
   const realtimeClient = createChatSignalRClient({
     onMessageCreated: (payload) => {
@@ -1355,7 +1369,354 @@ export const createWorkspaceChatController = (deps = {}) => {
     attachmentObjectUrls.clear();
   };
 
+  const getPlaybackDuration = (playback) => {
+    const audio = playback?.audio;
+    const fallback = Number(playback?.initialDuration) || 0;
+    const fromAudio = audio instanceof HTMLAudioElement && Number.isFinite(audio.duration) && audio.duration > 0
+      ? audio.duration
+      : 0;
+    return Math.max(fromAudio, fallback, 0);
+  };
+
+  const getPlaybackCurrent = (playback) => {
+    const audio = playback?.audio;
+    if (!(audio instanceof HTMLAudioElement) || !Number.isFinite(audio.currentTime) || audio.currentTime < 0) {
+      return 0;
+    }
+    return audio.currentTime;
+  };
+
+  const clampAudioOutputVolume = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 1;
+    return Math.max(0, Math.min(1, numeric));
+  };
+
+  const applyAudioOutputState = (playback = activeAudioPlayback) => {
+    const audio = playback?.audio;
+    if (!(audio instanceof HTMLAudioElement)) {
+      return;
+    }
+    audio.volume = clampAudioOutputVolume(audioOutputVolume);
+    audio.muted = Boolean(audioOutputMuted);
+  };
+
+  const syncNowPlayingVolumeUi = () => {
+    if (nowPlayingVolumeSlider instanceof HTMLInputElement) {
+      nowPlayingVolumeSlider.value = String(clampAudioOutputVolume(audioOutputVolume));
+    }
+    if (nowPlayingVolumeBtn instanceof HTMLButtonElement) {
+      nowPlayingVolumeBtn.dataset.muted = audioOutputMuted ? "true" : "false";
+      nowPlayingVolumeBtn.setAttribute("aria-label", audioOutputMuted ? "Включить звук" : "Выключить звук");
+      nowPlayingVolumeBtn.title = audioOutputMuted ? "Включить звук" : "Выключить звук";
+    }
+  };
+
+  const clearNowPlayingVolumeHideTimer = () => {
+    if (nowPlayingVolumeHideTimerId) {
+      window.clearTimeout(nowPlayingVolumeHideTimerId);
+      nowPlayingVolumeHideTimerId = 0;
+    }
+  };
+
+  const setNowPlayingVolumeOpen = (open) => {
+    if (!(nowPlayingVolumeWrap instanceof HTMLElement)) {
+      return;
+    }
+    if (open) {
+      clearNowPlayingVolumeHideTimer();
+      nowPlayingVolumeWrap.classList.add("is-open");
+      return;
+    }
+    nowPlayingVolumeWrap.classList.remove("is-open");
+  };
+
+  const scheduleNowPlayingVolumeClose = (delayMs = 180) => {
+    clearNowPlayingVolumeHideTimer();
+    nowPlayingVolumeHideTimerId = window.setTimeout(() => {
+      nowPlayingVolumeHideTimerId = 0;
+      setNowPlayingVolumeOpen(false);
+    }, delayMs);
+  };
+
+  const ensureNowPlayingPanel = () => {
+    if (nowPlayingPanel instanceof HTMLElement) {
+      return;
+    }
+
+    const shell = chatShell instanceof HTMLElement ? chatShell : null;
+    if (!(shell instanceof HTMLElement)) {
+      return;
+    }
+
+    const host = chatShellFeed instanceof HTMLElement && chatShellFeed.parentElement === shell
+      ? chatShellFeed
+      : shell.querySelector(".chat-shell-feed");
+
+    const panel = document.createElement("div");
+    panel.className = "chat-shell-now-playing";
+    panel.hidden = true;
+
+    const toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = "icon-btn chat-shell-now-playing-toggle";
+    toggleBtn.setAttribute("aria-label", "Пауза");
+    toggleBtn.title = "Пауза";
+    toggleBtn.innerHTML = '<svg class="chat-shell-now-playing-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6l10 6-10 6z" /></svg><svg class="chat-shell-now-playing-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12" /><path d="M15 6v12" /></svg>';
+
+    const main = document.createElement("div");
+    main.className = "chat-shell-now-playing-main";
+
+    const sender = document.createElement("span");
+    sender.className = "chat-shell-now-playing-sender";
+    sender.textContent = "";
+
+    const track = document.createElement("div");
+    track.className = "chat-shell-now-playing-track";
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.className = "chat-shell-now-playing-progress";
+    slider.min = "0";
+    slider.max = "1";
+    slider.step = "0.01";
+    slider.value = "0";
+
+    const time = document.createElement("span");
+    time.className = "chat-shell-now-playing-time";
+    time.textContent = "0:00 / 0:00";
+
+    track.append(slider, time);
+    main.append(sender, track);
+
+    const volumeWrap = document.createElement("div");
+    volumeWrap.className = "chat-shell-now-playing-volume";
+
+    const volumeBtn = document.createElement("button");
+    volumeBtn.type = "button";
+    volumeBtn.className = "icon-btn chat-shell-now-playing-volume-btn";
+    volumeBtn.setAttribute("aria-label", "Выключить звук");
+    volumeBtn.title = "Выключить звук";
+    volumeBtn.innerHTML = '<svg class="chat-shell-now-playing-icon-volume" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h4l5 4V6L8 10H4z" /><path d="M16 9a4 4 0 0 1 0 6" /><path d="M18.5 6.5a8 8 0 0 1 0 11" /></svg><svg class="chat-shell-now-playing-icon-muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h4l5 4V6L8 10H4z" /><path d="M16 9l4 4" /><path d="M20 9l-4 4" /></svg>';
+
+    const volumePopover = document.createElement("div");
+    volumePopover.className = "chat-shell-now-playing-volume-popover";
+
+    const volumeSlider = document.createElement("input");
+    volumeSlider.type = "range";
+    volumeSlider.className = "chat-shell-now-playing-volume-slider";
+    volumeSlider.min = "0";
+    volumeSlider.max = "1";
+    volumeSlider.step = "0.01";
+    volumeSlider.value = String(audioOutputVolume);
+
+    volumePopover.appendChild(volumeSlider);
+    volumeWrap.append(volumeBtn, volumePopover);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "icon-btn chat-shell-now-playing-close";
+    closeBtn.setAttribute("aria-label", "Убрать плеер");
+    closeBtn.title = "Закрыть";
+    closeBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10" /><path d="M17 7L7 17" /></svg>';
+
+    panel.append(toggleBtn, main, volumeWrap, closeBtn);
+
+    if (host instanceof HTMLElement && host.parentElement === shell) {
+      shell.insertBefore(panel, host);
+    } else {
+      shell.appendChild(panel);
+    }
+
+    nowPlayingPanel = panel;
+    nowPlayingToggleBtn = toggleBtn;
+    nowPlayingSenderEl = sender;
+    nowPlayingProgressEl = slider;
+    nowPlayingTimeEl = time;
+    nowPlayingCloseBtn = closeBtn;
+    nowPlayingVolumeWrap = volumeWrap;
+    nowPlayingVolumeBtn = volumeBtn;
+    nowPlayingVolumeSlider = volumeSlider;
+
+    syncNowPlayingVolumeUi();
+
+    toggleBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      const playback = activeAudioPlayback;
+      if (!(playback?.audio instanceof HTMLAudioElement)) return;
+
+      if (playback.audio.paused || playback.audio.ended) {
+        try {
+          await playback.audio.play();
+        } catch {
+          // ignore playback failures
+        }
+      } else {
+        playback.audio.pause();
+      }
+      playback.syncPlayState?.();
+      playback.syncTime?.();
+      syncNowPlayingPanel();
+    });
+
+    slider.addEventListener("input", () => {
+      const playback = activeAudioPlayback;
+      if (!(playback?.audio instanceof HTMLAudioElement)) return;
+      const duration = getPlaybackDuration(playback);
+      if (!duration) return;
+      playback.audio.currentTime = Math.max(0, Math.min(duration, Number(slider.value) * duration));
+      playback.syncTime?.();
+      syncNowPlayingPanel();
+    });
+
+    volumeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      setNowPlayingVolumeOpen(true);
+      if (audioOutputMuted) {
+        audioOutputMuted = false;
+        if (audioOutputVolume <= 0) {
+          audioOutputVolume = clampAudioOutputVolume(audioOutputUnmutedVolume || 1);
+        }
+      } else {
+        audioOutputMuted = true;
+        if (audioOutputVolume > 0) {
+          audioOutputUnmutedVolume = clampAudioOutputVolume(audioOutputVolume);
+        }
+      }
+      applyAudioOutputState();
+      syncNowPlayingVolumeUi();
+      syncNowPlayingPanel();
+    });
+
+    const openVolumePopover = () => {
+      setNowPlayingVolumeOpen(true);
+    };
+
+    const closeVolumePopoverDeferred = () => {
+      scheduleNowPlayingVolumeClose(220);
+    };
+
+    volumeWrap.addEventListener("mouseenter", openVolumePopover);
+    volumeWrap.addEventListener("mouseleave", closeVolumePopoverDeferred);
+    volumeWrap.addEventListener("focusin", openVolumePopover);
+    volumeWrap.addEventListener("focusout", (event) => {
+      const nextFocused = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+      if (nextFocused && volumeWrap.contains(nextFocused)) {
+        return;
+      }
+      closeVolumePopoverDeferred();
+    });
+
+    volumeSlider.addEventListener("input", () => {
+      const nextVolume = clampAudioOutputVolume(volumeSlider.value);
+      audioOutputVolume = nextVolume;
+      if (nextVolume > 0) {
+        audioOutputUnmutedVolume = nextVolume;
+        audioOutputMuted = false;
+      } else {
+        audioOutputMuted = true;
+      }
+      applyAudioOutputState();
+      syncNowPlayingVolumeUi();
+      syncNowPlayingPanel();
+    });
+
+    closeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      clearActiveAudioPlayback({ pause: true, reset: false, hide: true });
+    });
+  };
+
+  const syncNowPlayingPanel = () => {
+    ensureNowPlayingPanel();
+    if (!(nowPlayingPanel instanceof HTMLElement)) {
+      return;
+    }
+
+    const playback = activeAudioPlayback;
+    if (!(playback?.audio instanceof HTMLAudioElement)) {
+      nowPlayingPanel.classList.remove("is-animate-in");
+      nowPlayingPanel.hidden = true;
+      setNowPlayingVolumeOpen(false);
+      syncNowPlayingVolumeUi();
+      return;
+    }
+
+    const duration = getPlaybackDuration(playback);
+    const current = getPlaybackCurrent(playback);
+    const ratio = duration > 0 ? Math.max(0, Math.min(1, current / duration)) : 0;
+    const isPlaying = !playback.audio.paused && !playback.audio.ended;
+
+    if (nowPlayingPanel.hidden) {
+      nowPlayingPanel.hidden = false;
+      nowPlayingPanel.classList.remove("is-animate-in");
+      void nowPlayingPanel.offsetWidth;
+      nowPlayingPanel.classList.add("is-animate-in");
+    }
+
+    if (nowPlayingSenderEl instanceof HTMLElement) {
+      nowPlayingSenderEl.textContent = playback.senderName
+        ? `Слушаете: ${playback.senderName}`
+        : "Слушаете аудио";
+    }
+    if (nowPlayingProgressEl instanceof HTMLInputElement) {
+      nowPlayingProgressEl.value = String(ratio);
+    }
+    if (nowPlayingTimeEl instanceof HTMLElement) {
+      nowPlayingTimeEl.textContent = `${formatMediaTime(current)} / ${formatMediaTime(duration)}`;
+    }
+    if (nowPlayingToggleBtn instanceof HTMLButtonElement) {
+      nowPlayingToggleBtn.dataset.playing = isPlaying ? "true" : "false";
+      nowPlayingToggleBtn.setAttribute("aria-label", isPlaying ? "Пауза" : "Воспроизвести");
+      nowPlayingToggleBtn.title = isPlaying ? "Пауза" : "Воспроизвести";
+    }
+    syncNowPlayingVolumeUi();
+  };
+
+  const clearActiveAudioPlayback = ({ pause = true, reset = false, hide = true } = {}) => {
+    const previous = activeAudioPlayback;
+    activeAudioPlayback = null;
+
+    if (previous?.audio instanceof HTMLAudioElement) {
+      if (pause && !previous.audio.paused) {
+        previous.audio.pause();
+      }
+      if (reset) {
+        previous.audio.currentTime = 0;
+      }
+    }
+
+    previous?.syncPlayState?.();
+    previous?.syncTime?.();
+
+    if (hide && nowPlayingPanel instanceof HTMLElement) {
+      nowPlayingPanel.classList.remove("is-animate-in");
+      nowPlayingPanel.hidden = true;
+    }
+    clearNowPlayingVolumeHideTimer();
+    setNowPlayingVolumeOpen(false);
+    syncNowPlayingVolumeUi();
+  };
+
+  const setActiveAudioPlayback = (playback) => {
+    if (!(playback?.audio instanceof HTMLAudioElement)) {
+      return;
+    }
+
+    const previous = activeAudioPlayback;
+    if (previous?.audio instanceof HTMLAudioElement && previous.audio !== playback.audio) {
+      previous.audio.pause();
+      previous.syncPlayState?.();
+      previous.syncTime?.();
+    }
+
+    activeAudioPlayback = playback;
+    applyAudioOutputState(playback);
+    syncNowPlayingPanel();
+  };
+
   const clearAttachmentState = () => {
+    clearActiveAudioPlayback({ pause: true, reset: false, hide: true });
     closeImageViewer();
     attachmentsByMessageId.clear();
     attachmentLoadingByMessageId.clear();
@@ -2627,6 +2988,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         const time = document.createElement("div");
         time.className = "chat-voice-time";
         const initialDuration = Number(attachment.durationMs) > 0 ? Number(attachment.durationMs) / 1000 : 0;
+        const senderName = resolveMemberName(message.senderUserId);
         time.textContent = `0:00 / ${formatMediaTime(initialDuration)}`;
 
         const speedBtn = document.createElement("button");
@@ -2706,7 +3068,16 @@ export const createWorkspaceChatController = (deps = {}) => {
           playBtn.setAttribute("aria-label", isPlaying ? "Пауза" : "Воспроизвести голосовое сообщение");
         };
 
+        const playbackState = {
+          audio,
+          senderName,
+          initialDuration,
+          syncTime,
+          syncPlayState
+        };
+
         playBtn.addEventListener("click", async () => {
+          setActiveAudioPlayback(playbackState);
           if (audio.paused || audio.ended) {
             try {
               await audio.play();
@@ -2717,6 +3088,7 @@ export const createWorkspaceChatController = (deps = {}) => {
             audio.pause();
           }
           syncPlayState();
+          syncNowPlayingPanel();
         });
         playBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
 
@@ -2734,6 +3106,9 @@ export const createWorkspaceChatController = (deps = {}) => {
           if (!duration) return;
           audio.currentTime = Math.max(0, Math.min(duration, Number(progress.value) * duration));
           syncTime();
+          if (activeAudioPlayback?.audio === audio) {
+            syncNowPlayingPanel();
+          }
         });
         progress.addEventListener("dblclick", suppressMessageSelectionEvent);
 
@@ -2744,14 +3119,34 @@ export const createWorkspaceChatController = (deps = {}) => {
           const ratio = rect.width > 0 ? Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) : 0;
           audio.currentTime = ratio * duration;
           syncTime();
+          if (activeAudioPlayback?.audio === audio) {
+            syncNowPlayingPanel();
+          }
         });
         waveform.addEventListener("dblclick", suppressMessageSelectionEvent);
 
         audio.addEventListener("loadedmetadata", syncTime);
-        audio.addEventListener("timeupdate", syncTime);
-        audio.addEventListener("play", syncPlayState);
-        audio.addEventListener("pause", syncPlayState);
+        audio.addEventListener("timeupdate", () => {
+          syncTime();
+          if (activeAudioPlayback?.audio === audio) {
+            syncNowPlayingPanel();
+          }
+        });
+        audio.addEventListener("play", () => {
+          setActiveAudioPlayback(playbackState);
+          syncPlayState();
+          syncNowPlayingPanel();
+        });
+        audio.addEventListener("pause", () => {
+          syncPlayState();
+          if (activeAudioPlayback?.audio === audio) {
+            syncNowPlayingPanel();
+          }
+        });
         audio.addEventListener("ended", () => {
+          if (activeAudioPlayback?.audio === audio) {
+            clearActiveAudioPlayback({ pause: false, reset: true, hide: true });
+          }
           syncPlayState();
           syncTime();
         });
@@ -3568,6 +3963,7 @@ export const createWorkspaceChatController = (deps = {}) => {
 
     const previousChatId = store.getActiveChatId();
     if (previousChatId && previousChatId !== targetId) {
+      clearActiveAudioPlayback({ pause: true, reset: false, hide: true });
       stopTyping();
       resetVoiceRecorder();
       clearSelectedMessages();
@@ -4333,6 +4729,7 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const activateTasks = () => {
     store.setActiveChatId(null);
+    clearActiveAudioPlayback({ pause: true, reset: false, hide: true });
     clearComposerIntent();
     clearSelectedMessages();
     resetVoiceRecorder();

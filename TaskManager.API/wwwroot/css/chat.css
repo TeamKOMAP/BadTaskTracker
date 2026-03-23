@@ -82,6 +82,7 @@ body[data-theme="light"] .chat-shell {
 }
 
 .chat-shell-meta-head {
+  flex: 1 1 auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -100,6 +101,180 @@ body[data-theme="light"] .chat-shell {
 .chat-shell-sub {
   font-size: 12px;
   color: var(--text-3);
+}
+
+.chat-shell-now-playing {
+  margin: 8px 16px 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 10px 22px rgba(8, 14, 23, 0.18);
+}
+
+.chat-shell-now-playing.is-animate-in {
+  animation: chat-now-playing-in 220ms cubic-bezier(.2,.78,.2,1);
+}
+
+body[data-theme="light"] .chat-shell-now-playing {
+  border-color: rgba(15, 23, 42, 0.12);
+  background: rgba(15, 23, 42, 0.04);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.1);
+}
+
+.chat-shell-now-playing[hidden] {
+  display: none !important;
+}
+
+.chat-shell-now-playing-toggle,
+.chat-shell-now-playing-close {
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+}
+
+.chat-shell-now-playing-main {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.chat-shell-now-playing-sender {
+  font-size: 11px;
+  color: var(--text-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-shell-now-playing-track {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-shell-now-playing-volume {
+  position: relative;
+}
+
+.chat-shell-now-playing-volume::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translateX(-50%);
+  width: 46px;
+  height: 14px;
+}
+
+.chat-shell-now-playing-volume-btn {
+  width: 28px;
+  height: 28px;
+  min-height: 0;
+  padding: 0;
+}
+
+.chat-shell-now-playing-volume-popover {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 6px);
+  transform: translate(-50%, 6px);
+  width: 36px;
+  height: 116px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(10, 18, 28, 0.86);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  z-index: 15;
+}
+
+.chat-shell-now-playing-volume:hover .chat-shell-now-playing-volume-popover,
+.chat-shell-now-playing-volume:focus-within .chat-shell-now-playing-volume-popover,
+.chat-shell-now-playing-volume.is-open .chat-shell-now-playing-volume-popover {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.chat-shell-now-playing-volume-slider {
+  -webkit-appearance: slider-vertical;
+  appearance: slider-vertical;
+  width: 16px;
+  height: 90px;
+  margin: 0;
+  accent-color: #44d2c7;
+  cursor: pointer;
+}
+
+.chat-shell-now-playing-progress {
+  width: 100%;
+  margin: 0;
+  accent-color: #44d2c7;
+  cursor: pointer;
+}
+
+.chat-shell-now-playing-time {
+  min-width: 76px;
+  font-size: 10px;
+  color: var(--text-3);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.chat-shell-now-playing-icon-play {
+  display: none;
+}
+
+.chat-shell-now-playing-icon-muted {
+  display: none;
+}
+
+.chat-shell-now-playing-toggle[data-playing="false"] .chat-shell-now-playing-icon-play {
+  display: block;
+}
+
+.chat-shell-now-playing-toggle[data-playing="false"] .chat-shell-now-playing-icon-pause {
+  display: none;
+}
+
+.chat-shell-now-playing-volume-btn[data-muted="true"] .chat-shell-now-playing-icon-volume {
+  display: none;
+}
+
+.chat-shell-now-playing-volume-btn[data-muted="true"] .chat-shell-now-playing-icon-muted {
+  display: block;
+}
+
+body[data-theme="light"] .chat-shell-now-playing-volume-popover {
+  border-color: rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+@keyframes chat-now-playing-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-shell-now-playing.is-animate-in {
+    animation: none;
+  }
 }
 
 .chat-shell-feed {
