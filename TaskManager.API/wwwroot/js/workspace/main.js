@@ -103,8 +103,8 @@ import {
   taskDetailRejectBtn,
   taskDetailPhotoBtn,
   taskDetailPhotoClearBtn,
-  taskDetailChatBtn,
-  taskDetailChatOpenBtn,
+  taskDetailChatToggleBtn,
+  taskDetailChatCloseBtn,
   taskDetailHistoryToggleBtn,
   taskDetailHistoryClearBtn,
   taskAttachBtn,
@@ -119,7 +119,7 @@ import {
   confirmModalInputWrap,
   confirmModalInputHintEl,
   confirmModalInputEl
-} from "./dom.js?v=authflow14";
+} from "./dom.js?v=authflow15";
 
 import {
   buildApiUrl,
@@ -193,12 +193,12 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge15";
+import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge18";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf6";
-import { createTaskDetailController } from "./task-detail.js?v=perf15";
+import { createTaskDetailController } from "./task-detail.js?v=perf19";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
 import { createProfileModalsController } from "./profile-modals.js?v=profile7";
 
@@ -1686,15 +1686,72 @@ const setWorkspaceContext = (space) => {
     currentUserId = null;
     currentAssigneeIdFilter = null;
     chatController?.clearWorkspaceData();
+    unmountTaskDetailChatShell();
+  }
+};
+
+const chatShellHomeParent = chatShell?.parentElement || null;
+const chatShellHomeNextSibling = chatShell?.nextElementSibling || null;
+let taskDetailChatShellDockHost = null;
+
+const isTaskDetailChatShellMounted = () => {
+  return chatShell instanceof HTMLElement
+    && taskDetailChatShellDockHost instanceof HTMLElement
+    && taskDetailChatShellDockHost.contains(chatShell);
+};
+
+const mountTaskDetailChatShell = (host) => {
+  if (!(chatShell instanceof HTMLElement) || !(host instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (!host.contains(chatShell)) {
+    host.appendChild(chatShell);
+  }
+
+  taskDetailChatShellDockHost = host;
+  chatShell.classList.add("is-task-detail-docked");
+  chatShell.removeAttribute("hidden");
+  return true;
+};
+
+const unmountTaskDetailChatShell = () => {
+  if (!(chatShell instanceof HTMLElement)) {
+    taskDetailChatShellDockHost = null;
+    return;
+  }
+
+  if (chatShellHomeParent instanceof HTMLElement) {
+    if (chatShellHomeNextSibling instanceof Element && chatShellHomeNextSibling.parentElement === chatShellHomeParent) {
+      chatShellHomeParent.insertBefore(chatShell, chatShellHomeNextSibling);
+    } else {
+      chatShellHomeParent.appendChild(chatShell);
+    }
+  }
+
+  taskDetailChatShellDockHost = null;
+  chatShell.classList.remove("is-task-detail-docked");
+
+  const isChatScreen = workspaceMain instanceof HTMLElement && workspaceMain.classList.contains("is-chat-active");
+  if (!isChatScreen) {
+    chatShell.setAttribute("hidden", "");
   }
 };
 
 const setAppScreen = (screen) => {
   const showChat = screen === "chat";
   const showBoard = !showChat;
+
+  if (showChat && isTaskDetailChatShellMounted()) {
+    unmountTaskDetailChatShell();
+  }
+
   if (topbar) topbar.hidden = false;
   if (board) board.hidden = !showBoard;
-  if (chatShell) chatShell.hidden = !showChat;
+  if (chatShell) {
+    const keepVisibleInTaskDetail = !showChat && isTaskDetailChatShellMounted();
+    chatShell.hidden = !showChat && !keepVisibleInTaskDetail;
+  }
   if (brandToggle) brandToggle.hidden = false;
   if (viewToggle) viewToggle.hidden = showChat;
   if (openSpacesHomeBtn) openSpacesHomeBtn.hidden = false;
@@ -1734,7 +1791,10 @@ chatController = createWorkspaceChatBridge({
   onOpenTasks: () => {
     setAppScreen("board");
   },
-  onOpenChat: () => {
+  onOpenChat: (_chat, options) => {
+    if (options?.suppressScreenSwitch) {
+      return;
+    }
     setAppScreen("chat");
   }
 });
@@ -4042,10 +4102,12 @@ taskDetailController = createTaskDetailController({
   canEditTask: isAdmin,
   canClearHistory: isAdmin,
   canManageDoneApproval: isAdmin,
-  canAccessTaskChat: () => Number(currentWorkspaceId) > 0 && Boolean(getWorkspaceMemberById(getActorUserId())),
-  getWorkspaceMemberCount: () => (Array.isArray(workspaceMembers) ? workspaceMembers.length : 0),
+  canAccessTaskChat: () => Number(currentWorkspaceId) > 0,
   ensureTaskChat: (taskId, options) => chatController?.ensureTaskChat(taskId, options) ?? null,
-  openTaskChatRoom: (chatId) => chatController?.openChat(chatId),
+  openTaskChatRoom: (chatId, options) => chatController?.openChat(chatId, options),
+  focusTaskChatUnread: (options) => chatController?.focusFirstUnreadInActiveChat(options),
+  mountTaskChatShell: (host) => mountTaskDetailChatShell(host),
+  unmountTaskChatShell: () => unmountTaskDetailChatShell(),
   approveDone: approveTaskDoneViaApi,
   rejectDone: rejectTaskDoneViaApi,
   ensureTagsLoaded,
@@ -4511,12 +4573,12 @@ if (taskDetailPhotoClearBtn) {
   taskDetailPhotoClearBtn.addEventListener("click", taskDetailController.onDetailPhotoClearClick);
 }
 
-if (taskDetailChatBtn) {
-  taskDetailChatBtn.addEventListener("click", taskDetailController.onTaskChatClick);
+if (taskDetailChatToggleBtn) {
+  taskDetailChatToggleBtn.addEventListener("click", taskDetailController.onTaskChatToggleClick);
 }
 
-if (taskDetailChatOpenBtn) {
-  taskDetailChatOpenBtn.addEventListener("click", taskDetailController.onTaskChatOpenClick);
+if (taskDetailChatCloseBtn) {
+  taskDetailChatCloseBtn.addEventListener("click", taskDetailController.onTaskChatCloseClick);
 }
 
 if (taskDetailHistoryToggleBtn) {

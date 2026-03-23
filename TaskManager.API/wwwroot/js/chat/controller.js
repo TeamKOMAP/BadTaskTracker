@@ -703,10 +703,25 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const clearComposerIntent = () => {
     composerState = createComposerState();
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.value = "";
     }
+    resizeComposerInput();
     syncComposerUi();
+  };
+
+  const resizeComposerInput = () => {
+    if (!(chatShellInput instanceof HTMLTextAreaElement)) {
+      return;
+    }
+
+    const minHeight = 44;
+    const maxHeight = 168;
+    chatShellInput.style.height = "auto";
+    const contentHeight = Number(chatShellInput.scrollHeight) || minHeight;
+    const nextHeight = Math.max(minHeight, Math.min(maxHeight, contentHeight));
+    chatShellInput.style.height = `${nextHeight}px`;
+    chatShellInput.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
   };
 
   const getChatTypeLabel = (type) => {
@@ -1114,8 +1129,9 @@ export const createWorkspaceChatController = (deps = {}) => {
       body: "",
       summary: buildMessageSummary(message)
     };
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.value = "";
+      resizeComposerInput();
       chatShellInput.focus();
     }
     syncComposerUi();
@@ -1140,8 +1156,9 @@ export const createWorkspaceChatController = (deps = {}) => {
       body: message.body,
       summary: buildMessageSummary(message)
     };
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.value = message.body || "";
+      resizeComposerInput();
       chatShellInput.focus();
       chatShellInput.setSelectionRange(chatShellInput.value.length, chatShellInput.value.length);
     }
@@ -1275,6 +1292,67 @@ export const createWorkspaceChatController = (deps = {}) => {
       });
     });
     syncJumpBottomButton();
+  };
+
+  const resolveFirstUnreadMessageId = (chatId) => {
+    const normalizedChatId = toChatId(chatId);
+    if (!normalizedChatId) return null;
+
+    const actorId = Number(getActorUserId());
+    if (!Number.isFinite(actorId) || actorId <= 0) return null;
+
+    const actorLastReadMessageId = Number(getReadMap(normalizedChatId).get(actorId) || 0);
+    const messages = store.getMessages(normalizedChatId);
+    const firstUnread = messages.find((message) => {
+      const messageId = Number(message?.id);
+      if (!Number.isFinite(messageId) || messageId <= actorLastReadMessageId) return false;
+      if (Number(message?.senderUserId) === actorId) return false;
+      if (message?.deletedAtUtc) return false;
+      return true;
+    });
+
+    const unreadId = Number(firstUnread?.id);
+    return Number.isFinite(unreadId) && unreadId > 0 ? unreadId : null;
+  };
+
+  const focusFirstUnreadMessage = (chatId) => {
+    const normalizedChatId = toChatId(chatId);
+    if (!normalizedChatId || !(chatShellFeed instanceof HTMLElement) || !(chatShellMessages instanceof HTMLElement)) {
+      return false;
+    }
+
+    const firstUnreadMessageId = resolveFirstUnreadMessageId(normalizedChatId);
+    if (!Number.isFinite(firstUnreadMessageId) || firstUnreadMessageId <= 0) {
+      return false;
+    }
+
+    const list = store.getMessages(normalizedChatId);
+    const unreadIndex = list.findIndex((message) => Number(message?.id) === firstUnreadMessageId);
+    if (unreadIndex < 0) {
+      return false;
+    }
+
+    const start = Math.max(0, unreadIndex - Math.floor(CHAT_MESSAGE_WINDOW_SIZE * 0.35));
+    messageRenderWindowByChatId.set(normalizedChatId, {
+      start,
+      total: list.length
+    });
+    renderMessages(normalizedChatId, { stickToBottom: false });
+
+    window.requestAnimationFrame(() => {
+      const target = chatShellMessages.querySelector(`[data-message-id="${firstUnreadMessageId}"]`);
+      if (!(target instanceof HTMLElement)) return;
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      target.classList.add("is-first-unread-focus");
+      window.setTimeout(() => {
+        if (target.isConnected) {
+          target.classList.remove("is-first-unread-focus");
+        }
+      }, 1400);
+      syncJumpBottomButton();
+    });
+
+    return true;
   };
 
   const isFeedNearBottom = () => {
@@ -2779,7 +2857,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     const isEditMode = composerState.mode === "edit";
     const isReplyMode = composerState.mode === "reply";
     const isVoiceRecordingUi = voiceRecordingMode === "starting" || voiceRecordingMode === "recording" || voiceRecordingMode === "paused";
-    const hasText = normalizeToken(chatShellInput instanceof HTMLInputElement ? chatShellInput.value : "").length > 0;
+    const hasText = normalizeToken(chatShellInput instanceof HTMLTextAreaElement ? chatShellInput.value : "").length > 0;
     const isRecording = Boolean(mediaRecorder && mediaRecorder.state === "recording");
 
     if (chatShellContext instanceof HTMLElement) {
@@ -2798,7 +2876,7 @@ export const createWorkspaceChatController = (deps = {}) => {
       }
     }
 
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.disabled = !hasActiveChat || isForwardMode || isLoadingMessages || isLoadingOlderMessages || isSendingMessage;
       chatShellInput.disabled = !hasActiveChat || isForwardMode || isBulkForwardMode || isLoadingMessages || isLoadingOlderMessages || isSendingMessage;
       chatShellInput.placeholder = !hasActiveChat
@@ -2842,7 +2920,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (chatShellAttachBtn instanceof HTMLButtonElement) {
       chatShellAttachBtn.hidden = isVoiceRecordingUi;
     }
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.hidden = isVoiceRecordingUi;
     }
     if (chatShellForm instanceof HTMLFormElement) {
@@ -2887,6 +2965,7 @@ export const createWorkspaceChatController = (deps = {}) => {
 
     syncVoiceRecordingUi();
     syncLoadMoreButton();
+    resizeComposerInput();
   };
 
   const renderAttachmentCollection = (chatId, message, parent) => {
@@ -3293,6 +3372,11 @@ export const createWorkspaceChatController = (deps = {}) => {
       row.className = "chat-msg-row";
       const item = document.createElement("article");
       item.className = "chat-msg";
+      const messageId = Number(message?.id);
+      if (Number.isFinite(messageId) && messageId > 0) {
+        row.dataset.messageId = String(messageId);
+        item.dataset.messageId = String(messageId);
+      }
       item.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         openMessageContextMenu(event, chatId, message);
@@ -3705,7 +3789,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const notifyTyping = () => {
     const activeChatId = store.getActiveChatId();
     if (!activeChatId || store.isUsingMockData()) return;
-    const currentText = normalizeToken(chatShellInput instanceof HTMLInputElement ? chatShellInput.value : "");
+    const currentText = normalizeToken(chatShellInput instanceof HTMLTextAreaElement ? chatShellInput.value : "");
     if (!currentText) {
       stopTyping();
       return;
@@ -3872,8 +3956,26 @@ export const createWorkspaceChatController = (deps = {}) => {
     await api.markAsRead(activeChatId, lastMessageId);
   };
 
+  const focusFirstUnreadInActiveChat = async (options = {}) => {
+    const activeChatId = store.getActiveChatId();
+    if (!activeChatId) return false;
+
+    const focused = focusFirstUnreadMessage(activeChatId);
+    if (!focused && options?.fallbackToBottom !== false) {
+      scrollMessagesToBottom();
+    }
+
+    if (options?.markAsRead !== false) {
+      await markActiveChatAsRead();
+    }
+
+    return focused;
+  };
+
   const loadMessages = async (chatId, options = {}) => {
     const appendOlder = Boolean(options.appendOlder);
+    const skipInitialScrollBottom = Boolean(options.skipInitialScrollBottom);
+    const skipInitialMarkAsRead = Boolean(options.skipInitialMarkAsRead);
     const current = store.getMessages(chatId);
     const oldestMessage = current.length ? current[0] : null;
     const beforeMessageId = appendOlder ? Number(oldestMessage?.id) : null;
@@ -3905,12 +4007,12 @@ export const createWorkspaceChatController = (deps = {}) => {
       stickToBottom: !appendOlder,
       prependCount: appendOlder ? normalized.length : 0
     });
-    if (!appendOlder) {
+    if (!appendOlder && !skipInitialScrollBottom) {
       scrollMessagesToBottom();
     }
     renderRailList();
     void loadAttachmentsForMessages(chatId, store.getMessages(chatId), { stickToBottom: !appendOlder });
-    if (!appendOlder) {
+    if (!appendOlder && !skipInitialMarkAsRead) {
       await markActiveChatAsRead();
     }
     return true;
@@ -3954,9 +4056,11 @@ export const createWorkspaceChatController = (deps = {}) => {
     showChatPlaceholder("Демо-режим чатов", "REST fallback", "Откройте любой чат слева: доступен локальный макет диалога.");
   };
 
-  const openChat = async (chatId) => {
+  const openChat = async (chatId, options = {}) => {
     const targetId = toChatId(chatId);
     if (!targetId || !store.isFeatureEnabled()) return;
+    const focusFirstUnread = options?.focusFirstUnread === true;
+    const deferUnreadFocus = options?.deferUnreadFocus === true;
 
     const chat = store.getChatById(targetId);
     if (!chat) return;
@@ -3990,37 +4094,57 @@ export const createWorkspaceChatController = (deps = {}) => {
       chatShellMessages.innerHTML = "";
     }
 
-    onOpenChat(chat);
+    onOpenChat(chat, options);
 
     if (store.isUsingMockData()) {
       await loadPreferencesForChat(targetId);
       await loadReadStatesForChat(targetId);
       renderMessages(targetId, { stickToBottom: true });
-      scrollMessagesToBottom();
+      if (!focusFirstUnread || !focusFirstUnreadMessage(targetId)) {
+        scrollMessagesToBottom();
+      }
       renderRailList();
       renderRealtimePresence();
       syncComposerUi();
-      if (chatShellInput instanceof HTMLInputElement && composerState.mode !== "forward" && composerState.mode !== "bulk-forward") {
+      if (chatShellInput instanceof HTMLTextAreaElement && composerState.mode !== "forward" && composerState.mode !== "bulk-forward") {
+        resizeComposerInput();
         chatShellInput.focus();
       }
       return;
     }
 
+    if (focusFirstUnread) {
+      await loadReadStatesForChat(targetId);
+    }
+
     isLoadingMessages = true;
     syncComposerUi();
-    const loaded = await loadMessages(targetId);
+    const loaded = await loadMessages(targetId, {
+      skipInitialScrollBottom: focusFirstUnread,
+      skipInitialMarkAsRead: focusFirstUnread
+    });
     isLoadingMessages = false;
     syncComposerUi();
     renderRealtimePresence();
     await loadPreferencesForChat(targetId);
-    await loadReadStatesForChat(targetId);
+    if (!focusFirstUnread) {
+      await loadReadStatesForChat(targetId);
+    }
+
+    if (loaded && focusFirstUnread && !deferUnreadFocus) {
+      if (!focusFirstUnreadMessage(targetId)) {
+        scrollMessagesToBottom();
+      }
+      await markActiveChatAsRead();
+    }
 
     if (!loaded && previousChatId && previousChatId !== targetId) {
       store.setActiveChatId(previousChatId);
       renderRailList();
     }
 
-    if (chatShellInput instanceof HTMLInputElement && composerState.mode !== "forward" && composerState.mode !== "bulk-forward") {
+    if (chatShellInput instanceof HTMLTextAreaElement && composerState.mode !== "forward" && composerState.mode !== "bulk-forward") {
+      resizeComposerInput();
       chatShellInput.focus();
     }
   };
@@ -4110,7 +4234,10 @@ export const createWorkspaceChatController = (deps = {}) => {
 
     const openAfterEnsure = options?.open !== false;
     if (openAfterEnsure) {
-      await openChat(normalized.id);
+      const openOptions = options?.openOptions && typeof options.openOptions === "object"
+        ? options.openOptions
+        : {};
+      await openChat(normalized.id, openOptions);
     }
 
     return normalized;
@@ -4457,7 +4584,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const applyMockSend = () => {
     const activeChatId = store.getActiveChatId();
     if (!activeChatId) return false;
-    const body = normalizeToken(chatShellInput instanceof HTMLInputElement ? chatShellInput.value : "");
+    const body = normalizeToken(chatShellInput instanceof HTMLTextAreaElement ? chatShellInput.value : "");
     const actorIdRaw = Number(getActorUserId());
     const actorId = Number.isFinite(actorIdRaw) && actorIdRaw > 0 ? actorIdRaw : 1;
 
@@ -4520,13 +4647,14 @@ export const createWorkspaceChatController = (deps = {}) => {
     const activeChatId = store.getActiveChatId();
     if (!activeChatId || !store.isFeatureEnabled()) return;
 
-    const body = normalizeToken(chatShellInput instanceof HTMLInputElement ? chatShellInput.value : "");
+    const body = normalizeToken(chatShellInput instanceof HTMLTextAreaElement ? chatShellInput.value : "");
     if (!body && composerState.mode !== "forward") return;
 
     if (store.isUsingMockData()) {
       const applied = applyMockSend();
-      if (applied && chatShellInput instanceof HTMLInputElement && composerState.mode !== "forward") {
+      if (applied && chatShellInput instanceof HTMLTextAreaElement && composerState.mode !== "forward") {
         chatShellInput.value = "";
+        resizeComposerInput();
         chatShellInput.focus();
       }
       return;
@@ -4654,8 +4782,9 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
 
     clearComposerIntent();
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.value = "";
+      resizeComposerInput();
       chatShellInput.focus();
     }
     syncComposerUi();
@@ -4955,7 +5084,7 @@ export const createWorkspaceChatController = (deps = {}) => {
       });
     }
 
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
@@ -4963,6 +5092,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         }
       });
       chatShellInput.addEventListener("input", () => {
+        resizeComposerInput();
         if (composerState.mode === "edit") {
           composerState = {
             ...composerState,
@@ -5110,6 +5240,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     renderUploadQueue();
     setVoiceStatus("Голосовые сообщения готовы");
     syncJumpBottomButton();
+    resizeComposerInput();
     syncComposerUi();
   };
 
@@ -5120,6 +5251,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     openDirectChatByUser,
     openActiveChatSettings,
     ensureTaskChat,
+    focusFirstUnreadInActiveChat,
     activateTasks,
     clearWorkspaceData,
     syncMembers

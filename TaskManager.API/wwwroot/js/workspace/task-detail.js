@@ -15,12 +15,11 @@ import {
   taskDetailCompletedEl,
   taskDetailTagsEl,
   taskDetailDescriptionEl,
-  taskDetailChatWrap,
-  taskDetailChatBtn,
-  taskDetailChatCard,
-  taskDetailChatTitleEl,
-  taskDetailChatSubEl,
-  taskDetailChatOpenBtn,
+  taskDetailChatToggleBtn,
+  taskDetailChatPanel,
+  taskDetailChatPanelTitleEl,
+  taskDetailChatShellHost,
+  taskDetailChatCloseBtn,
   taskDetailPhotoWrap,
   taskDetailPhotoImg,
   taskDetailPhotoBtn,
@@ -40,7 +39,7 @@ import {
   taskAttachmentsEmpty,
   taskAttachmentsInput,
   taskBgInput
-} from "./dom.js?v=authflow14";
+} from "./dom.js?v=authflow15";
 
 import { normalizeToken } from "../shared/utils.js";
 import {
@@ -120,15 +119,21 @@ export const createTaskDetailController = (deps) => {
   const canAccessTaskChat = typeof deps?.canAccessTaskChat === "function"
     ? deps.canAccessTaskChat
     : () => false;
-  const getWorkspaceMemberCount = typeof deps?.getWorkspaceMemberCount === "function"
-    ? deps.getWorkspaceMemberCount
-    : () => 0;
   const ensureTaskChat = typeof deps?.ensureTaskChat === "function"
     ? deps.ensureTaskChat
     : async () => null;
   const openTaskChatRoom = typeof deps?.openTaskChatRoom === "function"
     ? deps.openTaskChatRoom
     : async () => null;
+  const focusTaskChatUnread = typeof deps?.focusTaskChatUnread === "function"
+    ? deps.focusTaskChatUnread
+    : async () => false;
+  const mountTaskChatShell = typeof deps?.mountTaskChatShell === "function"
+    ? deps.mountTaskChatShell
+    : () => false;
+  const unmountTaskChatShell = typeof deps?.unmountTaskChatShell === "function"
+    ? deps.unmountTaskChatShell
+    : () => {};
   const approveDone = typeof deps?.approveDone === "function" ? deps.approveDone : async () => null;
   const rejectDone = typeof deps?.rejectDone === "function" ? deps.rejectDone : async () => null;
   const ensureTagsLoaded = typeof deps?.ensureTagsLoaded === "function" ? deps.ensureTagsLoaded : async () => {};
@@ -152,53 +157,229 @@ export const createTaskDetailController = (deps) => {
   let detailRequestSeq = 0;
   let detailAbortController = null;
   let taskChatBusy = false;
+  let taskChatPanelEnterFrameId = 0;
 
   const taskChatByTaskId = new Map();
 
   const isTaskChatEligible = () => {
-    return canAccessTaskChat() && Number(getWorkspaceMemberCount()) > 1;
+    return Boolean(canAccessTaskChat());
+  };
+
+  const isTaskChatPanelOpen = () => Boolean(taskDetailChatPanel && !taskDetailChatPanel.hasAttribute("hidden"));
+
+  const positionTaskChatToggle = () => {
+    if (!(taskDetailChatToggleBtn instanceof HTMLButtonElement) || !taskDetailModal) return;
+
+    if (taskDetailModal.hasAttribute("hidden") || taskDetailChatToggleBtn.hasAttribute("hidden")) {
+      taskDetailChatToggleBtn.style.left = "";
+      taskDetailChatToggleBtn.style.top = "";
+      return;
+    }
+
+    const card = taskDetailModal.querySelector(".task-modal-card.task-detail-card");
+    if (!(card instanceof Element)) return;
+
+    const rect = card.getBoundingClientRect();
+    const compact = window.innerWidth <= 900;
+    const left = Math.max(12, Math.round(rect.left));
+    const rawTop = compact ? rect.top + 56 : rect.top + rect.height * 0.52;
+    const minTop = 20;
+    const maxTop = Math.max(minTop, window.innerHeight - (compact ? 56 : 72));
+    const top = Math.round(Math.max(minTop, Math.min(maxTop, rawTop)));
+
+    taskDetailChatToggleBtn.style.left = `${left}px`;
+    taskDetailChatToggleBtn.style.top = `${top}px`;
+  };
+
+  const syncTaskChatControls = () => {
+    const panelOpen = isTaskChatPanelOpen();
+
+    if (taskDetailChatToggleBtn instanceof HTMLButtonElement) {
+      taskDetailChatToggleBtn.disabled = taskChatBusy;
+      taskDetailChatToggleBtn.classList.toggle("is-busy", taskChatBusy);
+      taskDetailChatToggleBtn.setAttribute("aria-label", panelOpen ? "Скрыть чат задачи" : "Открыть чат задачи");
+      taskDetailChatToggleBtn.setAttribute("title", panelOpen ? "Скрыть чат" : "Чат задачи");
+    }
+
+    if (taskDetailChatCloseBtn instanceof HTMLButtonElement) {
+      taskDetailChatCloseBtn.disabled = taskChatBusy;
+    }
   };
 
   const setTaskChatBusy = (busy) => {
     taskChatBusy = Boolean(busy);
-    if (taskDetailChatBtn instanceof HTMLButtonElement) {
-      taskDetailChatBtn.disabled = taskChatBusy;
-      taskDetailChatBtn.textContent = taskChatBusy ? "Открываем чат..." : "Чат задачи";
-    }
-    if (taskDetailChatOpenBtn instanceof HTMLButtonElement) {
-      taskDetailChatOpenBtn.disabled = taskChatBusy;
-      taskDetailChatOpenBtn.textContent = taskChatBusy ? "Подождите..." : "Открыть чат";
-    }
+    syncTaskChatControls();
   };
 
   const renderTaskChatState = (taskId = detailTaskId) => {
-    if (!(taskDetailChatWrap instanceof HTMLElement)) return;
+    if (!(taskDetailChatToggleBtn instanceof HTMLButtonElement)) return;
 
     const id = Number(taskId);
     const eligible = Number.isFinite(id) && id > 0 && isTaskChatEligible();
-    taskDetailChatWrap.hidden = !eligible;
+    taskDetailChatToggleBtn.hidden = !eligible;
+
     if (!eligible) {
+      if (isTaskChatPanelOpen()) {
+        setTaskChatPanelOpen(false);
+      }
+      taskDetailChatToggleBtn.style.left = "";
+      taskDetailChatToggleBtn.style.top = "";
+      if (taskDetailChatPanelTitleEl) {
+        taskDetailChatPanelTitleEl.textContent = "Чат задачи";
+      }
+      syncTaskChatControls();
       return;
     }
 
     const chat = taskChatByTaskId.get(id) || null;
-    if (taskDetailChatBtn instanceof HTMLButtonElement) {
-      taskDetailChatBtn.hidden = Boolean(chat);
-    }
-    if (taskDetailChatCard instanceof HTMLElement) {
-      taskDetailChatCard.hidden = !chat;
+    if (taskDetailChatPanelTitleEl) {
+      taskDetailChatPanelTitleEl.textContent = normalizeToken(chat?.title) || `Чат задачи #${id}`;
     }
 
-    if (chat) {
-      if (taskDetailChatTitleEl) {
-        taskDetailChatTitleEl.textContent = normalizeToken(chat?.title) || "Чат задачи";
-      }
-      if (taskDetailChatSubEl) {
-        taskDetailChatSubEl.textContent = "Комната готова: можно открыть чат и обсудить задачу с участниками проекта.";
-      }
+    positionTaskChatToggle();
+    syncTaskChatControls();
+  };
+
+  const positionTaskChatPanel = () => {
+    if (!taskDetailChatPanel || !taskDetailModal) return;
+    const card = taskDetailModal.querySelector(".task-modal-card.task-detail-card");
+    if (!(card instanceof Element)) return;
+    if (!isTaskChatPanelOpen()) return;
+
+    const rect = card.getBoundingClientRect();
+    const gap = 14;
+    const margin = 16;
+    const maxHeight = Math.max(240, Math.min(window.innerHeight - margin * 2, rect.height));
+
+    taskDetailChatPanel.classList.remove("is-stack");
+    taskDetailChatPanel.style.width = "";
+
+    const defaultWidth = Math.min(560, Math.max(380, rect.left - gap - margin));
+    const fitsLeft = rect.left - gap - defaultWidth >= margin;
+
+    if (fitsLeft) {
+      const top = Math.max(margin, rect.top);
+      taskDetailChatPanel.style.left = `${Math.round(rect.left - gap - defaultWidth)}px`;
+      taskDetailChatPanel.style.top = `${Math.round(top)}px`;
+      taskDetailChatPanel.style.height = `${Math.round(Math.min(maxHeight, window.innerHeight - top - margin))}px`;
+      taskDetailChatPanel.style.width = `${Math.round(defaultWidth)}px`;
+      return;
     }
 
-    setTaskChatBusy(false);
+    taskDetailChatPanel.classList.add("is-stack");
+    let stackTop = rect.bottom + gap;
+    if (isHistoryPanelOpen() && taskDetailHistoryPanel?.classList.contains("is-stack")) {
+      const historyRect = taskDetailHistoryPanel.getBoundingClientRect();
+      const historyHeight = Math.max(
+        0,
+        Number(historyRect?.height) || Number.parseFloat(taskDetailHistoryPanel.style.height) || 0
+      );
+      if (historyHeight > 0) {
+        stackTop += historyHeight + 10;
+      }
+    }
+    const height = Math.max(220, Math.min(440, window.innerHeight - stackTop - margin));
+    taskDetailChatPanel.style.left = `${Math.round(Math.max(margin, rect.left))}px`;
+    taskDetailChatPanel.style.top = `${Math.round(stackTop)}px`;
+    taskDetailChatPanel.style.height = `${Math.round(height)}px`;
+    taskDetailChatPanel.style.width = `${Math.round(Math.min(rect.width, window.innerWidth - margin * 2))}px`;
+  };
+
+  const setTaskChatPanelOpen = (open) => {
+    if (!taskDetailChatPanel) return;
+    const show = Boolean(open);
+    taskDetailChatPanel.toggleAttribute("hidden", !show);
+
+    if (taskDetailChatToggleBtn instanceof HTMLButtonElement) {
+      taskDetailChatToggleBtn.setAttribute("aria-expanded", show ? "true" : "false");
+      taskDetailChatToggleBtn.setAttribute("aria-pressed", show ? "true" : "false");
+    }
+
+    if (!show) {
+      if (taskChatPanelEnterFrameId) {
+        window.cancelAnimationFrame(taskChatPanelEnterFrameId);
+        taskChatPanelEnterFrameId = 0;
+      }
+      taskDetailChatPanel.classList.remove("is-entering");
+      unmountTaskChatShell();
+      taskDetailChatPanel.classList.remove("is-stack");
+      taskDetailChatPanel.style.left = "";
+      taskDetailChatPanel.style.top = "";
+      taskDetailChatPanel.style.height = "";
+      taskDetailChatPanel.style.width = "";
+      window.removeEventListener("resize", positionTaskChatPanel);
+      positionTaskChatToggle();
+      syncTaskChatControls();
+      return;
+    }
+
+    if (taskDetailChatShellHost instanceof HTMLElement) {
+      mountTaskChatShell(taskDetailChatShellHost);
+    }
+    renderTaskChatState(detailTaskId);
+    positionTaskChatToggle();
+    positionTaskChatPanel();
+    if (isHistoryPanelOpen()) {
+      positionHistoryPanel();
+      positionTaskChatPanel();
+    }
+    window.addEventListener("resize", positionTaskChatPanel);
+    taskDetailChatPanel.classList.add("is-entering");
+    if (taskChatPanelEnterFrameId) {
+      window.cancelAnimationFrame(taskChatPanelEnterFrameId);
+    }
+    taskChatPanelEnterFrameId = window.requestAnimationFrame(() => {
+      taskChatPanelEnterFrameId = window.requestAnimationFrame(() => {
+        taskChatPanelEnterFrameId = 0;
+        taskDetailChatPanel.classList.remove("is-entering");
+      });
+    });
+    syncTaskChatControls();
+  };
+
+  const onTaskChatToggleClick = async () => {
+    if (!detailTaskId || taskChatBusy || !isTaskChatEligible()) return;
+
+    if (isTaskChatPanelOpen()) {
+      setTaskChatPanelOpen(false);
+      return;
+    }
+
+    setTaskChatBusy(true);
+    try {
+      let chat = taskChatByTaskId.get(detailTaskId) || null;
+      if (!chat) {
+        chat = await ensureTaskChat(detailTaskId, { open: false });
+        if (!chat?.id) {
+          setTaskChatPanelOpen(false);
+          return;
+        }
+        taskChatByTaskId.set(detailTaskId, chat);
+      }
+
+      await openTaskChatRoom(chat.id, {
+        suppressScreenSwitch: true,
+        focusFirstUnread: true,
+        deferUnreadFocus: true
+      });
+      setTaskChatPanelOpen(true);
+      renderTaskChatState(detailTaskId);
+      await focusTaskChatUnread({
+        fallbackToBottom: true,
+        markAsRead: true
+      });
+    } catch (error) {
+      console.error("Не удалось открыть task-чат", error);
+    } finally {
+      setTaskChatBusy(false);
+      if (detailTaskId) {
+        renderTaskChatState(detailTaskId);
+      }
+    }
+  };
+
+  const onTaskChatCloseClick = () => {
+    setTaskChatPanelOpen(false);
   };
 
   const refreshHistoryClearButton = (options) => {
@@ -357,6 +538,9 @@ export const createTaskDetailController = (deps) => {
 
     renderHistoryForTask(detailTaskId);
     positionHistoryPanel();
+    if (isTaskChatPanelOpen()) {
+      positionTaskChatPanel();
+    }
     window.addEventListener("resize", positionHistoryPanel);
   };
 
@@ -507,6 +691,8 @@ export const createTaskDetailController = (deps) => {
 
     taskDetailModal.setAttribute("hidden", "");
     setHistoryPanelOpen(false);
+    setTaskChatPanelOpen(false);
+    window.removeEventListener("resize", positionTaskChatToggle);
     detailTaskId = null;
     detailTaskCard = null;
     pendingPhotoTaskId = null;
@@ -524,13 +710,15 @@ export const createTaskDetailController = (deps) => {
     if (taskAttachmentsEmpty) {
       taskAttachmentsEmpty.hidden = true;
     }
+    if (taskDetailChatToggleBtn instanceof HTMLButtonElement) {
+      taskDetailChatToggleBtn.style.left = "";
+      taskDetailChatToggleBtn.style.top = "";
+    }
 
     if (taskDetailHistoryList) taskDetailHistoryList.innerHTML = "";
     if (taskDetailHistoryEmpty) taskDetailHistoryEmpty.hidden = true;
     refreshHistoryClearButton({ hasEntries: false });
-    if (taskDetailChatWrap instanceof HTMLElement) {
-      taskDetailChatWrap.hidden = true;
-    }
+    renderTaskChatState(null);
   };
 
   const openTaskDetailModalForTask = async (taskId, card) => {
@@ -556,6 +744,10 @@ export const createTaskDetailController = (deps) => {
 
     taskDetailModal.removeAttribute("hidden");
     setHistoryPanelOpen(false);
+    setTaskChatPanelOpen(false);
+    window.removeEventListener("resize", positionTaskChatToggle);
+    window.addEventListener("resize", positionTaskChatToggle);
+    setTaskChatBusy(false);
 
     const fallbackTitle = normalizeToken(card?.querySelector?.("h3")?.textContent) || `Задача #${id}`;
     if (taskDetailTitleEl) {
@@ -598,6 +790,7 @@ export const createTaskDetailController = (deps) => {
       taskAttachBtn.toggleAttribute("hidden", !canEditTask());
     }
     renderTaskChatState(id);
+    positionTaskChatToggle();
 
     const resolveTagName = (tagId) => getTagNameById(Number(tagId)) || "";
     const resolveAssigneeName = (assigneeId) => getAssigneeNameById(Number(assigneeId)) || "";
@@ -785,46 +978,6 @@ export const createTaskDetailController = (deps) => {
     taskAttachmentsInput?.click();
   };
 
-  const onTaskChatClick = async () => {
-    if (!detailTaskId || taskChatBusy || !isTaskChatEligible()) return;
-
-    setTaskChatBusy(true);
-    try {
-      const chat = await ensureTaskChat(detailTaskId, { open: false });
-      if (!chat?.id) {
-        return;
-      }
-
-      taskChatByTaskId.set(detailTaskId, chat);
-      renderTaskChatState(detailTaskId);
-    } finally {
-      setTaskChatBusy(false);
-    }
-  };
-
-  const onTaskChatOpenClick = async () => {
-    if (!detailTaskId || taskChatBusy) return;
-
-    let chat = taskChatByTaskId.get(detailTaskId) || null;
-    if (!chat) {
-      setTaskChatBusy(true);
-      try {
-        chat = await ensureTaskChat(detailTaskId, { open: false });
-        if (!chat?.id) {
-          return;
-        }
-        taskChatByTaskId.set(detailTaskId, chat);
-        renderTaskChatState(detailTaskId);
-      } finally {
-        setTaskChatBusy(false);
-      }
-    }
-
-    if (!chat?.id) return;
-    closeTaskDetailModal();
-    await openTaskChatRoom(chat.id);
-  };
-
   const onAttachmentsInputChange = async () => {
     if (!taskAttachmentsInput) return;
     const files = taskAttachmentsInput.files ? Array.from(taskAttachmentsInput.files) : [];
@@ -887,8 +1040,8 @@ export const createTaskDetailController = (deps) => {
     onDetailPhotoClearClick,
     onHistoryToggleClick,
     onHistoryClearClick,
-    onTaskChatClick,
-    onTaskChatOpenClick,
+    onTaskChatToggleClick,
+    onTaskChatCloseClick,
     onAttachClick,
     onAttachmentsInputChange,
     onTaskBgInputChange

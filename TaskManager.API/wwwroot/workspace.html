@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="css/base.css?v=base6">
   <link rel="stylesheet" href="css/components.css?v=comp2">
   <link rel="stylesheet" href="css/chat.css?v=chat20">
-  <link rel="stylesheet" href="css/workspace.css?v=perf72">
+  <link rel="stylesheet" href="css/workspace.css?v=perf73">
   <link rel="stylesheet" href="css/workspace-members.css?v=wm1">
 </head>
 <body data-theme="dark">
@@ -200,14 +200,14 @@
                     <path d="M8 12.5l6.6-6.6a3 3 0 1 1 4.2 4.2L10 18.9a5 5 0 1 1-7.1-7.1l8.1-8.1" />
                   </svg>
                 </button>
-                <input
+                <textarea
                   class="chat-shell-input"
                   id="chat-shell-input"
-                  type="text"
                   maxlength="4000"
+                  rows="1"
                   placeholder="Введите сообщение"
                   disabled
-                >
+                ></textarea>
               </div>
               <div class="chat-shell-recording" id="chat-shell-recording" hidden>
                 <button class="icon-btn chat-shell-recording-cancel" id="chat-shell-recording-cancel" type="button" aria-label="Отменить запись" title="Отменить запись">
@@ -697,6 +697,12 @@
 
   <div class="task-modal" id="task-detail-modal" hidden>
     <div class="task-modal-backdrop" data-close-detail></div>
+    <button class="task-detail-chat-toggle-edge" id="task-detail-chat-toggle" type="button" aria-label="Открыть чат задачи" title="Чат задачи" aria-expanded="false" aria-controls="task-detail-chat-panel" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 7.5a2.5 2.5 0 0 1 2.5-2.5h9A2.5 2.5 0 0 1 19 7.5v6A2.5 2.5 0 0 1 16.5 16H11l-4 3v-3h-.5A2.5 2.5 0 0 1 4 13.5v-6z" />
+      </svg>
+    </button>
+
     <div class="task-modal-card task-detail-card" role="dialog" aria-modal="true" aria-labelledby="task-detail-title">
         <div class="task-modal-header task-detail-modal-header">
           <div class="task-detail-header-row">
@@ -799,19 +805,6 @@
             <p class="task-detail-text" id="task-detail-description">-</p>
           </div>
 
-          <div class="task-detail-chat" id="task-detail-chat" hidden>
-            <button class="primary-btn task-detail-chat-btn" id="task-detail-chat-btn" type="button">Чат задачи</button>
-
-            <div class="task-detail-chat-card" id="task-detail-chat-card" hidden>
-              <div class="task-detail-chat-meta">
-                <span class="task-detail-chat-kicker">Task chat ready</span>
-                <span class="task-detail-chat-title" id="task-detail-chat-title">Чат задачи</span>
-                <span class="task-detail-chat-sub" id="task-detail-chat-sub">Команда может обсуждать задачу в отдельной комнате.</span>
-              </div>
-              <button class="ghost-btn task-detail-chat-open" id="task-detail-chat-open" type="button">Открыть чат</button>
-            </div>
-          </div>
-
           <div class="task-detail-attachments">
             <div class="task-detail-attachments-head">
               <span class="task-detail-label">Вложения</span>
@@ -839,6 +832,24 @@
         </header>
         <div class="task-detail-block-body task-detail-history" id="task-detail-history"></div>
         <div class="task-detail-block-empty" id="task-detail-history-empty" hidden>Нет изменений.</div>
+      </section>
+    </aside>
+
+    <aside class="task-detail-chat-panel" id="task-detail-chat-panel" aria-label="Чат задачи" hidden>
+      <section class="task-detail-block task-detail-chat-block" aria-label="Обсуждение задачи">
+        <header class="task-detail-block-head task-detail-chat-head">
+          <div class="task-detail-chat-head-main">
+            <span class="task-detail-block-title" id="task-detail-chat-panel-title">Чат задачи</span>
+            <span class="task-detail-chat-panel-sub">Обсуждение по текущей задаче</span>
+          </div>
+          <button class="icon-btn task-detail-chat-close" id="task-detail-chat-close" type="button" aria-label="Закрыть чат задачи" title="Закрыть">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 7l10 10M17 7L7 17" />
+            </svg>
+          </button>
+        </header>
+
+        <div class="task-detail-chat-shell-host" id="task-detail-chat-shell-host"></div>
       </section>
     </aside>
   </div>
@@ -1077,6 +1088,6 @@
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
-  <script type="module" src="js/workspace/main.js?v=authflow136"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow137"></script>
 </body>
 </html>
