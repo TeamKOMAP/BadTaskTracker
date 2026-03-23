@@ -44,6 +44,7 @@ export const chatSettingsBgRemoveBtn = document.getElementById("chat-settings-bg
 export const chatSettingsBgInput = document.getElementById("chat-settings-bg-input");
 export const chatSettingsNote = document.getElementById("chat-settings-note");
 export const chatSettingsSaveBtn = document.getElementById("chat-settings-save");
+export const chatSettingsDeleteBtn = document.getElementById("chat-settings-delete");
 export const chatSettingsMembersCount = document.getElementById("chat-settings-members-count");
 export const chatSettingsMembers = document.getElementById("chat-settings-members");
 export const chatSettingsMembersEmpty = document.getElementById("chat-settings-members-empty");

@@ -34,6 +34,7 @@ import {
   chatSettingsBgInput,
   chatSettingsNote,
   chatSettingsSaveBtn,
+  chatSettingsDeleteBtn,
   chatSettingsMembersCount,
   chatSettingsMembers,
   chatSettingsMembersEmpty,
@@ -70,8 +71,8 @@ import {
   chatShellUploadList,
   chatShellFileInput,
   chatShellJumpBottomBtn
-} from "./dom.js?v=authflow17";
-import { createWorkspaceChatController } from "../chat/controller.js?v=chat59";
+} from "./dom.js?v=authflow18";
+import { createWorkspaceChatController } from "../chat/controller.js?v=chat60";
 
 export const createWorkspaceChatBridge = (deps = {}) => {
   const controller = createWorkspaceChatController({
@@ -110,6 +111,7 @@ export const createWorkspaceChatBridge = (deps = {}) => {
     chatSettingsBgInput,
     chatSettingsNote,
     chatSettingsSaveBtn,
+    chatSettingsDeleteBtn,
     chatSettingsMembersCount,
     chatSettingsMembers,
     chatSettingsMembersEmpty,

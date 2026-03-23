@@ -287,6 +287,23 @@ export const createChatApi = () => {
     return true;
   };
 
+  const deleteChat = async (chatId) => {
+    const response = await request(
+      buildApiUrl(`/chats/${chatId}`),
+      { method: "DELETE" },
+      "Удаление группового чата"
+    );
+
+    if (!response || !response.ok) {
+      if (response) {
+        await handleApiError(response, "Удаление группового чата");
+      }
+      return false;
+    }
+
+    return true;
+  };
+
   const getAttachments = async (chatId, messageId) => {
     const response = await request(
       buildApiUrl(`/chats/${chatId}/attachments`, { messageId }),
@@ -545,6 +562,7 @@ export const createChatApi = () => {
     getPreferences,
     updatePreferences,
     updateChatSettings,
+    deleteChat,
     getAttachments,
     getAllAttachments,
     uploadAttachment,

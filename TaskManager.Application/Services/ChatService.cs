@@ -9,6 +9,7 @@ public interface IChatService
     Task<ChatRoomDto> CreateGroupChatAsync(int workspaceId, string title, int creatorUserId, CancellationToken ct = default);
     Task<ChatRoomDto> CreateDirectChatAsync(int workspaceId, int currentUserId, int otherUserId, CancellationToken ct = default);
     Task<ChatRoomDto> OpenTaskChatAsync(int taskId, int workspaceId, int userId, CancellationToken ct = default);
+    Task DeleteGroupChatAsync(Guid chatId, int userId, CancellationToken ct = default);
     Task UpdateChatSettingsAsync(Guid chatId, int userId, string? title, CancellationToken ct = default);
     Task AddMemberAsync(Guid chatId, int userIdToAdd, int currentUserId, CancellationToken ct = default);
     Task RemoveMemberAsync(Guid chatId, int userIdToRemove, int currentUserId, CancellationToken ct = default);

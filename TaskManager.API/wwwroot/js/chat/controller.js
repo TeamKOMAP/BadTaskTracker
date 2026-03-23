@@ -402,6 +402,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const chatSettingsBgInput = deps.chatSettingsBgInput ?? null;
   const chatSettingsNote = deps.chatSettingsNote ?? null;
   const chatSettingsSaveBtn = deps.chatSettingsSaveBtn ?? null;
+  const chatSettingsDeleteBtn = deps.chatSettingsDeleteBtn ?? null;
   const chatSettingsMembersCount = deps.chatSettingsMembersCount ?? null;
   const chatSettingsMembers = deps.chatSettingsMembers ?? null;
   const chatSettingsMembersEmpty = deps.chatSettingsMembersEmpty ?? null;
@@ -2122,26 +2123,35 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const getCurrentChatPermissions = () => {
     const chat = store.getChatById(store.getActiveChatId());
+    const chatType = Number(chat?.type);
     const actorId = Number(getActorUserId());
     const workspaceRole = String(getWorkspaceRole() || "Member");
     const isOwner = workspaceRole === "Owner";
     const isAdmin = workspaceRole === "Owner" || workspaceRole === "Admin";
     const isGroupOwner = Number(chat?.createdByUserId) > 0 && Number(chat?.createdByUserId) === actorId;
+    const canEditGroupBackground = chatType === 2 && (isGroupOwner || isAdmin);
 
     return {
       canEditUserPrefs: Boolean(chat),
-      showRoomSettings: Number(chat?.type) !== 3,
-      canEditRoomTitle: Number(chat?.type) === 2
+      showRoomSettings: chatType !== 3,
+      canEditRoomTitle: chatType === 2
         ? isGroupOwner
-        : Number(chat?.type) === 1
+        : chatType === 1
           ? isOwner
           : false,
-      canEditBackground: Number(chat?.type) === 3
+      canEditBackground: chatType === 3
         ? true
-        : Number(chat?.type) === 1
+        : chatType === 1
           ? isAdmin
+          : chatType === 2
+            ? canEditGroupBackground
           : false,
-      backgroundLabel: Number(chat?.type) === 3 ? "DM background" : "General background"
+      canDeleteGroup: chatType === 2 && (isGroupOwner || isAdmin),
+      backgroundLabel: chatType === 3
+        ? "DM background"
+        : chatType === 2
+          ? "Group background"
+          : "General background"
     };
   };
 
@@ -2324,7 +2334,9 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
     if (chatSettingsNote instanceof HTMLElement) {
       if (Number(chat?.type) === 2 && !permissions.canEditRoomTitle) {
-        chatSettingsNote.textContent = "Только GroupOwner может менять параметры group-чата.";
+        chatSettingsNote.textContent = permissions.canEditBackground
+          ? "Фон группы могут менять GroupOwner и Admin/Owner, название - только GroupOwner."
+          : "Только GroupOwner и Admin/Owner могут менять параметры группы.";
       } else if (Number(chat?.type) === 1 && !permissions.canEditRoomTitle) {
         chatSettingsNote.textContent = permissions.canEditBackground
           ? "Фон General можно менять Admin/Owner, название - только Owner."
@@ -2336,6 +2348,10 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (chatSettingsSaveBtn instanceof HTMLButtonElement) {
       chatSettingsSaveBtn.disabled = settingsSaving;
       chatSettingsSaveBtn.textContent = settingsSaving ? "Сохраняем..." : "Сохранить";
+    }
+    if (chatSettingsDeleteBtn instanceof HTMLButtonElement) {
+      chatSettingsDeleteBtn.hidden = !permissions.canDeleteGroup;
+      chatSettingsDeleteBtn.disabled = settingsSaving;
     }
     applyChatBackground(activeChatId, backgroundValue);
     renderSettingsMembers(activeChatId);
@@ -3921,6 +3937,33 @@ export const createWorkspaceChatController = (deps = {}) => {
     updateHeader(store.getChatById(activeChatId));
   };
 
+  const persistUserSettingsForActiveChat = async () => {
+    const activeChatId = store.getActiveChatId();
+    const chat = store.getChatById(activeChatId);
+    if (!activeChatId || !chat) return false;
+
+    const nextPreference = {
+      isMuted: chatSettingsMuted instanceof HTMLInputElement ? chatSettingsMuted.checked : false,
+      soundEnabled: true,
+      backgroundImageKey: null
+    };
+
+    const savedPreference = store.isUsingMockData()
+      ? nextPreference
+      : await api.updatePreferences(activeChatId, nextPreference);
+
+    if (!savedPreference && !store.isUsingMockData()) {
+      return false;
+    }
+
+    setPreference(activeChatId, savedPreference || nextPreference);
+    setStoredUiSetting(activeChatId, {
+      suppressActiveSound: chatSettingsSkipActive instanceof HTMLInputElement ? chatSettingsSkipActive.checked : true
+    });
+
+    return true;
+  };
+
   const saveChatSettings = async () => {
     const activeChatId = store.getActiveChatId();
     const chat = store.getChatById(activeChatId);
@@ -3934,19 +3977,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     syncSettingsPanel();
 
     const permissions = getCurrentChatPermissions();
-    const nextPreference = {
-      isMuted: chatSettingsMuted instanceof HTMLInputElement ? chatSettingsMuted.checked : false,
-      soundEnabled: true,
-      backgroundImageKey: null
-    };
-
-    const savedPreference = store.isUsingMockData()
-      ? nextPreference
-      : await api.updatePreferences(activeChatId, nextPreference);
-
-    if (savedPreference) {
-      setPreference(activeChatId, savedPreference);
-    }
+    await persistUserSettingsForActiveChat();
 
     setStoredUiSetting(activeChatId, {
       suppressActiveSound: chatSettingsSkipActive instanceof HTMLInputElement ? chatSettingsSkipActive.checked : true,
@@ -3971,6 +4002,54 @@ export const createWorkspaceChatController = (deps = {}) => {
     renderRailList();
     updateHeader(store.getChatById(activeChatId) || chat);
     syncSettingsPanel();
+  };
+
+  const deleteGroupChatFromSettings = async () => {
+    const activeChatId = store.getActiveChatId();
+    const chat = store.getChatById(activeChatId);
+    if (!activeChatId || !chat || !isGroupChat(chat)) return;
+
+    const permissions = getCurrentChatPermissions();
+    if (!permissions.canDeleteGroup) return;
+
+    const confirmed = window.confirm(`Удалить группу \"${chat?.title || "Группа"}\"? Это действие нельзя отменить.`);
+    if (!confirmed) {
+      return;
+    }
+
+    settingsSaving = true;
+    syncSettingsPanel();
+
+    const deleted = store.isUsingMockData()
+      ? true
+      : await api.deleteChat(activeChatId);
+
+    settingsSaving = false;
+
+    if (!deleted) {
+      syncSettingsPanel();
+      return;
+    }
+
+    const key = String(activeChatId || "").trim();
+    unreadByChatId.delete(key);
+    readStateByChatId.delete(key);
+    typingByChatId.delete(key);
+    preferencesByChatId.delete(key);
+    modalMembersByChatId.delete(key);
+    modalAttachmentsByChatId.delete(key);
+    messageRenderWindowByChatId.delete(key);
+    pendingMessageRenderByChatId.delete(key);
+
+    store.setChats(store.getChats().filter((item) => toChatId(item?.id) !== key));
+    store.setActiveChatId(null);
+    closeSettingsModal();
+    clearComposerIntent();
+    closeMessageContextMenu();
+    renderRailList();
+    showChatPlaceholder("Выберите чат", "Диалог внутри проекта", "Выберите чат слева, чтобы открыть диалог.");
+    updateHeader(null);
+    syncComposerUi();
   };
 
   const markActiveChatAsRead = async () => {
@@ -5135,6 +5214,26 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (chatSettingsSaveBtn instanceof HTMLButtonElement) {
       chatSettingsSaveBtn.addEventListener("click", () => {
         void saveChatSettings();
+      });
+    }
+
+    if (chatSettingsDeleteBtn instanceof HTMLButtonElement) {
+      chatSettingsDeleteBtn.addEventListener("click", () => {
+        void deleteGroupChatFromSettings();
+      });
+    }
+
+    if (chatSettingsMuted instanceof HTMLInputElement) {
+      chatSettingsMuted.addEventListener("change", () => {
+        if (!isSettingsOpen || settingsSaving) return;
+        void persistUserSettingsForActiveChat();
+      });
+    }
+
+    if (chatSettingsSkipActive instanceof HTMLInputElement) {
+      chatSettingsSkipActive.addEventListener("change", () => {
+        if (!isSettingsOpen || settingsSaving) return;
+        void persistUserSettingsForActiveChat();
       });
     }
 

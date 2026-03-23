@@ -284,6 +284,35 @@ public sealed class ChatServiceImpl : IChatService
         await _dbContext.SaveChangesAsync(ct);
     }
 
+    public async Task DeleteGroupChatAsync(Guid chatId, int userId, CancellationToken ct = default)
+    {
+        var chat = await _chatRepository.GetByIdAsync(chatId, ct)
+            ?? throw new NotFoundException("Chat not found");
+
+        if (chat.Type != ChatRoomType.Group)
+        {
+            throw new ForbiddenException("Only group chats can be deleted");
+        }
+
+        var member = await _memberRepository.GetMemberAsync(chatId, userId, ct)
+            ?? throw new ForbiddenException("User is not a member of this chat");
+
+        var workspaceMember = await _workspaceMemberRepository.GetMemberAsync(chat.WorkspaceId, userId)
+            ?? throw new ForbiddenException("User is not a member of this workspace");
+
+        var canDelete = member.Role == ChatMemberRole.GroupOwner
+            || workspaceMember.Role == WorkspaceRole.Owner
+            || workspaceMember.Role == WorkspaceRole.Admin;
+
+        if (!canDelete)
+        {
+            throw new ForbiddenException("User does not have permission to delete this group chat");
+        }
+
+        await _chatRepository.DeleteAsync(chat, ct);
+        await _dbContext.SaveChangesAsync(ct);
+    }
+
     public async Task AddMemberAsync(Guid chatId, int userIdToAdd, int currentUserId, CancellationToken ct = default)
     {
         var chat = await _chatRepository.GetByIdAsync(chatId, ct)

@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css?v=base6">
   <link rel="stylesheet" href="css/components.css?v=comp2">
-  <link rel="stylesheet" href="css/chat.css?v=chat21">
+  <link rel="stylesheet" href="css/chat.css?v=chat22">
   <link rel="stylesheet" href="css/workspace.css?v=perf76">
   <link rel="stylesheet" href="css/workspace-members.css?v=wm1">
 </head>
@@ -1062,7 +1062,10 @@
 
         <div class="chat-settings-actions">
           <span class="chat-settings-note" id="chat-settings-note">Настройки применяются к текущему чату.</span>
-          <button class="primary-btn" id="chat-settings-save" type="button">Сохранить</button>
+          <div class="chat-settings-action-buttons">
+            <button class="danger-btn chat-settings-delete" id="chat-settings-delete" type="button" hidden>Удалить группу</button>
+            <button class="primary-btn" id="chat-settings-save" type="button">Сохранить</button>
+          </div>
         </div>
       </section>
 
@@ -1118,6 +1121,6 @@
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
-  <script type="module" src="js/workspace/main.js?v=authflow139"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow140"></script>
 </body>
 </html>

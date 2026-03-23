@@ -1571,6 +1571,21 @@ body[data-theme="light"] .chat-settings-field input {
   flex-wrap: wrap;
 }
 
+.chat-settings-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chat-settings-delete {
+  min-width: 132px;
+}
+
+.chat-settings-delete[hidden] {
+  display: none !important;
+}
+
 .chat-settings-note {
   font-size: 12px;
   opacity: 0.74;

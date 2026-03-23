@@ -125,7 +125,7 @@ import {
   confirmModalInputWrap,
   confirmModalInputHintEl,
   confirmModalInputEl
-} from "./dom.js?v=authflow17";
+} from "./dom.js?v=authflow18";
 
 import {
   buildApiUrl,
@@ -199,12 +199,12 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge20";
+import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge21";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf6";
-import { createTaskDetailController } from "./task-detail.js?v=perf20";
+import { createTaskDetailController } from "./task-detail.js?v=perf21";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
 import { createProfileModalsController } from "./profile-modals.js?v=profile7";
 
