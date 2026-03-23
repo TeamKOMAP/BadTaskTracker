@@ -52,6 +52,7 @@ namespace TaskManager.Chat.Infrastructure.DependencyInjection
             services.AddScoped<IChatService, ChatServiceImpl>();
             services.AddScoped<IChatMessageService, ChatMessageServiceImpl>();
             services.AddScoped<IChatAttachmentService, ChatAttachmentServiceImpl>();
+            services.AddScoped<IChatPreferenceService, ChatPreferenceServiceImpl>();
             services.AddSingleton<IChatRealtimeNotifier, NoOpChatRealtimeNotifier>();
 
             return services;

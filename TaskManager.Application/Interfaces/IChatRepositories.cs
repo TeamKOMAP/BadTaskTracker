@@ -12,6 +12,7 @@ public interface IChatRepository
     Task<ChatRoom?> GetDirectChatAsync(int workspaceId, int userId1, int userId2, CancellationToken ct = default);
     Task<ChatRoom> AddAsync(ChatRoom chatRoom, CancellationToken ct = default);
     Task UpdateAsync(ChatRoom chatRoom, CancellationToken ct = default);
+    Task DeleteAsync(ChatRoom chatRoom, CancellationToken ct = default);
     Task<bool> ExistsAsync(Guid chatId, CancellationToken ct = default);
 }
 
@@ -33,6 +34,7 @@ public interface IChatMessageRepository
     Task<ChatMessage> AddAsync(ChatMessage message, CancellationToken ct = default);
     Task UpdateAsync(ChatMessage message, CancellationToken ct = default);
     Task<long> GetCountByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default);
+    Task<int> GetUnreadCountByChatRoomIdAsync(Guid chatRoomId, int userId, long lastReadMessageId, CancellationToken ct = default);
     Task<ChatMessage?> GetByClientMessageIdAsync(Guid chatRoomId, string clientMessageId, CancellationToken ct = default);
 }
 
@@ -40,6 +42,7 @@ public interface IChatMessageAttachmentRepository
 {
     Task<ChatMessageAttachment?> GetByIdAsync(Guid attachmentId, CancellationToken ct = default);
     Task<List<ChatMessageAttachment>> GetByMessageIdAsync(long messageId, CancellationToken ct = default);
+    Task<List<ChatMessageAttachment>> GetByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default);
     Task<ChatMessageAttachment> AddAsync(ChatMessageAttachment attachment, CancellationToken ct = default);
     Task DeleteAsync(Guid attachmentId, CancellationToken ct = default);
 }
@@ -48,5 +51,6 @@ public interface IChatReadStateRepository
 {
     Task<ChatReadState?> GetAsync(Guid chatRoomId, int userId, CancellationToken ct = default);
     Task SetAsync(Guid chatRoomId, int userId, long lastReadMessageId, CancellationToken ct = default);
+    Task<List<ChatReadState>> GetByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default);
     Task<List<ChatReadState>> GetByUserIdAsync(int userId, CancellationToken ct = default);
 }

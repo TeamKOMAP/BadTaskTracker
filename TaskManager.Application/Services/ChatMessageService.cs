@@ -31,6 +31,8 @@ public class ChatMessageDto
     public string BodyCipher { get; set; } = string.Empty;
     public long? ReplyToMessageId { get; set; }
     public long? ForwardedFromMessageId { get; set; }
+    public int? ForwardedFromSenderUserId { get; set; }
+    public string? ForwardedFromSenderDisplayName { get; set; }
     public string? ClientMessageId { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? EditedAtUtc { get; set; }

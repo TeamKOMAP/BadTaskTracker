@@ -60,9 +60,10 @@ namespace TaskManager.Application.Services
         private async Task<EmailCodeRequestResultDto> RequestEmailCodeCoreAsync(string email)
         {
             var now = DateTime.UtcNow;
+            var exposeDevelopmentCode = _settings.ExposeDevelopmentCodeInResponse;
 
             var active = await _emailAuthCodeRepository.GetLatestActiveByEmailAsync(email);
-            if (active != null && active.ResendAvailableAtUtc > now)
+            if (!exposeDevelopmentCode && active != null && active.ResendAvailableAtUtc > now)
             {
                 return new EmailCodeRequestResultDto
                 {
@@ -113,7 +114,7 @@ namespace TaskManager.Application.Services
                     {
                         ResendAfterSeconds = resendAfterSeconds,
                         ExpiresInSeconds = expiresInSeconds,
-                        DevelopmentCode = _settings.ExposeDevelopmentCodeInResponse ? code : null
+                        DevelopmentCode = exposeDevelopmentCode ? code : null
                     };
                 }
 
@@ -127,7 +128,7 @@ namespace TaskManager.Application.Services
             {
                 ResendAfterSeconds = resendAfterSeconds,
                 ExpiresInSeconds = expiresInSeconds,
-                DevelopmentCode = null
+                DevelopmentCode = exposeDevelopmentCode ? code : null
             };
         }
 

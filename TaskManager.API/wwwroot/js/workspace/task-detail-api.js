@@ -1,5 +1,9 @@
 import { buildApiUrl, apiFetch, handleApiError } from "../shared/api.js?v=auth5";
 
+const JSON_HEADERS = {
+  Accept: "application/json"
+};
+
 const fetchJsonAbortable = async (url, context, options) => {
   let response = null;
   try {
@@ -28,7 +32,7 @@ export const fetchTaskById = (taskId, signal) => fetchJsonAbortable(
   buildApiUrl(`/tasks/${taskId}`),
   "Загрузка задачи",
   {
-    headers: { Accept: "application/json" },
+    headers: JSON_HEADERS,
     signal
   }
 );
@@ -37,7 +41,7 @@ export const fetchTaskAttachments = (taskId, signal) => fetchJsonAbortable(
   buildApiUrl(`/tasks/${taskId}/attachments`),
   "Загрузка вложений",
   {
-    headers: { Accept: "application/json" },
+    headers: JSON_HEADERS,
     signal
   }
 );

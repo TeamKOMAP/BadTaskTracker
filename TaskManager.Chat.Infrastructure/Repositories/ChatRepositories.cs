@@ -86,6 +86,12 @@ public class ChatRepository : IChatRepository
         return Task.CompletedTask;
     }
 
+    public Task DeleteAsync(ChatRoom chatRoom, CancellationToken ct = default)
+    {
+        _db.ChatRooms.Remove(chatRoom);
+        return Task.CompletedTask;
+    }
+
     public async Task<bool> ExistsAsync(Guid chatId, CancellationToken ct = default)
     {
         return await _db.ChatRooms.AnyAsync(c => c.Id == chatId, ct);
@@ -209,6 +215,15 @@ public class ChatMessageRepository : IChatMessageRepository
         return await _db.ChatMessages.CountAsync(m => m.ChatRoomId == chatRoomId, ct);
     }
 
+    public async Task<int> GetUnreadCountByChatRoomIdAsync(Guid chatRoomId, int userId, long lastReadMessageId, CancellationToken ct = default)
+    {
+        return await _db.ChatMessages.CountAsync(
+            m => m.ChatRoomId == chatRoomId
+              && m.Id > lastReadMessageId
+              && m.SenderUserId != userId,
+            ct);
+    }
+
     public async Task<ChatMessage?> GetByClientMessageIdAsync(Guid chatRoomId, string clientMessageId, CancellationToken ct = default)
     {
         return await _db.ChatMessages
@@ -234,6 +249,13 @@ public class ChatMessageAttachmentRepository : IChatMessageAttachmentRepository
     {
         return await _db.ChatMessageAttachments
             .Where(a => a.MessageId == messageId)
+            .ToListAsync(ct);
+    }
+
+    public async Task<List<ChatMessageAttachment>> GetByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default)
+    {
+        return await _db.ChatMessageAttachments
+            .Where(a => _db.ChatMessages.Any(m => m.Id == a.MessageId && m.ChatRoomId == chatRoomId))
             .ToListAsync(ct);
     }
 
@@ -292,6 +314,13 @@ public class ChatReadStateRepository : IChatReadStateRepository
     {
         return await _db.ChatReadStates
             .Where(r => r.UserId == userId)
+            .ToListAsync(ct);
+    }
+
+    public async Task<List<ChatReadState>> GetByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default)
+    {
+        return await _db.ChatReadStates
+            .Where(r => r.ChatRoomId == chatRoomId)
             .ToListAsync(ct);
     }
 }

@@ -15,6 +15,28 @@ public class ChatHub : Hub
         _memberRepository = memberRepository;
     }
 
+    public override async Task OnConnectedAsync()
+    {
+        var userId = ResolveUserId(Context.User);
+        if (userId.HasValue)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, BuildUserGroupName(userId.Value));
+        }
+
+        await base.OnConnectedAsync();
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        var userId = ResolveUserId(Context.User);
+        if (userId.HasValue)
+        {
+            await Groups.RemoveFromGroupAsync(Context.ConnectionId, BuildUserGroupName(userId.Value));
+        }
+
+        await base.OnDisconnectedAsync(exception);
+    }
+
     public async Task JoinChat(Guid chatId)
     {
         var userId = ResolveUserId(Context.User);
@@ -37,9 +59,33 @@ public class ChatHub : Hub
         return Groups.RemoveFromGroupAsync(Context.ConnectionId, BuildGroupName(chatId));
     }
 
+    public async Task SetTyping(Guid chatId, bool isTyping)
+    {
+        var userId = ResolveUserId(Context.User);
+        if (!userId.HasValue)
+        {
+            throw new HubException("Unauthorized");
+        }
+
+        var isMember = await _memberRepository.IsMemberAsync(chatId, userId.Value, Context.ConnectionAborted);
+        if (!isMember)
+        {
+            throw new HubException("Forbidden");
+        }
+
+        var payload = new ChatTypingRealtimeEvent(chatId, userId.Value, isTyping, DateTime.UtcNow);
+        await Clients.GroupExcept(BuildGroupName(chatId), Context.ConnectionId)
+            .SendAsync("chat.typing.updated", payload, Context.ConnectionAborted);
+    }
+
     public static string BuildGroupName(Guid chatId)
     {
         return $"chat:{chatId:N}";
+    }
+
+    public static string BuildUserGroupName(int userId)
+    {
+        return $"chat-user:{userId}";
     }
 
     private static int? ResolveUserId(ClaimsPrincipal? user)
@@ -59,3 +105,9 @@ public class ChatHub : Hub
             : null;
     }
 }
+
+public sealed record ChatTypingRealtimeEvent(
+    Guid ChatId,
+    int UserId,
+    bool IsTyping,
+    DateTime AtUtc);

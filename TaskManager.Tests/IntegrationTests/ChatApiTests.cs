@@ -104,6 +104,62 @@ public class ChatApiTests : TestBase
     }
 
     [Fact]
+    public async Task GetChats_CreatesAndReturnsGeneralChat_ForWorkspaceMembers()
+    {
+        var peerId = await CreateWorkspaceUserAsync("General Peer");
+
+        var firstResponse = await _client.GetAsync($"/api/chats?workspaceId={TestWorkspaceId}");
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var firstChats = await firstResponse.Content.ReadFromJsonAsync<List<ChatRoomListItemResponse>>();
+
+        using var peerClient = CreateAuthorizedClient(workspaceId: TestWorkspaceId, userId: peerId);
+        var secondResponse = await peerClient.GetAsync($"/api/chats?workspaceId={TestWorkspaceId}");
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var secondChats = await secondResponse.Content.ReadFromJsonAsync<List<ChatRoomListItemResponse>>();
+
+        firstChats.Should().NotBeNull();
+        secondChats.Should().NotBeNull();
+
+        var firstGeneral = firstChats!.Single(chat => chat.Type == ChatRoomType.General);
+        var secondGeneral = secondChats!.Single(chat => chat.Type == ChatRoomType.General);
+
+        firstGeneral.Id.Should().Be(secondGeneral.Id);
+    }
+
+    [Fact]
+    public async Task OpenTaskChat_AllowsDifferentWorkspaceMembersToJoinSameTaskChat()
+    {
+        var peerId = await CreateWorkspaceUserAsync("Task Peer");
+
+        var firstResponse = await _client.PostAsync($"/api/tasks/1/chat/open?workspaceId={TestWorkspaceId}", null);
+        firstResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var firstChat = await firstResponse.Content.ReadFromJsonAsync<ChatRoomResponse>();
+
+        using var peerClient = CreateAuthorizedClient(workspaceId: TestWorkspaceId, userId: peerId);
+        var secondResponse = await peerClient.PostAsync($"/api/tasks/1/chat/open?workspaceId={TestWorkspaceId}", null);
+        secondResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var secondChat = await secondResponse.Content.ReadFromJsonAsync<ChatRoomResponse>();
+
+        firstChat.Should().NotBeNull();
+        secondChat.Should().NotBeNull();
+        secondChat!.Id.Should().Be(firstChat!.Id);
+
+        var chatsResponse = await peerClient.GetAsync($"/api/chats?workspaceId={TestWorkspaceId}");
+        chatsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        var chats = await chatsResponse.Content.ReadFromJsonAsync<List<ChatRoomListItemResponse>>();
+        chats.Should().NotBeNull();
+        chats!.Should().Contain(chat => chat.Id == firstChat.Id && chat.Type == ChatRoomType.Task);
+
+        var sendResponse = await peerClient.PostAsJsonAsync($"/api/chats/{firstChat.Id}/messages", new
+        {
+            kind = ChatMessageKind.Text,
+            bodyCipher = "peer task chat message"
+        });
+
+        sendResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+    }
+
+    [Fact]
     public async Task SendMessage_WithSameClientMessageId_ReturnsExistingMessage()
     {
         var peerId = await CreateWorkspaceUserAsync("Idempotency Peer");
@@ -383,6 +439,12 @@ public class ChatApiTests : TestBase
     private sealed class ChatRoomResponse
     {
         public Guid Id { get; set; }
+    }
+
+    private sealed class ChatRoomListItemResponse
+    {
+        public Guid Id { get; set; }
+        public ChatRoomType Type { get; set; }
     }
 
     private sealed class ChatMessageResponse

@@ -5,16 +5,15 @@ import {
   topbar,
   brandToggle,
   userPanel,
+  workspaceContent,
+  workspaceMain,
+  chatShell,
   columnsWrap,
   addColumnControl,
   addColumnBtn,
   addColumnMenu,
   viewButtons,
   viewToggle,
-  styleToggle,
-  styleSwitch,
-  styleToggleTitleEl,
-  styleToggleSubEl,
   boardToolbar,
   boardSearchInput,
   boardSearchTags,
@@ -68,6 +67,12 @@ import {
   panelWorkspaceEditBtn,
   panelWorkspaceAvatarEl,
   panelWorkspaceAvatarInput,
+  panelWorkspaceCreateGroupWrap,
+  panelWorkspaceCreateGroupBtn,
+  panelWorkspaceGroupMenu,
+  panelWorkspaceGroupInput,
+  panelWorkspaceGroupCancelBtn,
+  panelWorkspaceGroupSubmitBtn,
   panelWorkspaceDanger,
   panelWorkspaceDeleteBtn,
   accountAvatarEl,
@@ -104,6 +109,8 @@ import {
   taskDetailRejectBtn,
   taskDetailPhotoBtn,
   taskDetailPhotoClearBtn,
+  taskDetailChatToggleBtn,
+  taskDetailChatCloseBtn,
   taskDetailHistoryToggleBtn,
   taskDetailHistoryClearBtn,
   taskAttachBtn,
@@ -118,7 +125,7 @@ import {
   confirmModalInputWrap,
   confirmModalInputHintEl,
   confirmModalInputEl
-} from "./dom.js?v=authflow12";
+} from "./dom.js?v=authflow18";
 
 import {
   buildApiUrl,
@@ -189,16 +196,17 @@ import {
   removeTaskFromList,
   updateTaskAttachmentCountInList
 } from "./task-state.js?v=state1";
-import { createWorkspaceTaskActions } from "./task-actions.js?v=actions1";
+import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
+import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge23";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf6";
-import { createTaskDetailController } from "./task-detail.js?v=perf14";
+import { createTaskDetailController } from "./task-detail.js?v=perf21";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
-import { createProfileModalsController } from "./profile-modals.js?v=profile2";
+import { createProfileModalsController } from "./profile-modals.js?v=profile7";
 
 let lastNormalizedTasks = [];
 
@@ -206,6 +214,8 @@ let currentAssigneeIdFilter = null;
 let currentUserId = null;
 let currentWorkspaceId = null;
 let currentWorkspaceRole = "Member";
+let currentWorkspaceAvatarPath = "";
+let currentWorkspaceName = "Проект";
 
 const notificationsController = createNotificationsPanelController({
   toggleBtn: notificationsToggleBtn,
@@ -224,6 +234,8 @@ const toolbarTagFilter = new Set();
 let toolbarSearchDebounceId = null;
 
 let panelWorkspaceEditing = false;
+let panelWorkspaceGroupMenuOpen = false;
+let panelWorkspaceGroupCreateInFlight = false;
 
 const setWorkspaceEditing = (editing) => {
   panelWorkspaceEditing = !!editing;
@@ -253,6 +265,68 @@ const setWorkspaceEditing = (editing) => {
     delete panelWorkspaceNameEl.dataset.original;
   }
 };
+
+const setPanelWorkspaceGroupCreateBusy = (busy) => {
+  panelWorkspaceGroupCreateInFlight = Boolean(busy);
+  if (panelWorkspaceCreateGroupBtn instanceof HTMLButtonElement) {
+    panelWorkspaceCreateGroupBtn.disabled = panelWorkspaceGroupCreateInFlight;
+  }
+  if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+    panelWorkspaceGroupInput.disabled = panelWorkspaceGroupCreateInFlight;
+  }
+  if (panelWorkspaceGroupCancelBtn instanceof HTMLButtonElement) {
+    panelWorkspaceGroupCancelBtn.disabled = panelWorkspaceGroupCreateInFlight;
+  }
+  if (panelWorkspaceGroupSubmitBtn instanceof HTMLButtonElement) {
+    panelWorkspaceGroupSubmitBtn.disabled = panelWorkspaceGroupCreateInFlight;
+    panelWorkspaceGroupSubmitBtn.textContent = panelWorkspaceGroupCreateInFlight ? "Создаем..." : "Создать";
+  }
+};
+
+const setPanelWorkspaceGroupMenuOpen = (open) => {
+  panelWorkspaceGroupMenuOpen = Boolean(open);
+
+  if (panelWorkspaceCreateGroupBtn instanceof HTMLButtonElement) {
+    panelWorkspaceCreateGroupBtn.setAttribute("aria-expanded", panelWorkspaceGroupMenuOpen ? "true" : "false");
+  }
+
+  if (!(panelWorkspaceGroupMenu instanceof HTMLElement)) {
+    panelWorkspaceGroupMenuOpen = false;
+    return;
+  }
+
+  panelWorkspaceGroupMenu.toggleAttribute("hidden", !panelWorkspaceGroupMenuOpen);
+
+  if (!panelWorkspaceGroupMenuOpen) {
+    setPanelWorkspaceGroupCreateBusy(false);
+    if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+      panelWorkspaceGroupInput.classList.remove("is-invalid");
+      panelWorkspaceGroupInput.value = "";
+    }
+    return;
+  }
+
+  setPanelWorkspaceGroupCreateBusy(false);
+  if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+    panelWorkspaceGroupInput.classList.remove("is-invalid");
+    window.setTimeout(() => {
+      if (panelWorkspaceGroupMenuOpen) {
+        panelWorkspaceGroupInput.focus();
+        panelWorkspaceGroupInput.select();
+      }
+    }, 0);
+  }
+};
+
+const closePanelWorkspaceGroupMenu = () => {
+  setPanelWorkspaceGroupMenuOpen(false);
+};
+
+const openPanelWorkspaceGroupMenu = () => {
+  if (!currentWorkspaceId) return;
+  setPanelWorkspaceGroupMenuOpen(true);
+};
+
 let actorUser = null;
 let nicknameSaveInFlight = false;
 let nicknameCooldownEndsAt = 0;
@@ -264,6 +338,7 @@ let workspaceMembers = [];
 
 let inviteControls = null;
 let taskDetailController = null;
+let chatController = null;
 
 const canCreateTasks = () => isAdmin();
 
@@ -383,6 +458,12 @@ const getAssigneeLabelById = (assigneeId) => {
   const match = (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((m) => Number(m?.id) === id);
   if (!match) return "";
   return normalizeToken(match.name) || "";
+};
+
+const getWorkspaceMemberById = (userId) => {
+  const id = Number.parseInt(String(userId ?? ""), 10);
+  if (!Number.isFinite(id) || id <= 0) return null;
+  return (Array.isArray(workspaceMembers) ? workspaceMembers : []).find((member) => Number(member?.id) === id) || null;
 };
 
 const PRIORITY_HISTORY_LABELS = {
@@ -1105,29 +1186,6 @@ const setLayoutStyle = (style) => {
     flowLayout.setAttribute("aria-hidden", nextStyle !== "flow");
   }
 
-  if (styleToggle) {
-    styleToggle.setAttribute("aria-pressed", nextStyle === "flow" ? "true" : "false");
-    if (nextStyle === "flow") {
-      styleToggle.setAttribute("aria-label", "Переключить на колонки");
-      styleToggle.setAttribute("title", "Переключить на колонки");
-    } else {
-      styleToggle.setAttribute("aria-label", "Переключить на карту потока");
-      styleToggle.setAttribute("title", "Переключить на карту потока");
-    }
-  }
-
-  if (styleSwitch) {
-    styleSwitch.classList.toggle("is-flow", nextStyle === "flow");
-  }
-
-  if (styleToggleTitleEl) {
-    styleToggleTitleEl.textContent = nextStyle === "flow" ? "Карта потока" : "Колонки";
-  }
-
-  if (styleToggleSubEl) {
-    styleToggleSubEl.textContent = "Нажмите, чтобы переключить";
-  }
-
   if (nextStyle === "flow" && calendarLayout) {
     calendarLayout.setAttribute("aria-hidden", "true");
     calendarLayout.innerHTML = "";
@@ -1173,6 +1231,7 @@ const setPanelOpen = (open) => {
   if (!appShell) return;
   appShell.classList.toggle("is-panel-open", open);
   if (!open) {
+    closePanelWorkspaceGroupMenu();
     closeUserMiniMenu();
   }
   if (!open && panelWorkspaceEditing && panelWorkspaceNameEl) {
@@ -1412,6 +1471,8 @@ const loadUsersFromApi = async () => {
   } else {
     setAllUsersMode();
   }
+
+  chatController?.syncMembers();
 };
 
 const updateMyMemberItem = (displayName, email, avatarPath) => {
@@ -1606,7 +1667,7 @@ const updateActorUi = () => {
 
 const setActorUser = (user) => {
   if (!user) return;
-  const id = Number(user.id);
+  const id = Number(user?.id ?? user?.userId);
   if (!Number.isFinite(id) || id <= 0) return;
   actorUser = {
     id,
@@ -1627,6 +1688,8 @@ const setWorkspaceContext = (space) => {
   currentWorkspaceRole = toWorkspaceRole(space?.currentUserRole);
   const workspaceName = normalizeToken(space?.name) || "Проект";
   const avatarPath = normalizeToken(space?.avatarPath);
+  currentWorkspaceName = workspaceName;
+  currentWorkspaceAvatarPath = avatarPath;
 
   if (currentWorkspaceId) {
     try {
@@ -1676,6 +1739,22 @@ const setWorkspaceContext = (space) => {
     panelWorkspaceEditBtn.title = "Редактировать";
   }
 
+  if (panelWorkspaceCreateGroupWrap instanceof HTMLElement) {
+    panelWorkspaceCreateGroupWrap.toggleAttribute("hidden", !currentWorkspaceId);
+  }
+
+  if (panelWorkspaceCreateGroupBtn instanceof HTMLButtonElement) {
+    panelWorkspaceCreateGroupBtn.disabled = !currentWorkspaceId;
+  }
+
+  if (!currentWorkspaceId) {
+    closePanelWorkspaceGroupMenu();
+  }
+
+  if (changed) {
+    closePanelWorkspaceGroupMenu();
+  }
+
   if (panelWorkspaceDanger) {
     panelWorkspaceDanger.toggleAttribute("hidden", currentWorkspaceRole !== "Owner");
   }
@@ -1693,28 +1772,129 @@ const setWorkspaceContext = (space) => {
     tagByName.clear();
     currentUserId = null;
     currentAssigneeIdFilter = null;
+    chatController?.clearWorkspaceData();
+    unmountTaskDetailChatShell();
+  }
+};
+
+const chatShellHomeParent = chatShell?.parentElement || null;
+const chatShellHomeNextSibling = chatShell?.nextElementSibling || null;
+let taskDetailChatShellDockHost = null;
+
+const isTaskDetailChatShellMounted = () => {
+  return chatShell instanceof HTMLElement
+    && taskDetailChatShellDockHost instanceof HTMLElement
+    && taskDetailChatShellDockHost.contains(chatShell);
+};
+
+const mountTaskDetailChatShell = (host) => {
+  if (!(chatShell instanceof HTMLElement) || !(host instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (!host.contains(chatShell)) {
+    host.appendChild(chatShell);
+  }
+
+  taskDetailChatShellDockHost = host;
+  chatShell.classList.add("is-task-detail-docked");
+  chatShell.removeAttribute("hidden");
+  return true;
+};
+
+const unmountTaskDetailChatShell = () => {
+  if (!(chatShell instanceof HTMLElement)) {
+    taskDetailChatShellDockHost = null;
+    return;
+  }
+
+  if (chatShellHomeParent instanceof HTMLElement) {
+    if (chatShellHomeNextSibling instanceof Element && chatShellHomeNextSibling.parentElement === chatShellHomeParent) {
+      chatShellHomeParent.insertBefore(chatShell, chatShellHomeNextSibling);
+    } else {
+      chatShellHomeParent.appendChild(chatShell);
+    }
+  }
+
+  taskDetailChatShellDockHost = null;
+  chatShell.classList.remove("is-task-detail-docked");
+
+  const isChatScreen = workspaceMain instanceof HTMLElement && workspaceMain.classList.contains("is-chat-active");
+  if (!isChatScreen) {
+    chatShell.setAttribute("hidden", "");
   }
 };
 
 const setAppScreen = (screen) => {
-  const showBoard = screen === "board";
-  if (topbar) topbar.hidden = !showBoard;
+  const showChat = screen === "chat";
+  const showBoard = !showChat;
+
+  if (showChat && isTaskDetailChatShellMounted()) {
+    unmountTaskDetailChatShell();
+  }
+
+  if (topbar) topbar.hidden = false;
   if (board) board.hidden = !showBoard;
-  if (brandToggle) brandToggle.hidden = !showBoard;
-  if (viewToggle) viewToggle.hidden = !showBoard;
-  if (styleSwitch) styleSwitch.hidden = !showBoard;
-  if (openSpacesHomeBtn) openSpacesHomeBtn.hidden = !showBoard;
-  if (!showBoard) {
+  if (chatShell) {
+    const keepVisibleInTaskDetail = !showChat && isTaskDetailChatShellMounted();
+    chatShell.hidden = !showChat && !keepVisibleInTaskDetail;
+  }
+  if (brandToggle) brandToggle.hidden = false;
+  if (viewToggle) viewToggle.hidden = showChat;
+  if (openSpacesHomeBtn) openSpacesHomeBtn.hidden = false;
+  if (workspaceContent) {
+    workspaceContent.classList.toggle("is-chat-active", showChat);
+  }
+  if (workspaceMain) {
+    workspaceMain.classList.toggle("is-chat-active", showChat);
+  }
+  if (appShell) {
+    appShell.classList.toggle("is-chat-active", showChat);
+  }
+  if (showChat) {
     setPanelOpen(false);
   }
 };
+
+chatController = createWorkspaceChatBridge({
+  normalizeToken,
+  toInitials,
+  getWorkspaceId: () => currentWorkspaceId,
+  getWorkspaceName: () => currentWorkspaceName,
+  getWorkspaceAvatarPath: () => currentWorkspaceAvatarPath,
+  getActorUserId,
+  getActorDisplayName,
+  getMemberById: getWorkspaceMemberById,
+  getWorkspaceMembers: () => (Array.isArray(workspaceMembers) ? workspaceMembers : []),
+  getWorkspaceRole: () => String(currentWorkspaceRole || "Member"),
+  applyAccountAvatarToElement,
+  onOpenProfile: (member) => {
+    const memberId = Number(member?.id ?? member?.userId);
+    const actorId = Number(getActorUserId());
+    profileModalsController.openProfileModal(member, {
+      isSelf: Number.isFinite(memberId) && Number.isFinite(actorId) && memberId > 0 && actorId > 0 && memberId === actorId
+    });
+  },
+  onOpenTasks: () => {
+    setAppScreen("board");
+  },
+  onOpenChat: (_chat, options) => {
+    if (options?.suppressScreenSwitch) {
+      return;
+    }
+    setAppScreen("chat");
+  }
+});
+
+chatController.init();
 
 const loadCurrentUserFromApi = async () => {
   const me = await fetchJsonOrNull(buildApiUrl("/auth/me"), "Загрузка аккаунта", {
     headers: { Accept: "application/json" }
   });
 
-  if (me && Number.isFinite(Number(me.id))) {
+  const meId = Number(me?.id ?? me?.userId);
+  if (me && Number.isFinite(meId) && meId > 0) {
     setActorUser(me);
     return;
   }
@@ -1786,6 +1966,7 @@ const openWorkspace = async (space) => {
   await loadTagsFromApi();
   await loadUsersFromApi();
   await loadTasksFromApi();
+  await chatController?.refreshChats();
 };
 
 const applyTaskBgToCards = (id, dataUrl) => {
@@ -1865,6 +2046,7 @@ const closeUserMiniMenu = () => {
 
 const profileModalsController = createProfileModalsController({
   getWorkspaceId: () => currentWorkspaceId,
+  getActorUserId,
   buildApiUrl,
   apiFetch,
   handleApiError,
@@ -1873,7 +2055,16 @@ const profileModalsController = createProfileModalsController({
   applyAccountAvatarToElement,
   getRoleLabel,
   statusLabels: STATUS_LABELS,
-  toStatusValue
+  toStatusValue,
+  openDirectChat: async (userId) => {
+    setAppScreen("chat");
+    await chatController?.openDirectChatByUser(userId);
+  },
+  openDirectChatNotifications: async (userId) => {
+    setAppScreen("chat");
+    await chatController?.openDirectChatByUser(userId);
+    chatController?.openActiveChatSettings();
+  }
 });
 
 const WORKSPACE_ROLE_VALUES = {
@@ -2108,9 +2299,6 @@ const setTrashZoneVisible = (visible) => {
   const show = Boolean(visible && shouldShowTrashZone());
   taskTrashZone.classList.toggle("is-visible", show);
   taskTrashZone.setAttribute("aria-hidden", show ? "false" : "true");
-  if (styleSwitch) {
-    styleSwitch.classList.toggle("has-trash-zone", show);
-  }
   if (boardToolbar) {
     boardToolbar.classList.toggle("is-trash-mode", show);
   }
@@ -3773,14 +3961,6 @@ if (addColumnMenu) {
   });
 }
 
-if (styleToggle) {
-  styleToggle.addEventListener("click", () => {
-    if (!board) return;
-    const nextStyle = board.dataset.style === "flow" ? "columns" : "flow";
-    setLayoutStyle(nextStyle);
-  });
-}
-
 document.querySelectorAll(".flow-task").forEach(initFlowTask);
 
 if (taskTagsInput) {
@@ -3809,7 +3989,7 @@ if (accountAvatarEl) {
       email: normalizeToken(actorUser?.email) || "-",
       role: normalizeToken(currentWorkspaceRole) || "Member"
     };
-    profileModalsController.openProfileModal(member || fallback);
+    profileModalsController.openProfileModal(member || fallback, { isSelf: true });
   });
 }
 
@@ -3975,6 +4155,18 @@ document.addEventListener("click", (event) => {
   closeUserMiniMenu();
 });
 
+document.addEventListener("click", (event) => {
+  if (!panelWorkspaceGroupMenuOpen) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) {
+    closePanelWorkspaceGroupMenu();
+    return;
+  }
+  if (target.closest("#panel-workspace-group-menu")) return;
+  if (target.closest("#panel-workspace-create-group")) return;
+  closePanelWorkspaceGroupMenu();
+});
+
 if (confirmModal) {
   confirmModal.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
@@ -4009,6 +4201,12 @@ taskDetailController = createTaskDetailController({
   canEditTask: isAdmin,
   canClearHistory: isAdmin,
   canManageDoneApproval: isAdmin,
+  canAccessTaskChat: () => Number(currentWorkspaceId) > 0,
+  ensureTaskChat: (taskId, options) => chatController?.ensureTaskChat(taskId, options) ?? null,
+  openTaskChatRoom: (chatId, options) => chatController?.openChat(chatId, options),
+  focusTaskChatUnread: (options) => chatController?.focusFirstUnreadInActiveChat(options),
+  mountTaskChatShell: (host) => mountTaskDetailChatShell(host),
+  unmountTaskChatShell: () => unmountTaskDetailChatShell(),
   approveDone: approveTaskDoneViaApi,
   rejectDone: rejectTaskDoneViaApi,
   ensureTagsLoaded,
@@ -4049,6 +4247,10 @@ document.addEventListener("keydown", (event) => {
       return;
     }
     if (profileModalsController.closeProfileModal()) {
+      return;
+    }
+    if (panelWorkspaceGroupMenuOpen) {
+      closePanelWorkspaceGroupMenu();
       return;
     }
     if (activeUserMiniMenu instanceof Element) {
@@ -4188,6 +4390,77 @@ if (panelWorkspaceEditBtn) {
     if (!panelWorkspaceNameEl) return;
     if (panelWorkspaceEditing) return;
     setWorkspaceEditing(true);
+  });
+}
+
+if (panelWorkspaceCreateGroupBtn) {
+  panelWorkspaceCreateGroupBtn.addEventListener("click", () => {
+    if (!currentWorkspaceId) return;
+    if (panelWorkspaceGroupCreateInFlight) return;
+    if (panelWorkspaceGroupMenuOpen) {
+      closePanelWorkspaceGroupMenu();
+      return;
+    }
+    openPanelWorkspaceGroupMenu();
+  });
+}
+
+if (panelWorkspaceGroupCancelBtn) {
+  panelWorkspaceGroupCancelBtn.addEventListener("click", () => {
+    if (panelWorkspaceGroupCreateInFlight) return;
+    closePanelWorkspaceGroupMenu();
+  });
+}
+
+if (panelWorkspaceGroupInput) {
+  panelWorkspaceGroupInput.addEventListener("input", () => {
+    panelWorkspaceGroupInput.classList.remove("is-invalid");
+  });
+
+  panelWorkspaceGroupInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!panelWorkspaceGroupCreateInFlight) {
+        closePanelWorkspaceGroupMenu();
+      }
+    }
+  });
+}
+
+if (panelWorkspaceGroupMenu) {
+  panelWorkspaceGroupMenu.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void (async () => {
+      if (!currentWorkspaceId) return;
+      if (panelWorkspaceGroupCreateInFlight) return;
+
+      const title = normalizeToken(panelWorkspaceGroupInput?.value);
+      if (!title) {
+        if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+          panelWorkspaceGroupInput.classList.add("is-invalid");
+          panelWorkspaceGroupInput.focus();
+        }
+        return;
+      }
+
+      setPanelWorkspaceGroupCreateBusy(true);
+      const created = await chatController?.createGroupChat(title, {
+        open: true
+      });
+      setPanelWorkspaceGroupCreateBusy(false);
+
+      if (!created?.id) {
+        if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+          panelWorkspaceGroupInput.focus();
+          panelWorkspaceGroupInput.select();
+        }
+        return;
+      }
+
+      closePanelWorkspaceGroupMenu();
+      setPanelOpen(false);
+    })();
   });
 }
 
@@ -4472,6 +4745,14 @@ if (taskDetailPhotoBtn) {
 
 if (taskDetailPhotoClearBtn) {
   taskDetailPhotoClearBtn.addEventListener("click", taskDetailController.onDetailPhotoClearClick);
+}
+
+if (taskDetailChatToggleBtn) {
+  taskDetailChatToggleBtn.addEventListener("click", taskDetailController.onTaskChatToggleClick);
+}
+
+if (taskDetailChatCloseBtn) {
+  taskDetailChatCloseBtn.addEventListener("click", taskDetailController.onTaskChatCloseClick);
 }
 
 if (taskDetailHistoryToggleBtn) {

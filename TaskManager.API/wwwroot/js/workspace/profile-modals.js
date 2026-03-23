@@ -1,5 +1,6 @@
 export const createProfileModalsController = ({
   getWorkspaceId,
+  getActorUserId,
   buildApiUrl,
   apiFetch,
   handleApiError,
@@ -8,7 +9,9 @@ export const createProfileModalsController = ({
   applyAccountAvatarToElement,
   getRoleLabel,
   statusLabels,
-  toStatusValue
+  toStatusValue,
+  openDirectChat,
+  openDirectChatNotifications
 } = {}) => {
   const profileModal = document.getElementById("profile-modal");
   const profileUserNameEl = document.getElementById("profile-user-name");
@@ -16,6 +19,9 @@ export const createProfileModalsController = ({
   const profileAvatarTextEl = document.getElementById("profile-avatar-text");
   const profileUserEmailEl = document.getElementById("profile-user-email");
   const profileUserRoleEl = document.getElementById("profile-user-role");
+  const profileMessageBtn = document.getElementById("profile-message-btn");
+  const profileNotificationsBtn = document.getElementById("profile-notifications-btn");
+  const profileChatBtn = document.getElementById("profile-chat-btn");
 
   const profileStatusesChartEl = document.getElementById("profile-statuses-chart");
   const profileStatusesRoot = document.getElementById("profile-statuses");
@@ -35,7 +41,9 @@ export const createProfileModalsController = ({
   const avatarModalAvatarTextEl = document.getElementById("avatar-modal-avatar-text");
 
   let profileReportsRequestSeq = 0;
+  let profileDetailsRequestSeq = 0;
   let activeProfileMember = null;
+  let profileActionForcedHidden = false;
 
   const isProfileModalOpen = () => Boolean(profileModal && !profileModal.hasAttribute("hidden"));
   const isAvatarModalOpen = () => Boolean(avatarModal && !avatarModal.hasAttribute("hidden"));
@@ -44,6 +52,7 @@ export const createProfileModalsController = ({
     if (!isProfileModalOpen()) return false;
     profileModal.setAttribute("hidden", "");
     activeProfileMember = null;
+    profileActionForcedHidden = false;
     profileReportsRequestSeq += 1;
     return true;
   };
@@ -440,19 +449,23 @@ export const createProfileModalsController = ({
     }, 0);
   };
 
-  const openProfileModal = (member) => {
-    if (!profileModal) {
-      const name = normalizeToken(member?.name) || "Пользователь";
-      const email = normalizeToken(member?.email) || "-";
-      const role = normalizeToken(member?.role) || "Member";
-      window.alert(`${name}\n\nПочта: ${email}\nРоль: ${getRoleLabel(role)}`);
-      return;
+  const normalizeRoleValue = (value) => {
+    if (typeof value === "number") {
+      return value === 3 ? "Owner" : value === 2 ? "Admin" : "Member";
     }
 
+    const raw = normalizeToken(value);
+    if (raw === "3") return "Owner";
+    if (raw === "2") return "Admin";
+    if (raw === "1") return "Member";
+    return raw || "Member";
+  };
+
+  const applyProfileMemberToUi = (member) => {
     const id = Number(member?.id);
     const name = normalizeToken(member?.name) || "Пользователь";
     const email = normalizeToken(member?.email) || "-";
-    const role = normalizeToken(member?.role) || "Member";
+    const role = normalizeRoleValue(member?.role);
     const initials = toInitials(name || email, "U");
     const avatarPath = normalizeToken(member?.avatarPath);
 
@@ -468,15 +481,92 @@ export const createProfileModalsController = ({
     if (profileUserEmailEl) profileUserEmailEl.textContent = email;
     if (profileUserRoleEl) profileUserRoleEl.textContent = getRoleLabel(role);
     applyAccountAvatarToElement(profileAvatarEl, profileAvatarTextEl, initials, avatarPath);
+  };
+
+  const syncProfileActionButtonsState = (userIdValue, options = {}) => {
+    const userId = Number(userIdValue);
+    const actorId = typeof getActorUserId === "function" ? Number(getActorUserId()) : 0;
+    const forceHide = options?.forceHide === true;
+    const hidden = forceHide || !Number.isFinite(userId) || userId <= 0 || userId === actorId;
+    [profileMessageBtn, profileNotificationsBtn, profileChatBtn].forEach((btn) => {
+      if (!(btn instanceof HTMLButtonElement)) return;
+      btn.hidden = hidden;
+      btn.disabled = hidden;
+    });
+  };
+
+  const fetchWorkspaceMemberById = async (userId) => {
+    const workspaceId = typeof getWorkspaceId === "function" ? Number(getWorkspaceId()) : NaN;
+    if (!Number.isFinite(workspaceId) || workspaceId <= 0) return null;
+
+    const response = await apiFetch(buildApiUrl(`/spaces/${workspaceId}/members`), {
+      headers: { Accept: "application/json" }
+    });
+    if (!response.ok) {
+      await handleApiError(response, "Загрузка профиля участника");
+      return null;
+    }
+
+    let members = null;
+    try {
+      members = await response.json();
+    } catch {
+      return null;
+    }
+
+    if (!Array.isArray(members)) return null;
+    const match = members.find((item) => Number(item?.userId ?? item?.id) === Number(userId));
+    if (!match) return null;
+
+    return {
+      id: Number(match?.userId ?? match?.id),
+      name: normalizeToken(match?.name) || normalizeToken(match?.email) || "Пользователь",
+      email: normalizeToken(match?.email) || "-",
+      role: normalizeToken(match?.role) || "Member",
+      avatarPath: normalizeToken(match?.avatarPath)
+    };
+  };
+
+  const openProfileModal = async (member, options = {}) => {
+    if (!profileModal) {
+      const name = normalizeToken(member?.name) || "Пользователь";
+      const email = normalizeToken(member?.email) || "-";
+      const role = normalizeRoleValue(member?.role);
+      window.alert(`${name}\n\nПочта: ${email}\nРоль: ${getRoleLabel(role)}`);
+      return;
+    }
+
+    profileActionForcedHidden = options?.isSelf === true;
+    const id = Number(member?.id ?? member?.userId);
+    applyProfileMemberToUi({
+      id,
+      name: normalizeToken(member?.name) || "Пользователь",
+      email: normalizeToken(member?.email) || "-",
+      role: normalizeRoleValue(member?.role),
+      avatarPath: normalizeToken(member?.avatarPath)
+    });
+    syncProfileActionButtonsState(id, { forceHide: profileActionForcedHidden });
 
     profileModal.removeAttribute("hidden");
     void renderProfileReports(activeProfileMember);
+    profileDetailsRequestSeq += 1;
+    const seq = profileDetailsRequestSeq;
     window.setTimeout(() => {
       const btn = profileModal.querySelector("button[data-close-profile]");
       if (btn instanceof HTMLElement) {
         btn.focus();
       }
     }, 0);
+
+    if (Number.isFinite(id) && id > 0) {
+      const freshMember = await fetchWorkspaceMemberById(id);
+      if (seq !== profileDetailsRequestSeq || !isProfileModalOpen() || !freshMember) {
+        return;
+      }
+      applyProfileMemberToUi(freshMember);
+      syncProfileActionButtonsState(freshMember.id, { forceHide: profileActionForcedHidden });
+      void renderProfileReports(activeProfileMember);
+    }
   };
 
   if (profileAvatarEl) {
@@ -485,6 +575,51 @@ export const createProfileModalsController = ({
       event.stopPropagation();
       if (!activeProfileMember) return;
       openAvatarModal(activeProfileMember);
+    });
+  }
+
+  const openDirectFromProfile = async (mode = "message") => {
+    const userId = Number(activeProfileMember?.id);
+    const handler = mode === "notifications"
+      ? (typeof openDirectChatNotifications === "function" ? openDirectChatNotifications : openDirectChat)
+      : openDirectChat;
+    if (!Number.isFinite(userId) || userId <= 0 || typeof handler !== "function") {
+      return;
+    }
+
+    const actions = [profileMessageBtn, profileNotificationsBtn, profileChatBtn].filter((btn) => btn instanceof HTMLButtonElement);
+    actions.forEach((btn) => {
+      btn.disabled = true;
+    });
+    try {
+      await handler(userId);
+      closeProfileModal();
+    } finally {
+      syncProfileActionButtonsState(userId, { forceHide: profileActionForcedHidden });
+    }
+  };
+
+  if (profileMessageBtn instanceof HTMLButtonElement) {
+    profileMessageBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await openDirectFromProfile("message");
+    });
+  }
+
+  if (profileNotificationsBtn instanceof HTMLButtonElement) {
+    profileNotificationsBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await openDirectFromProfile("notifications");
+    });
+  }
+
+  if (profileChatBtn instanceof HTMLButtonElement) {
+    profileChatBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await openDirectFromProfile("message");
     });
   }
 
