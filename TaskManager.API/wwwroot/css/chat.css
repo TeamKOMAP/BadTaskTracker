@@ -1545,13 +1545,6 @@ body[data-theme="light"] .chat-settings-field input {
   margin-bottom: 10px;
 }
 
-.chat-shell-voice-status {
-  min-height: 16px;
-  padding: 0 16px 12px;
-  color: var(--text-3);
-  font-size: 11px;
-}
-
 .chat-shell-context {
   display: flex;
   align-items: center;

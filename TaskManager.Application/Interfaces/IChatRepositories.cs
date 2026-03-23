@@ -33,6 +33,7 @@ public interface IChatMessageRepository
     Task<ChatMessage> AddAsync(ChatMessage message, CancellationToken ct = default);
     Task UpdateAsync(ChatMessage message, CancellationToken ct = default);
     Task<long> GetCountByChatRoomIdAsync(Guid chatRoomId, CancellationToken ct = default);
+    Task<int> GetUnreadCountByChatRoomIdAsync(Guid chatRoomId, int userId, long lastReadMessageId, CancellationToken ct = default);
     Task<ChatMessage?> GetByClientMessageIdAsync(Guid chatRoomId, string clientMessageId, CancellationToken ct = default);
 }
 

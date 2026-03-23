@@ -579,7 +579,8 @@ export const createWorkspaceChatController = (deps = {}) => {
       directPeerUserId: Number.isFinite(directPeerUserIdRaw) && directPeerUserIdRaw > 0 ? directPeerUserIdRaw : null,
       directPeerDisplayName: directPeerDisplayName || null,
       createdByUserId: Number.isFinite(createdByUserIdRaw) && createdByUserIdRaw > 0 ? createdByUserIdRaw : null,
-      updatedAtUtc
+      updatedAtUtc,
+      unreadCount: Math.max(0, Number(chat?.unreadCount ?? chat?.UnreadCount) || 0)
     };
   };
 
@@ -2312,6 +2313,14 @@ export const createWorkspaceChatController = (deps = {}) => {
     return Number(unreadByChatId.get(String(chatId || "")) || 0);
   };
 
+  const syncUnreadCountsFromChats = () => {
+    store.getChats().forEach((chat) => {
+      const chatId = toChatId(chat?.id);
+      if (!chatId) return;
+      setUnreadCount(chatId, Math.max(0, Number(chat?.unreadCount) || 0));
+    });
+  };
+
   const setUnreadCount = (chatId, count) => {
     const key = String(chatId || "").trim();
     if (!key) return;
@@ -2637,6 +2646,36 @@ export const createWorkspaceChatController = (deps = {}) => {
     }, 1200);
   };
 
+  const getEntryActivityMs = (entry) => {
+    const chatId = toChatId(entry?.chatId);
+    if (!chatId) return -1;
+
+    const messages = store.getMessages(chatId);
+    const lastMessage = Array.isArray(messages) && messages.length ? messages[messages.length - 1] : null;
+    const lastMessageMs = Date.parse(normalizeUtcDateValue(lastMessage?.createdAtUtc || ""));
+    if (Number.isFinite(lastMessageMs) && lastMessageMs > 0) {
+      return lastMessageMs;
+    }
+
+    const chat = store.getChatById(chatId);
+    const updatedAtMs = Date.parse(normalizeUtcDateValue(chat?.updatedAtUtc || ""));
+    if (Number.isFinite(updatedAtMs) && updatedAtMs > 0) {
+      return updatedAtMs;
+    }
+
+    return -1;
+  };
+
+  const compareRailEntries = (left, right) => {
+    const leftActivityMs = getEntryActivityMs(left);
+    const rightActivityMs = getEntryActivityMs(right);
+    if (leftActivityMs !== rightActivityMs) {
+      return rightActivityMs > leftActivityMs ? 1 : -1;
+    }
+
+    return String(left?.title || "").localeCompare(String(right?.title || ""), "ru");
+  };
+
   const buildDirectEntries = () => {
     const actorId = Number(getActorUserId());
     const chats = store.getChats();
@@ -2680,7 +2719,7 @@ export const createWorkspaceChatController = (deps = {}) => {
       .filter(Boolean);
 
     return [...existingDirectChats, ...candidateEntries]
-      .sort((left, right) => String(left.title).localeCompare(String(right.title), "ru"));
+      .sort(compareRailEntries);
   };
 
   const buildSections = () => {
@@ -2692,6 +2731,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         entries: chats
           .filter((chat) => Number(chat?.type) === 1)
           .map((chat) => ({ entryId: `chat:${chat.id}`, kind: "chat", chatId: chat.id, userId: null, type: 1, title: chat.title }))
+          .sort(compareRailEntries)
       },
       {
         key: "groups",
@@ -2699,6 +2739,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         entries: chats
           .filter((chat) => Number(chat?.type) === 2)
           .map((chat) => ({ entryId: `chat:${chat.id}`, kind: "chat", chatId: chat.id, userId: null, type: 2, title: chat.title }))
+          .sort(compareRailEntries)
       },
       {
         key: "tasks",
@@ -2706,6 +2747,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         entries: chats
           .filter((chat) => Number(chat?.type) === 4)
           .map((chat) => ({ entryId: `chat:${chat.id}`, kind: "chat", chatId: chat.id, userId: null, type: 4, title: chat.title }))
+          .sort(compareRailEntries)
       },
       {
         key: "direct",
@@ -2746,7 +2788,7 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const getEntriesForActiveRailTab = (sections) => {
     if (activeRailTab === "all") {
-      return sections.flatMap((section) => section.entries);
+      return sections.flatMap((section) => section.entries).sort(compareRailEntries);
     }
     const match = sections.find((section) => section.key === activeRailTab);
     return match?.entries || [];
@@ -3653,7 +3695,12 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (!message) return;
 
     store.reconcileMessage(chatId, message.clientMessageId, message);
-    store.upsertChat({ ...(store.getChatById(chatId) || { id: chatId, type: 2, title: "Чат" }), id: chatId });
+    const existingChat = store.getChatById(chatId) || { id: chatId, type: 2, title: "Чат", unreadCount: 0 };
+    store.upsertChat({
+      ...existingChat,
+      id: chatId,
+      updatedAtUtc: message.createdAtUtc || existingChat.updatedAtUtc || new Date().toISOString()
+    });
 
     const actorId = Number(getActorUserId());
     const isOwn = Number.isFinite(actorId) && Number(message.senderUserId) === actorId;
@@ -4025,6 +4072,10 @@ export const createWorkspaceChatController = (deps = {}) => {
       const normalized = preview ? normalizeChatMessage(preview) : null;
       if (normalized?.body) {
         store.setPreview(chat.id, normalized.body);
+        store.upsertChat({
+          ...chat,
+          updatedAtUtc: normalized.createdAtUtc || chat.updatedAtUtc || ""
+        });
       }
     }));
     renderRailList();
@@ -4841,6 +4892,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     store.setChats(chats);
     store.setUseMockData(false);
     setChatAvailabilityState(true);
+    syncUnreadCountsFromChats();
     renderRailList();
     await realtimeClient.syncChats(chats.map((chat) => chat.id));
     await fetchLatestPreviews();
