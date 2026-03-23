@@ -15,10 +15,10 @@ RUN dotnet publish TaskManager.API/TaskManager.API.csproj -c Release -o /app/pub
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
-ENV ASPNETCORE_URLS=http://0.0.0.0:10000
 ENV ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+ENV PORT=8080
 
-EXPOSE 10000
+EXPOSE 8080
 
 COPY --from=build /app/publish ./
 

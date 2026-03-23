@@ -2,6 +2,9 @@
 .github
 .vs
 
+.env
+.env.*
+
 **/bin/
 **/obj/
 

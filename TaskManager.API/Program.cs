@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.IdentityModel.Tokens;
+using Npgsql;
 using System.Text;
 using System.Threading.RateLimiting;
 using TaskManager.API.Background;
@@ -30,6 +31,12 @@ builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 builder.Logging.AddDebug();
 
+var portRaw = builder.Configuration["PORT"] ?? Environment.GetEnvironmentVariable("PORT");
+if (int.TryParse(portRaw, out var port) && port > 0)
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -37,12 +44,19 @@ builder.Services.AddSignalR();
 builder.Services.AddChatModule(builder.Configuration);
 
 var jwtSettings = builder.Configuration.GetSection("Jwt").Get<JwtSettings>() ?? new JwtSettings();
+var jwtSigningKeyFallback = builder.Configuration["JWT_SIGNING_KEY"];
+if (!string.IsNullOrWhiteSpace(jwtSigningKeyFallback))
+{
+    jwtSettings.SigningKey = jwtSigningKeyFallback;
+}
+
 if (string.IsNullOrWhiteSpace(jwtSettings.Issuer)
     || string.IsNullOrWhiteSpace(jwtSettings.Audience)
     || string.IsNullOrWhiteSpace(jwtSettings.SigningKey)
     || jwtSettings.SigningKey.Length < 32)
 {
-    throw new InvalidOperationException("JWT configuration is invalid. Provide Jwt:Issuer, Jwt:Audience and Jwt:SigningKey (at least 32 chars).");
+    throw new InvalidOperationException(
+        "JWT configuration is invalid. Provide Jwt:Issuer, Jwt:Audience and Jwt:SigningKey (at least 32 chars). Use env vars Jwt__SigningKey or JWT_SIGNING_KEY.");
 }
 
 var knownInsecureJwtSigningKeys = new[]
@@ -55,7 +69,8 @@ if ((builder.Environment.IsProduction() || builder.Environment.IsStaging())
     && knownInsecureJwtSigningKeys.Contains(jwtSettings.SigningKey, StringComparer.Ordinal))
 {
     throw new InvalidOperationException(
-        "JWT signing key uses insecure default value. Set a unique Jwt:SigningKey for this environment.");
+        "JWT signing key uses insecure default value. Set a unique Jwt:SigningKey (env: Jwt__SigningKey or JWT_SIGNING_KEY)."
+    );
 }
 
 var emailAuthSettings = builder.Configuration.GetSection("EmailAuth").Get<EmailAuthSettings>() ?? new EmailAuthSettings();
@@ -149,10 +164,12 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
         || provider.Equals("PostgreSql", StringComparison.OrdinalIgnoreCase)
         || provider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
     {
-        var postgresConnection = builder.Configuration.GetConnectionString("Postgres");
+        var postgresConnection = ResolvePostgresConnectionString(builder.Configuration);
         if (string.IsNullOrWhiteSpace(postgresConnection))
         {
-            throw new InvalidOperationException("ConnectionStrings:Postgres must be configured when Database:Provider=Postgres.");
+            throw new InvalidOperationException(
+                "Postgres connection string is missing. Configure ConnectionStrings:Postgres or DATABASE_URL."
+            );
         }
 
         options.UseNpgsql(postgresConnection, npgsql =>
@@ -454,6 +471,135 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+static string? ResolvePostgresConnectionString(IConfiguration configuration)
+{
+    var explicitConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Postgres");
+    if (!string.IsNullOrWhiteSpace(explicitConnectionString))
+    {
+        return explicitConnectionString;
+    }
+
+    var fromDatabaseUrl = TryConvertDatabaseUrlToConnectionString(configuration["DATABASE_URL"]);
+    if (!string.IsNullOrWhiteSpace(fromDatabaseUrl))
+    {
+        return fromDatabaseUrl;
+    }
+
+    var fromPgEnv = TryBuildPostgresConnectionStringFromPgEnv(configuration);
+    if (!string.IsNullOrWhiteSpace(fromPgEnv))
+    {
+        return fromPgEnv;
+    }
+
+    return configuration.GetConnectionString("Postgres");
+}
+
+static string? TryConvertDatabaseUrlToConnectionString(string? databaseUrl)
+{
+    var raw = databaseUrl?.Trim();
+    if (string.IsNullOrWhiteSpace(raw))
+    {
+        return null;
+    }
+
+    if (raw.StartsWith("Host=", StringComparison.OrdinalIgnoreCase)
+        || raw.StartsWith("Server=", StringComparison.OrdinalIgnoreCase)
+        || raw.Contains(';'))
+    {
+        return raw;
+    }
+
+    if (!Uri.TryCreate(raw, UriKind.Absolute, out var uri))
+    {
+        return null;
+    }
+
+    if (!uri.Scheme.StartsWith("postgres", StringComparison.OrdinalIgnoreCase))
+    {
+        return null;
+    }
+
+    var builder = new NpgsqlConnectionStringBuilder
+    {
+        Host = uri.Host,
+        Port = uri.IsDefaultPort ? 5432 : uri.Port,
+        Database = uri.AbsolutePath.Trim('/'),
+    };
+
+    if (!string.IsNullOrWhiteSpace(uri.UserInfo))
+    {
+        var userInfoParts = uri.UserInfo.Split(':', 2);
+        if (userInfoParts.Length > 0)
+        {
+            builder.Username = Uri.UnescapeDataString(userInfoParts[0]);
+        }
+
+        if (userInfoParts.Length > 1)
+        {
+            builder.Password = Uri.UnescapeDataString(userInfoParts[1]);
+        }
+    }
+
+    if (!string.IsNullOrWhiteSpace(uri.Query))
+    {
+        var queryParams = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var param in queryParams)
+        {
+            var separatorIndex = param.IndexOf('=');
+            var rawKey = separatorIndex >= 0 ? param[..separatorIndex] : param;
+            var rawValue = separatorIndex >= 0 ? param[(separatorIndex + 1)..] : string.Empty;
+            var key = Uri.UnescapeDataString(rawKey).Trim();
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                continue;
+            }
+
+            var value = Uri.UnescapeDataString(rawValue).Trim();
+            try
+            {
+                builder[key] = value;
+            }
+            catch (ArgumentException)
+            {
+                // Ignore unsupported query parameters.
+            }
+        }
+    }
+
+    return builder.ConnectionString;
+}
+
+static string? TryBuildPostgresConnectionStringFromPgEnv(IConfiguration configuration)
+{
+    var host = configuration["PGHOST"]?.Trim();
+    var database = configuration["PGDATABASE"]?.Trim();
+    var username = configuration["PGUSER"]?.Trim();
+    var password = configuration["PGPASSWORD"] ?? string.Empty;
+
+    if (string.IsNullOrWhiteSpace(host)
+        || string.IsNullOrWhiteSpace(database)
+        || string.IsNullOrWhiteSpace(username))
+    {
+        return null;
+    }
+
+    var builder = new NpgsqlConnectionStringBuilder
+    {
+        Host = host,
+        Database = database,
+        Username = username,
+        Password = password
+    };
+
+    var portRaw = configuration["PGPORT"]?.Trim();
+    if (int.TryParse(portRaw, out var port) && port > 0)
+    {
+        builder.Port = port;
+    }
+
+    return builder.ConnectionString;
+}
 
 // Делаем Program доступным для интеграционных тестов
 public partial class Program { }
