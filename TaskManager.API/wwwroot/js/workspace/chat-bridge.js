@@ -72,7 +72,7 @@ import {
   chatShellFileInput,
   chatShellJumpBottomBtn
 } from "./dom.js?v=authflow18";
-import { createWorkspaceChatController } from "../chat/controller.js?v=chat60";
+import { createWorkspaceChatController } from "../chat/controller.js?v=chat62";
 
 export const createWorkspaceChatBridge = (deps = {}) => {
   const controller = createWorkspaceChatController({

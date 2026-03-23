@@ -129,6 +129,36 @@ const getMessageBodyForFile = (file, kind) => {
   return name || "Файл";
 };
 
+const getAttachmentFileExtension = (fileName) => {
+  const normalizedName = String(fileName || "").trim();
+  const dotIndex = normalizedName.lastIndexOf(".");
+  if (dotIndex <= 0 || dotIndex >= normalizedName.length - 1) {
+    return "";
+  }
+  const extension = normalizedName.slice(dotIndex + 1).trim().toUpperCase();
+  return extension.length > 8 ? extension.slice(0, 8) : extension;
+};
+
+const getAttachmentFileTypeLabel = (attachment) => {
+  const extension = getAttachmentFileExtension(attachment?.fileName);
+  if (extension) return extension;
+
+  const contentType = String(attachment?.contentType || "").toLowerCase();
+  if (!contentType || contentType === "application/octet-stream") {
+    return "FILE";
+  }
+
+  const normalizedType = contentType.split(";")[0].trim();
+  const slashIndex = normalizedType.indexOf("/");
+  const token = (slashIndex >= 0 ? normalizedType.slice(slashIndex + 1) : normalizedType)
+    .replace("x-", "")
+    .replace(/\./g, "")
+    .trim()
+    .toUpperCase();
+
+  return token ? token.slice(0, 8) : "FILE";
+};
+
 const formatMediaTime = (seconds) => {
   const total = Math.max(0, Math.floor(Number(seconds) || 0));
   const mins = Math.floor(total / 60);
@@ -3304,42 +3334,55 @@ export const createWorkspaceChatController = (deps = {}) => {
       }
 
       if (!isVoice && !isImage) {
-        const meta = document.createElement("div");
-        meta.className = "chat-attachment-meta";
-        const name = document.createElement("div");
-        name.className = "chat-attachment-name";
-        name.textContent = attachment.fileName;
-        const sub = document.createElement("div");
-        sub.className = "chat-attachment-sub";
-        sub.textContent = `${attachment.contentType} · ${formatBytes(attachment.size)}`;
-        meta.append(name, sub);
+        card.classList.add("is-file");
 
-        const actions = document.createElement("div");
-        actions.className = "chat-attachment-actions";
+        const fileEntry = document.createElement("div");
+        fileEntry.className = "chat-file-entry";
 
         const openBtn = document.createElement("button");
         openBtn.type = "button";
-        openBtn.className = "chat-msg-action";
-        openBtn.textContent = "Открыть";
+        openBtn.className = "chat-file-open";
+        openBtn.setAttribute("aria-label", "Открыть файл");
+        openBtn.title = "Открыть файл";
+
+        const icon = document.createElement("span");
+        icon.className = "chat-file-icon";
+        icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" /><path d="M14 4v5h5" /></svg>';
+
+        const content = document.createElement("span");
+        content.className = "chat-file-content";
+
+        const name = document.createElement("span");
+        name.className = "chat-file-name";
+        name.textContent = attachment.fileName;
+
+        const sub = document.createElement("span");
+        sub.className = "chat-file-sub";
+        sub.textContent = `${getAttachmentFileTypeLabel(attachment)} · ${formatBytes(attachment.size)}`;
+
+        content.append(name, sub);
+        openBtn.append(icon, content);
         openBtn.addEventListener("click", () => {
           void ensureAttachmentMediaUrl(chatId, attachment).then((url) => {
             if (!url) return;
             window.open(url, "_blank", "noopener,noreferrer");
           });
         });
-        actions.appendChild(openBtn);
+        openBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
 
         const downloadBtn = document.createElement("button");
         downloadBtn.type = "button";
-        downloadBtn.className = "chat-msg-action";
-        downloadBtn.textContent = "Скачать";
+        downloadBtn.className = "chat-file-download";
+        downloadBtn.setAttribute("aria-label", "Скачать файл");
+        downloadBtn.title = "Скачать";
+        downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 18h14" /></svg>';
         downloadBtn.addEventListener("click", async () => {
           await downloadAttachmentToFile(chatId, attachment, "attachment");
         });
         downloadBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
-        actions.appendChild(downloadBtn);
 
-        card.append(meta, actions);
+        fileEntry.append(openBtn, downloadBtn);
+        card.appendChild(fileEntry);
       }
       wrap.appendChild(card);
     });
@@ -3456,8 +3499,9 @@ export const createWorkspaceChatController = (deps = {}) => {
         item.classList.add("is-own");
       }
       const isOwnMessage = Number.isFinite(actorUserId) && Number(message.senderUserId) === actorUserId;
+      const attachments = getMessageAttachments(message?.id);
       const isImageMessage = Number(message.kind) === 3 && !message.deletedAtUtc;
-      const hasVoiceAttachment = getMessageAttachments(message?.id).some((attachment) => isVoiceContentType(attachment?.contentType));
+      const hasVoiceAttachment = attachments.some((attachment) => isVoiceContentType(attachment?.contentType));
       const isAudioMessage = (Number(message.kind) === 4 || hasVoiceAttachment) && !message.deletedAtUtc;
       row.classList.toggle("is-own", isOwnMessage);
       row.classList.toggle("is-avatar-spaced", shouldReserveAvatarSlot && !showSenderAvatar);
@@ -3518,7 +3562,8 @@ export const createWorkspaceChatController = (deps = {}) => {
       }
 
       const messageKind = Number(message.kind);
-      const shouldRenderBody = message.deletedAtUtc || (messageKind !== 3 && messageKind !== 4);
+      const shouldHideFileCaption = messageKind === 2 && attachments.length > 0;
+      const shouldRenderBody = message.deletedAtUtc || (messageKind !== 3 && messageKind !== 4 && !shouldHideFileCaption);
       let body = null;
       if (shouldRenderBody) {
         body = document.createElement("div");
