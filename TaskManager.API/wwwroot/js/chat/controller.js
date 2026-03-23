@@ -7,7 +7,7 @@ import {
   isChatRailExpanded,
   readStoredChatRailWidth,
   storeChatRailWidth
-} from "../workspace/chat-state.js?v=chatstate2";
+} from "../workspace/chat-state.js?v=chatstate6";
 import { createChatApi } from "./api.js?v=chat5";
 import { createChatStore } from "./store.js?v=chat4";
 import { createChatSignalRClient } from "./signalr-client.js?v=chatrt1";
@@ -19,8 +19,7 @@ const CHAT_BOTTOM_THRESHOLD_PX = 96;
 const CHAT_TOP_THRESHOLD_PX = 56;
 const CHAT_MESSAGE_WINDOW_SIZE = 140;
 const CHAT_MESSAGE_WINDOW_EXPAND_STEP = 70;
-const CHAT_RAIL_COLLAPSE_DRAG_OFFSET = 22;
-const CHAT_RAIL_EXPAND_DRAG_OFFSET = 18;
+const CHAT_RAIL_AVATAR_ONLY_THRESHOLD = Math.min(CHAT_RAIL_EXPANDED_THRESHOLD - 1, CHAT_RAIL_MIN_WIDTH + 28);
 
 const CHAT_TYPE_LABELS = {
   1: "General",
@@ -36,6 +35,14 @@ const CHAT_RAIL_TABS = [
   { key: "tasks", label: "Задачи" },
   { key: "direct", label: "ЛС" }
 ];
+
+const CHAT_RAIL_TAB_ICONS = {
+  all: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5" /><rect x="13" y="4" width="7" height="7" rx="1.5" /><rect x="4" y="13" width="7" height="7" rx="1.5" /><rect x="13" y="13" width="7" height="7" rx="1.5" /></svg>',
+  general: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M4 12h16" /><path d="M12 4a12 12 0 0 1 0 16" /><path d="M12 4a12 12 0 0 0 0 16" /></svg>',
+  groups: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" /><circle cx="16.5" cy="9.5" r="2.5" /><path d="M3.5 18a5.5 5.5 0 0 1 11 0" /><path d="M13 18a4.5 4.5 0 0 1 8 0" /></svg>',
+  tasks: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 12.5l2.5 2.5L16 9.5" /></svg>',
+  direct: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" /></svg>'
+};
 
 const createComposerState = () => ({
   mode: "compose",
@@ -620,9 +627,24 @@ export const createWorkspaceChatController = (deps = {}) => {
     };
   };
 
+  const getRailCollapseProgress = (width) => {
+    const railWidth = clampChatRailWidth(width);
+    if (railWidth >= CHAT_RAIL_EXPANDED_THRESHOLD) return 0;
+    const range = CHAT_RAIL_EXPANDED_THRESHOLD - CHAT_RAIL_MIN_WIDTH;
+    if (range <= 0) return 1;
+    return Math.max(0, Math.min(1, (CHAT_RAIL_EXPANDED_THRESHOLD - railWidth) / Math.max(1, range)));
+  };
+
   const setRailExpandedClass = (width) => {
     if (!(chatRail instanceof HTMLElement)) return;
-    chatRail.classList.toggle("is-expanded", isChatRailExpanded(width));
+    const expanded = isChatRailExpanded(width);
+    const dockedTabs = true;
+    const avatarOnly = width <= CHAT_RAIL_AVATAR_ONLY_THRESHOLD;
+    chatRail.classList.toggle("is-expanded", expanded);
+    chatRail.classList.remove("is-icons-only");
+    chatRail.classList.toggle("is-docked-tabs", dockedTabs);
+    chatRail.classList.toggle("is-avatar-only", avatarOnly);
+    chatRail.style.setProperty("--chat-rail-collapse-progress", getRailCollapseProgress(width).toFixed(3));
   };
 
   const setRailWidth = (width, persist = true) => {
@@ -1422,6 +1444,13 @@ export const createWorkspaceChatController = (deps = {}) => {
     void loadSettingsModalData(activeChatId);
   };
 
+  const openActiveChatSettings = () => {
+    const activeChatId = store.getActiveChatId();
+    if (!store.getChatById(activeChatId)) return false;
+    openSettingsModal();
+    return true;
+  };
+
   const closeSettingsModal = () => {
     if (!isSettingsOpen) return false;
     selectedBackground = null;
@@ -1996,6 +2025,10 @@ export const createWorkspaceChatController = (deps = {}) => {
     ];
   };
 
+  const getRailTabIconMarkup = (tabKey) => {
+    return CHAT_RAIL_TAB_ICONS[String(tabKey || "")] || CHAT_RAIL_TAB_ICONS.all;
+  };
+
   const renderRailTabs = () => {
     if (!(chatRailTabs instanceof HTMLElement)) return;
     chatRailTabs.innerHTML = "";
@@ -2005,7 +2038,10 @@ export const createWorkspaceChatController = (deps = {}) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "chat-rail-tab";
-      button.textContent = tab.label;
+      button.setAttribute("aria-label", tab.label);
+      button.title = tab.label;
+      button.dataset.tabKey = tab.key;
+      button.innerHTML = `<span class="chat-rail-tab-icon" aria-hidden="true">${getRailTabIconMarkup(tab.key)}</span><span class="chat-rail-tab-label">${tab.label}</span>`;
       button.classList.toggle("is-active", tab.key === activeRailTab);
       button.addEventListener("click", () => {
         activeRailTab = tab.key;
@@ -4093,39 +4129,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const handleResizeMove = (event) => {
     if (!dragState) return;
     const deltaX = event.clientX - dragState.startX;
-    const requestedWidth = clampChatRailWidth(dragState.startWidth + deltaX);
-    const collapseTriggerWidth = CHAT_RAIL_EXPANDED_THRESHOLD - CHAT_RAIL_COLLAPSE_DRAG_OFFSET;
-    const expandTriggerWidth = CHAT_RAIL_MIN_WIDTH + CHAT_RAIL_EXPAND_DRAG_OFFSET;
-
-    if (dragState.startWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
-      if (requestedWidth <= expandTriggerWidth) {
-        setRailWidth(CHAT_RAIL_MIN_WIDTH, true);
-      } else {
-        setRailWidth(Math.max(CHAT_RAIL_EXPANDED_THRESHOLD, requestedWidth), true);
-      }
-      return;
-    }
-
-    if (dragState.startWidth > CHAT_RAIL_EXPANDED_THRESHOLD && requestedWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
-      dragState.thresholdHold = true;
-      setRailWidth(CHAT_RAIL_EXPANDED_THRESHOLD, true);
-      return;
-    }
-
-    if ((dragState.thresholdHold || dragState.startWidth === CHAT_RAIL_EXPANDED_THRESHOLD) && requestedWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
-      if (requestedWidth <= collapseTriggerWidth) {
-        setRailWidth(CHAT_RAIL_MIN_WIDTH, true);
-      } else {
-        setRailWidth(CHAT_RAIL_EXPANDED_THRESHOLD, true);
-      }
-      return;
-    }
-
-    if (requestedWidth >= CHAT_RAIL_EXPANDED_THRESHOLD) {
-      dragState.thresholdHold = false;
-    }
-
-    setRailWidth(requestedWidth, true);
+    setRailWidth(dragState.startWidth + deltaX, true);
   };
 
   const startResize = (event) => {
@@ -4133,7 +4137,6 @@ export const createWorkspaceChatController = (deps = {}) => {
     dragState = {
       startX: event.clientX,
       startWidth: currentRailWidth,
-      thresholdHold: false,
       pointerId: event.pointerId
     };
     if (chatRailResizer instanceof HTMLElement && Number.isFinite(event.pointerId)) {
@@ -4153,23 +4156,11 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (!event) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
-      if (currentRailWidth > CHAT_RAIL_EXPANDED_THRESHOLD) {
-        setRailWidth(Math.max(CHAT_RAIL_EXPANDED_THRESHOLD, currentRailWidth - 16), true);
-        return;
-      }
-      if (currentRailWidth === CHAT_RAIL_EXPANDED_THRESHOLD) {
-        setRailWidth(CHAT_RAIL_MIN_WIDTH, true);
-        return;
-      }
       setRailWidth(currentRailWidth - 16, true);
       return;
     }
     if (event.key === "ArrowRight") {
       event.preventDefault();
-      if (currentRailWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
-        setRailWidth(CHAT_RAIL_EXPANDED_THRESHOLD, true);
-        return;
-      }
       setRailWidth(currentRailWidth + 16, true);
       return;
     }
@@ -4468,6 +4459,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     refreshChats,
     openChat,
     openDirectChatByUser,
+    openActiveChatSettings,
     ensureTaskChat,
     activateTasks,
     clearWorkspaceData,

@@ -70,7 +70,7 @@ import {
   chatShellFileInput,
   chatShellJumpBottomBtn
 } from "./dom.js?v=authflow14";
-import { createWorkspaceChatController } from "../chat/controller.js?v=chat41";
+import { createWorkspaceChatController } from "../chat/controller.js?v=chat48";
 
 export const createWorkspaceChatBridge = (deps = {}) => {
   const controller = createWorkspaceChatController({
@@ -165,6 +165,7 @@ export const createWorkspaceChatBridge = (deps = {}) => {
     refreshChats: () => controller.refreshChats(),
     openChat: (chatId) => controller.openChat(chatId),
     openDirectChatByUser: (userId) => controller.openDirectChatByUser(userId),
+    openActiveChatSettings: () => controller.openActiveChatSettings(),
     ensureTaskChat: (taskId, options) => controller.ensureTaskChat(taskId, options),
     activateTasks: () => controller.activateTasks(),
     clearWorkspaceData: () => controller.clearWorkspaceData(),

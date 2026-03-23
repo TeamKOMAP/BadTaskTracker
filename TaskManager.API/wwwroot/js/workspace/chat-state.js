@@ -1,4 +1,4 @@
-export const CHAT_RAIL_MIN_WIDTH = 78;
+export const CHAT_RAIL_MIN_WIDTH = 92;
 export const CHAT_RAIL_MAX_WIDTH = 345;
 export const CHAT_RAIL_DEFAULT_WIDTH = 345;
 export const CHAT_RAIL_EXPANDED_THRESHOLD = 225;
@@ -21,8 +21,7 @@ export const isChatRailExpanded = (width) => {
 export const readStoredChatRailWidth = () => {
   try {
     const raw = localStorage.getItem(CHAT_RAIL_WIDTH_STORAGE_KEY);
-    const width = clampChatRailWidth(raw);
-    return width >= CHAT_RAIL_EXPANDED_THRESHOLD ? width : CHAT_RAIL_DEFAULT_WIDTH;
+    return clampChatRailWidth(raw);
   } catch {
     return CHAT_RAIL_DEFAULT_WIDTH;
   }

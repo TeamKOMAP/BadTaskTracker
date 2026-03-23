@@ -364,6 +364,7 @@ body[data-theme="light"] .notifications-panel-inner {
 
 .chat-rail {
   --chat-rail-width: 248px;
+  --chat-rail-collapse-progress: 0;
   width: var(--chat-rail-width);
   min-width: var(--chat-rail-width);
   max-width: 360px;
@@ -377,6 +378,7 @@ body[data-theme="light"] .notifications-panel-inner {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 body[data-theme="light"] .chat-rail {
@@ -390,6 +392,7 @@ body[data-theme="light"] .chat-rail {
 
 .chat-rail-home,
 .chat-rail-item {
+  position: relative;
   width: 100%;
   border: 1px solid transparent;
   border-radius: 14px;
@@ -3104,6 +3107,84 @@ body[data-theme="light"] .profile-avatar:focus-visible {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.profile-quick-actions {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: min(420px, 100%);
+}
+
+.profile-quick-btn {
+  appearance: none;
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: rgba(12, 20, 32, 0.76);
+  color: var(--text-1);
+  min-height: 64px;
+  padding: 10px 12px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.profile-quick-btn:hover,
+.profile-quick-btn:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(68, 210, 199, 0.4);
+  background: rgba(16, 26, 40, 0.9);
+  outline: none;
+}
+
+.profile-quick-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.profile-quick-icon {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-quick-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.profile-quick-label {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+body[data-theme="light"] .profile-quick-btn {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: rgba(15, 20, 28, 0.14);
+}
+
+body[data-theme="light"] .profile-quick-btn:hover,
+body[data-theme="light"] .profile-quick-btn:focus-visible {
+  border-color: rgba(44, 115, 255, 0.34);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+@media (max-width: 640px) {
+  .profile-quick-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 .profile-chat-btn[hidden] {

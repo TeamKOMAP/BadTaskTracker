@@ -193,14 +193,14 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge1";
+import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge9";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf6";
 import { createTaskDetailController } from "./task-detail.js?v=perf15";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
-import { createProfileModalsController } from "./profile-modals.js?v=profile5";
+import { createProfileModalsController } from "./profile-modals.js?v=profile6";
 
 let lastNormalizedTasks = [];
 
@@ -1902,7 +1902,15 @@ const profileModalsController = createProfileModalsController({
   getRoleLabel,
   statusLabels: STATUS_LABELS,
   toStatusValue,
-  openDirectChat: (userId) => chatController?.openDirectChatByUser(userId)
+  openDirectChat: async (userId) => {
+    setAppScreen("chat");
+    await chatController?.openDirectChatByUser(userId);
+  },
+  openDirectChatNotifications: async (userId) => {
+    setAppScreen("chat");
+    await chatController?.openDirectChatByUser(userId);
+    chatController?.openActiveChatSettings();
+  }
 });
 
 const WORKSPACE_ROLE_VALUES = {
