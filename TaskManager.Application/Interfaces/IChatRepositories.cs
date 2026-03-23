@@ -12,6 +12,7 @@ public interface IChatRepository
     Task<ChatRoom?> GetDirectChatAsync(int workspaceId, int userId1, int userId2, CancellationToken ct = default);
     Task<ChatRoom> AddAsync(ChatRoom chatRoom, CancellationToken ct = default);
     Task UpdateAsync(ChatRoom chatRoom, CancellationToken ct = default);
+    Task DeleteAsync(ChatRoom chatRoom, CancellationToken ct = default);
     Task<bool> ExistsAsync(Guid chatId, CancellationToken ct = default);
 }
 

@@ -48,7 +48,9 @@ const requiredIds = [
   "chat-shell-send",
   "chat-shell-settings-btn",
   "chat-shell-load-more",
-  "chat-shell-voice-status"
+  "chat-shell-voice-status",
+  "profile-message-btn",
+  "profile-notifications-btn"
 ];
 
 const missingIds = requiredIds.filter((id) => !htmlIds.has(id));
@@ -59,6 +61,7 @@ assert(mainSource.includes("workspaceContent.classList.toggle(\"is-chat-active\"
 assert(mainSource.includes("workspaceMain.classList.toggle(\"is-chat-active\", showChat)"), "workspace-main chat toggle is missing");
 assert(mainSource.includes("appShell.classList.toggle(\"is-chat-active\", showChat)"), "app-shell chat toggle is missing");
 assert(mainSource.includes("appShell.classList.toggle(\"is-panel-open\", open)"), "drawer panel toggle is missing");
+assert(mainSource.includes("isSelf: true"), "main.js should explicitly open self profile with hidden quick chat actions");
 
 assert(/\.topbar\s*,\s*\.workspace-body\s*\{/.test(workspaceCss), "Compression rule for .topbar and .workspace-body is missing");
 
@@ -68,10 +71,31 @@ assert(!workspaceCss.includes(".chat-msg-row"), "workspace.css still contains ch
 assert(chatCss.includes(".chat-shell-header"), "chat.css is missing chat-shell header styles");
 assert(chatCss.includes(".chat-msg-row"), "chat.css is missing chat message layout styles");
 assert(chatCss.includes(".chat-shell-window-marker"), "chat.css is missing message window marker styles");
+assert(chatCss.includes(".chat-rail.is-docked-tabs"), "chat.css is missing docked tabs rail mode styles");
+assert(chatCss.includes(".chat-rail-tab-icon"), "chat.css is missing chat folder icon styles");
+assert(chatCss.includes(".chat-rail.is-docked-tabs .chat-rail-divider"), "chat.css is missing divider rule for docked tabs mode");
+assert(chatCss.includes("grid-auto-rows: 1fr;"), "chat.css is missing equal-height rows for docked folder tabs");
+assert(chatCss.includes(".chat-rail.is-docked-tabs .chat-rail-home"), "chat.css is missing full-width home button rule in docked mode");
+assert(chatCss.includes(".chat-rail.is-docked-tabs .chat-rail-tab.is-active"), "chat.css is missing selected state for docked chat folders");
+assert(chatCss.includes(".chat-rail.is-avatar-only .chat-rail-meta"), "chat.css is missing avatar-only compact chat list mode");
+assert(chatCss.includes(".chat-image-viewer"), "chat.css is missing in-app image viewer styles");
+assert(chatCss.includes(".chat-shell-now-playing"), "chat.css is missing top now-playing bar styles");
+assert(chatCss.includes("chat-now-playing-in"), "chat.css is missing now-playing enter animation");
+assert(chatCss.includes(".chat-shell-now-playing-volume-popover"), "chat.css is missing hover volume popover for now-playing bar");
 
 assert(chatControllerSource.includes("CHAT_MESSAGE_WINDOW_SIZE"), "chat/controller.js is missing message window constant");
 assert(chatControllerSource.includes("scheduleRenderMessages"), "chat/controller.js is missing render scheduling");
 assert(chatControllerSource.includes("expandMessageWindowForActiveChat"), "chat/controller.js is missing message window expansion");
 assert(chatControllerSource.includes("if (expandMessageWindowForActiveChat())"), "scroll handler does not expand local message window");
+assert(chatControllerSource.includes("is-docked-tabs"), "chat/controller.js does not switch rail to docked tabs mode");
+assert(chatControllerSource.includes("classList.remove(\"is-icons-only\")"), "chat/controller.js should remove legacy icons-only auto mode");
+assert(chatControllerSource.includes("const dockedTabs = true"), "chat/controller.js should keep tabs docked for all rail widths");
+assert(chatControllerSource.includes("CHAT_RAIL_AVATAR_ONLY_THRESHOLD"), "chat/controller.js is missing avatar-only threshold for collapsed rail");
+assert(chatControllerSource.includes("openImageViewer"), "chat/controller.js is missing in-app image viewer open handler");
+assert(chatControllerSource.includes("downloadAttachmentToFile"), "chat/controller.js is missing unified attachment download helper");
+assert(chatControllerSource.includes("CHAT_IMAGE_VIEWER_MIN_SCALE"), "chat/controller.js is missing image viewer zoom limits");
+assert(chatControllerSource.includes("setActiveAudioPlayback"), "chat/controller.js is missing single active audio playback logic");
+assert(chatControllerSource.includes("is-animate-in"), "chat/controller.js should trigger now-playing enter animation class");
+assert(chatControllerSource.includes("audioOutputMuted"), "chat/controller.js is missing mute/volume state for now-playing bar");
 
 console.log("[workspace-smoke] OK: drawer/chat contracts are valid.");

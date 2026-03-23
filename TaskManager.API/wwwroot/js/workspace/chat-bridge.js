@@ -16,6 +16,7 @@ import {
   chatShellSettingsBtn,
   chatSettingsModal,
   chatSettingsModalAvatar,
+  chatSettingsAvatarInput,
   chatSettingsModalMain,
   chatSettingsModalName,
   chatSettingsModalSub,
@@ -33,6 +34,7 @@ import {
   chatSettingsBgInput,
   chatSettingsNote,
   chatSettingsSaveBtn,
+  chatSettingsDeleteBtn,
   chatSettingsMembersCount,
   chatSettingsMembers,
   chatSettingsMembersEmpty,
@@ -69,8 +71,8 @@ import {
   chatShellUploadList,
   chatShellFileInput,
   chatShellJumpBottomBtn
-} from "./dom.js?v=authflow14";
-import { createWorkspaceChatController } from "../chat/controller.js?v=chat41";
+} from "./dom.js?v=authflow18";
+import { createWorkspaceChatController } from "../chat/controller.js?v=chat62";
 
 export const createWorkspaceChatBridge = (deps = {}) => {
   const controller = createWorkspaceChatController({
@@ -91,6 +93,7 @@ export const createWorkspaceChatBridge = (deps = {}) => {
     chatShellSettingsBtn,
     chatSettingsModal,
     chatSettingsModalAvatar,
+    chatSettingsAvatarInput,
     chatSettingsModalMain,
     chatSettingsModalName,
     chatSettingsModalSub,
@@ -108,6 +111,7 @@ export const createWorkspaceChatBridge = (deps = {}) => {
     chatSettingsBgInput,
     chatSettingsNote,
     chatSettingsSaveBtn,
+    chatSettingsDeleteBtn,
     chatSettingsMembersCount,
     chatSettingsMembers,
     chatSettingsMembersEmpty,
@@ -163,9 +167,12 @@ export const createWorkspaceChatBridge = (deps = {}) => {
   return {
     init: () => controller.init(),
     refreshChats: () => controller.refreshChats(),
-    openChat: (chatId) => controller.openChat(chatId),
+    openChat: (chatId, options) => controller.openChat(chatId, options),
     openDirectChatByUser: (userId) => controller.openDirectChatByUser(userId),
+    createGroupChat: (title, options) => controller.createGroupChat(title, options),
+    openActiveChatSettings: () => controller.openActiveChatSettings(),
     ensureTaskChat: (taskId, options) => controller.ensureTaskChat(taskId, options),
+    focusFirstUnreadInActiveChat: (options) => controller.focusFirstUnreadInActiveChat(options),
     activateTasks: () => controller.activateTasks(),
     clearWorkspaceData: () => controller.clearWorkspaceData(),
     syncMembers: () => controller.syncMembers()

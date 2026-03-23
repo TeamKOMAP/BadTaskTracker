@@ -97,6 +97,17 @@ public class ChatsController : ControllerBase
         return NoContent();
     }
 
+    [HttpDelete("{chatId:guid}")]
+    public async Task<IActionResult> DeleteChat([FromRoute] Guid chatId)
+    {
+        var actorUserId = RequestContextResolver.ResolveActorUserId(HttpContext);
+        if (!actorUserId.HasValue)
+            return Unauthorized(new { error = "Actor user id is required" });
+
+        await _chatService.DeleteGroupChatAsync(chatId, actorUserId.Value);
+        return NoContent();
+    }
+
     [HttpPost("{chatId:guid}/members")]
     public async Task<IActionResult> AddMember(
         [FromRoute] Guid chatId,

@@ -67,6 +67,12 @@ import {
   panelWorkspaceEditBtn,
   panelWorkspaceAvatarEl,
   panelWorkspaceAvatarInput,
+  panelWorkspaceCreateGroupWrap,
+  panelWorkspaceCreateGroupBtn,
+  panelWorkspaceGroupMenu,
+  panelWorkspaceGroupInput,
+  panelWorkspaceGroupCancelBtn,
+  panelWorkspaceGroupSubmitBtn,
   panelWorkspaceDanger,
   panelWorkspaceDeleteBtn,
   accountAvatarEl,
@@ -103,8 +109,8 @@ import {
   taskDetailRejectBtn,
   taskDetailPhotoBtn,
   taskDetailPhotoClearBtn,
-  taskDetailChatBtn,
-  taskDetailChatOpenBtn,
+  taskDetailChatToggleBtn,
+  taskDetailChatCloseBtn,
   taskDetailHistoryToggleBtn,
   taskDetailHistoryClearBtn,
   taskAttachBtn,
@@ -119,7 +125,7 @@ import {
   confirmModalInputWrap,
   confirmModalInputHintEl,
   confirmModalInputEl
-} from "./dom.js?v=authflow14";
+} from "./dom.js?v=authflow18";
 
 import {
   buildApiUrl,
@@ -193,14 +199,14 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge1";
+import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge23";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf6";
-import { createTaskDetailController } from "./task-detail.js?v=perf15";
+import { createTaskDetailController } from "./task-detail.js?v=perf21";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
-import { createProfileModalsController } from "./profile-modals.js?v=profile5";
+import { createProfileModalsController } from "./profile-modals.js?v=profile7";
 
 let lastNormalizedTasks = [];
 
@@ -228,6 +234,8 @@ const toolbarTagFilter = new Set();
 let toolbarSearchDebounceId = null;
 
 let panelWorkspaceEditing = false;
+let panelWorkspaceGroupMenuOpen = false;
+let panelWorkspaceGroupCreateInFlight = false;
 
 const setWorkspaceEditing = (editing) => {
   panelWorkspaceEditing = !!editing;
@@ -257,6 +265,68 @@ const setWorkspaceEditing = (editing) => {
     delete panelWorkspaceNameEl.dataset.original;
   }
 };
+
+const setPanelWorkspaceGroupCreateBusy = (busy) => {
+  panelWorkspaceGroupCreateInFlight = Boolean(busy);
+  if (panelWorkspaceCreateGroupBtn instanceof HTMLButtonElement) {
+    panelWorkspaceCreateGroupBtn.disabled = panelWorkspaceGroupCreateInFlight;
+  }
+  if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+    panelWorkspaceGroupInput.disabled = panelWorkspaceGroupCreateInFlight;
+  }
+  if (panelWorkspaceGroupCancelBtn instanceof HTMLButtonElement) {
+    panelWorkspaceGroupCancelBtn.disabled = panelWorkspaceGroupCreateInFlight;
+  }
+  if (panelWorkspaceGroupSubmitBtn instanceof HTMLButtonElement) {
+    panelWorkspaceGroupSubmitBtn.disabled = panelWorkspaceGroupCreateInFlight;
+    panelWorkspaceGroupSubmitBtn.textContent = panelWorkspaceGroupCreateInFlight ? "Создаем..." : "Создать";
+  }
+};
+
+const setPanelWorkspaceGroupMenuOpen = (open) => {
+  panelWorkspaceGroupMenuOpen = Boolean(open);
+
+  if (panelWorkspaceCreateGroupBtn instanceof HTMLButtonElement) {
+    panelWorkspaceCreateGroupBtn.setAttribute("aria-expanded", panelWorkspaceGroupMenuOpen ? "true" : "false");
+  }
+
+  if (!(panelWorkspaceGroupMenu instanceof HTMLElement)) {
+    panelWorkspaceGroupMenuOpen = false;
+    return;
+  }
+
+  panelWorkspaceGroupMenu.toggleAttribute("hidden", !panelWorkspaceGroupMenuOpen);
+
+  if (!panelWorkspaceGroupMenuOpen) {
+    setPanelWorkspaceGroupCreateBusy(false);
+    if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+      panelWorkspaceGroupInput.classList.remove("is-invalid");
+      panelWorkspaceGroupInput.value = "";
+    }
+    return;
+  }
+
+  setPanelWorkspaceGroupCreateBusy(false);
+  if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+    panelWorkspaceGroupInput.classList.remove("is-invalid");
+    window.setTimeout(() => {
+      if (panelWorkspaceGroupMenuOpen) {
+        panelWorkspaceGroupInput.focus();
+        panelWorkspaceGroupInput.select();
+      }
+    }, 0);
+  }
+};
+
+const closePanelWorkspaceGroupMenu = () => {
+  setPanelWorkspaceGroupMenuOpen(false);
+};
+
+const openPanelWorkspaceGroupMenu = () => {
+  if (!currentWorkspaceId) return;
+  setPanelWorkspaceGroupMenuOpen(true);
+};
+
 let actorUser = null;
 let nicknameSaveInFlight = false;
 let nicknameCooldownEndsAt = 0;
@@ -1161,6 +1231,7 @@ const setPanelOpen = (open) => {
   if (!appShell) return;
   appShell.classList.toggle("is-panel-open", open);
   if (!open) {
+    closePanelWorkspaceGroupMenu();
     closeUserMiniMenu();
   }
   if (!open && panelWorkspaceEditing && panelWorkspaceNameEl) {
@@ -1596,7 +1667,7 @@ const updateActorUi = () => {
 
 const setActorUser = (user) => {
   if (!user) return;
-  const id = Number(user.id);
+  const id = Number(user?.id ?? user?.userId);
   if (!Number.isFinite(id) || id <= 0) return;
   actorUser = {
     id,
@@ -1668,6 +1739,22 @@ const setWorkspaceContext = (space) => {
     panelWorkspaceEditBtn.title = "Редактировать";
   }
 
+  if (panelWorkspaceCreateGroupWrap instanceof HTMLElement) {
+    panelWorkspaceCreateGroupWrap.toggleAttribute("hidden", !currentWorkspaceId);
+  }
+
+  if (panelWorkspaceCreateGroupBtn instanceof HTMLButtonElement) {
+    panelWorkspaceCreateGroupBtn.disabled = !currentWorkspaceId;
+  }
+
+  if (!currentWorkspaceId) {
+    closePanelWorkspaceGroupMenu();
+  }
+
+  if (changed) {
+    closePanelWorkspaceGroupMenu();
+  }
+
   if (panelWorkspaceDanger) {
     panelWorkspaceDanger.toggleAttribute("hidden", currentWorkspaceRole !== "Owner");
   }
@@ -1686,15 +1773,72 @@ const setWorkspaceContext = (space) => {
     currentUserId = null;
     currentAssigneeIdFilter = null;
     chatController?.clearWorkspaceData();
+    unmountTaskDetailChatShell();
+  }
+};
+
+const chatShellHomeParent = chatShell?.parentElement || null;
+const chatShellHomeNextSibling = chatShell?.nextElementSibling || null;
+let taskDetailChatShellDockHost = null;
+
+const isTaskDetailChatShellMounted = () => {
+  return chatShell instanceof HTMLElement
+    && taskDetailChatShellDockHost instanceof HTMLElement
+    && taskDetailChatShellDockHost.contains(chatShell);
+};
+
+const mountTaskDetailChatShell = (host) => {
+  if (!(chatShell instanceof HTMLElement) || !(host instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (!host.contains(chatShell)) {
+    host.appendChild(chatShell);
+  }
+
+  taskDetailChatShellDockHost = host;
+  chatShell.classList.add("is-task-detail-docked");
+  chatShell.removeAttribute("hidden");
+  return true;
+};
+
+const unmountTaskDetailChatShell = () => {
+  if (!(chatShell instanceof HTMLElement)) {
+    taskDetailChatShellDockHost = null;
+    return;
+  }
+
+  if (chatShellHomeParent instanceof HTMLElement) {
+    if (chatShellHomeNextSibling instanceof Element && chatShellHomeNextSibling.parentElement === chatShellHomeParent) {
+      chatShellHomeParent.insertBefore(chatShell, chatShellHomeNextSibling);
+    } else {
+      chatShellHomeParent.appendChild(chatShell);
+    }
+  }
+
+  taskDetailChatShellDockHost = null;
+  chatShell.classList.remove("is-task-detail-docked");
+
+  const isChatScreen = workspaceMain instanceof HTMLElement && workspaceMain.classList.contains("is-chat-active");
+  if (!isChatScreen) {
+    chatShell.setAttribute("hidden", "");
   }
 };
 
 const setAppScreen = (screen) => {
   const showChat = screen === "chat";
   const showBoard = !showChat;
+
+  if (showChat && isTaskDetailChatShellMounted()) {
+    unmountTaskDetailChatShell();
+  }
+
   if (topbar) topbar.hidden = false;
   if (board) board.hidden = !showBoard;
-  if (chatShell) chatShell.hidden = !showChat;
+  if (chatShell) {
+    const keepVisibleInTaskDetail = !showChat && isTaskDetailChatShellMounted();
+    chatShell.hidden = !showChat && !keepVisibleInTaskDetail;
+  }
   if (brandToggle) brandToggle.hidden = false;
   if (viewToggle) viewToggle.hidden = showChat;
   if (openSpacesHomeBtn) openSpacesHomeBtn.hidden = false;
@@ -1724,11 +1868,20 @@ chatController = createWorkspaceChatBridge({
   getWorkspaceMembers: () => (Array.isArray(workspaceMembers) ? workspaceMembers : []),
   getWorkspaceRole: () => String(currentWorkspaceRole || "Member"),
   applyAccountAvatarToElement,
-  onOpenProfile: (member) => profileModalsController.openProfileModal(member),
+  onOpenProfile: (member) => {
+    const memberId = Number(member?.id ?? member?.userId);
+    const actorId = Number(getActorUserId());
+    profileModalsController.openProfileModal(member, {
+      isSelf: Number.isFinite(memberId) && Number.isFinite(actorId) && memberId > 0 && actorId > 0 && memberId === actorId
+    });
+  },
   onOpenTasks: () => {
     setAppScreen("board");
   },
-  onOpenChat: () => {
+  onOpenChat: (_chat, options) => {
+    if (options?.suppressScreenSwitch) {
+      return;
+    }
     setAppScreen("chat");
   }
 });
@@ -1740,7 +1893,8 @@ const loadCurrentUserFromApi = async () => {
     headers: { Accept: "application/json" }
   });
 
-  if (me && Number.isFinite(Number(me.id))) {
+  const meId = Number(me?.id ?? me?.userId);
+  if (me && Number.isFinite(meId) && meId > 0) {
     setActorUser(me);
     return;
   }
@@ -1902,7 +2056,15 @@ const profileModalsController = createProfileModalsController({
   getRoleLabel,
   statusLabels: STATUS_LABELS,
   toStatusValue,
-  openDirectChat: (userId) => chatController?.openDirectChatByUser(userId)
+  openDirectChat: async (userId) => {
+    setAppScreen("chat");
+    await chatController?.openDirectChatByUser(userId);
+  },
+  openDirectChatNotifications: async (userId) => {
+    setAppScreen("chat");
+    await chatController?.openDirectChatByUser(userId);
+    chatController?.openActiveChatSettings();
+  }
 });
 
 const WORKSPACE_ROLE_VALUES = {
@@ -3827,7 +3989,7 @@ if (accountAvatarEl) {
       email: normalizeToken(actorUser?.email) || "-",
       role: normalizeToken(currentWorkspaceRole) || "Member"
     };
-    profileModalsController.openProfileModal(member || fallback);
+    profileModalsController.openProfileModal(member || fallback, { isSelf: true });
   });
 }
 
@@ -3993,6 +4155,18 @@ document.addEventListener("click", (event) => {
   closeUserMiniMenu();
 });
 
+document.addEventListener("click", (event) => {
+  if (!panelWorkspaceGroupMenuOpen) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) {
+    closePanelWorkspaceGroupMenu();
+    return;
+  }
+  if (target.closest("#panel-workspace-group-menu")) return;
+  if (target.closest("#panel-workspace-create-group")) return;
+  closePanelWorkspaceGroupMenu();
+});
+
 if (confirmModal) {
   confirmModal.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
@@ -4027,10 +4201,12 @@ taskDetailController = createTaskDetailController({
   canEditTask: isAdmin,
   canClearHistory: isAdmin,
   canManageDoneApproval: isAdmin,
-  canAccessTaskChat: () => Number(currentWorkspaceId) > 0 && Boolean(getWorkspaceMemberById(getActorUserId())),
-  getWorkspaceMemberCount: () => (Array.isArray(workspaceMembers) ? workspaceMembers.length : 0),
+  canAccessTaskChat: () => Number(currentWorkspaceId) > 0,
   ensureTaskChat: (taskId, options) => chatController?.ensureTaskChat(taskId, options) ?? null,
-  openTaskChatRoom: (chatId) => chatController?.openChat(chatId),
+  openTaskChatRoom: (chatId, options) => chatController?.openChat(chatId, options),
+  focusTaskChatUnread: (options) => chatController?.focusFirstUnreadInActiveChat(options),
+  mountTaskChatShell: (host) => mountTaskDetailChatShell(host),
+  unmountTaskChatShell: () => unmountTaskDetailChatShell(),
   approveDone: approveTaskDoneViaApi,
   rejectDone: rejectTaskDoneViaApi,
   ensureTagsLoaded,
@@ -4071,6 +4247,10 @@ document.addEventListener("keydown", (event) => {
       return;
     }
     if (profileModalsController.closeProfileModal()) {
+      return;
+    }
+    if (panelWorkspaceGroupMenuOpen) {
+      closePanelWorkspaceGroupMenu();
       return;
     }
     if (activeUserMiniMenu instanceof Element) {
@@ -4210,6 +4390,77 @@ if (panelWorkspaceEditBtn) {
     if (!panelWorkspaceNameEl) return;
     if (panelWorkspaceEditing) return;
     setWorkspaceEditing(true);
+  });
+}
+
+if (panelWorkspaceCreateGroupBtn) {
+  panelWorkspaceCreateGroupBtn.addEventListener("click", () => {
+    if (!currentWorkspaceId) return;
+    if (panelWorkspaceGroupCreateInFlight) return;
+    if (panelWorkspaceGroupMenuOpen) {
+      closePanelWorkspaceGroupMenu();
+      return;
+    }
+    openPanelWorkspaceGroupMenu();
+  });
+}
+
+if (panelWorkspaceGroupCancelBtn) {
+  panelWorkspaceGroupCancelBtn.addEventListener("click", () => {
+    if (panelWorkspaceGroupCreateInFlight) return;
+    closePanelWorkspaceGroupMenu();
+  });
+}
+
+if (panelWorkspaceGroupInput) {
+  panelWorkspaceGroupInput.addEventListener("input", () => {
+    panelWorkspaceGroupInput.classList.remove("is-invalid");
+  });
+
+  panelWorkspaceGroupInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!panelWorkspaceGroupCreateInFlight) {
+        closePanelWorkspaceGroupMenu();
+      }
+    }
+  });
+}
+
+if (panelWorkspaceGroupMenu) {
+  panelWorkspaceGroupMenu.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void (async () => {
+      if (!currentWorkspaceId) return;
+      if (panelWorkspaceGroupCreateInFlight) return;
+
+      const title = normalizeToken(panelWorkspaceGroupInput?.value);
+      if (!title) {
+        if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+          panelWorkspaceGroupInput.classList.add("is-invalid");
+          panelWorkspaceGroupInput.focus();
+        }
+        return;
+      }
+
+      setPanelWorkspaceGroupCreateBusy(true);
+      const created = await chatController?.createGroupChat(title, {
+        open: true
+      });
+      setPanelWorkspaceGroupCreateBusy(false);
+
+      if (!created?.id) {
+        if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+          panelWorkspaceGroupInput.focus();
+          panelWorkspaceGroupInput.select();
+        }
+        return;
+      }
+
+      closePanelWorkspaceGroupMenu();
+      setPanelOpen(false);
+    })();
   });
 }
 
@@ -4496,12 +4747,12 @@ if (taskDetailPhotoClearBtn) {
   taskDetailPhotoClearBtn.addEventListener("click", taskDetailController.onDetailPhotoClearClick);
 }
 
-if (taskDetailChatBtn) {
-  taskDetailChatBtn.addEventListener("click", taskDetailController.onTaskChatClick);
+if (taskDetailChatToggleBtn) {
+  taskDetailChatToggleBtn.addEventListener("click", taskDetailController.onTaskChatToggleClick);
 }
 
-if (taskDetailChatOpenBtn) {
-  taskDetailChatOpenBtn.addEventListener("click", taskDetailController.onTaskChatOpenClick);
+if (taskDetailChatCloseBtn) {
+  taskDetailChatCloseBtn.addEventListener("click", taskDetailController.onTaskChatCloseClick);
 }
 
 if (taskDetailHistoryToggleBtn) {

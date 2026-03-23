@@ -86,6 +86,12 @@ public class ChatRepository : IChatRepository
         return Task.CompletedTask;
     }
 
+    public Task DeleteAsync(ChatRoom chatRoom, CancellationToken ct = default)
+    {
+        _db.ChatRooms.Remove(chatRoom);
+        return Task.CompletedTask;
+    }
+
     public async Task<bool> ExistsAsync(Guid chatId, CancellationToken ct = default)
     {
         return await _db.ChatRooms.AnyAsync(c => c.Id == chatId, ct);

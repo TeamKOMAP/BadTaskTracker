@@ -7,7 +7,7 @@ import {
   isChatRailExpanded,
   readStoredChatRailWidth,
   storeChatRailWidth
-} from "../workspace/chat-state.js?v=chatstate2";
+} from "../workspace/chat-state.js?v=chatstate7";
 import { createChatApi } from "./api.js?v=chat5";
 import { createChatStore } from "./store.js?v=chat4";
 import { createChatSignalRClient } from "./signalr-client.js?v=chatrt1";
@@ -19,8 +19,10 @@ const CHAT_BOTTOM_THRESHOLD_PX = 96;
 const CHAT_TOP_THRESHOLD_PX = 56;
 const CHAT_MESSAGE_WINDOW_SIZE = 140;
 const CHAT_MESSAGE_WINDOW_EXPAND_STEP = 70;
-const CHAT_RAIL_COLLAPSE_DRAG_OFFSET = 22;
-const CHAT_RAIL_EXPAND_DRAG_OFFSET = 18;
+const CHAT_RAIL_AVATAR_ONLY_THRESHOLD = Math.min(CHAT_RAIL_EXPANDED_THRESHOLD - 1, CHAT_RAIL_MIN_WIDTH + 28);
+const CHAT_IMAGE_VIEWER_MIN_SCALE = 0.75;
+const CHAT_IMAGE_VIEWER_MAX_SCALE = 4;
+const CHAT_IMAGE_VIEWER_SCALE_STEP = 0.2;
 
 const CHAT_TYPE_LABELS = {
   1: "General",
@@ -36,6 +38,14 @@ const CHAT_RAIL_TABS = [
   { key: "tasks", label: "Задачи" },
   { key: "direct", label: "ЛС" }
 ];
+
+const CHAT_RAIL_TAB_ICONS = {
+  all: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1.5" /><rect x="13" y="4" width="7" height="7" rx="1.5" /><rect x="4" y="13" width="7" height="7" rx="1.5" /><rect x="13" y="13" width="7" height="7" rx="1.5" /></svg>',
+  general: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><path d="M4 12h16" /><path d="M12 4a12 12 0 0 1 0 16" /><path d="M12 4a12 12 0 0 0 0 16" /></svg>',
+  groups: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3" /><circle cx="16.5" cy="9.5" r="2.5" /><path d="M3.5 18a5.5 5.5 0 0 1 11 0" /><path d="M13 18a4.5 4.5 0 0 1 8 0" /></svg>',
+  tasks: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M8 12.5l2.5 2.5L16 9.5" /></svg>',
+  direct: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z" /></svg>'
+};
 
 const createComposerState = () => ({
   mode: "compose",
@@ -114,9 +124,39 @@ const getMessageBodyForFile = (file, kind) => {
     return name || "Голосовое сообщение";
   }
   if (kind === 3) {
-    return name || "Изображение";
+    return "Изображение";
   }
   return name || "Файл";
+};
+
+const getAttachmentFileExtension = (fileName) => {
+  const normalizedName = String(fileName || "").trim();
+  const dotIndex = normalizedName.lastIndexOf(".");
+  if (dotIndex <= 0 || dotIndex >= normalizedName.length - 1) {
+    return "";
+  }
+  const extension = normalizedName.slice(dotIndex + 1).trim().toUpperCase();
+  return extension.length > 8 ? extension.slice(0, 8) : extension;
+};
+
+const getAttachmentFileTypeLabel = (attachment) => {
+  const extension = getAttachmentFileExtension(attachment?.fileName);
+  if (extension) return extension;
+
+  const contentType = String(attachment?.contentType || "").toLowerCase();
+  if (!contentType || contentType === "application/octet-stream") {
+    return "FILE";
+  }
+
+  const normalizedType = contentType.split(";")[0].trim();
+  const slashIndex = normalizedType.indexOf("/");
+  const token = (slashIndex >= 0 ? normalizedType.slice(slashIndex + 1) : normalizedType)
+    .replace("x-", "")
+    .replace(/\./g, "")
+    .trim()
+    .toUpperCase();
+
+  return token ? token.slice(0, 8) : "FILE";
 };
 
 const formatMediaTime = (seconds) => {
@@ -374,6 +414,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const chatShellSettingsBtn = deps.chatShellSettingsBtn ?? null;
   const chatSettingsModal = deps.chatSettingsModal ?? null;
   const chatSettingsModalAvatar = deps.chatSettingsModalAvatar ?? null;
+  const chatSettingsAvatarInput = deps.chatSettingsAvatarInput ?? null;
   const chatSettingsModalMain = deps.chatSettingsModalMain ?? null;
   const chatSettingsModalName = deps.chatSettingsModalName ?? null;
   const chatSettingsModalSub = deps.chatSettingsModalSub ?? null;
@@ -391,6 +432,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const chatSettingsBgInput = deps.chatSettingsBgInput ?? null;
   const chatSettingsNote = deps.chatSettingsNote ?? null;
   const chatSettingsSaveBtn = deps.chatSettingsSaveBtn ?? null;
+  const chatSettingsDeleteBtn = deps.chatSettingsDeleteBtn ?? null;
   const chatSettingsMembersCount = deps.chatSettingsMembersCount ?? null;
   const chatSettingsMembers = deps.chatSettingsMembers ?? null;
   const chatSettingsMembersEmpty = deps.chatSettingsMembersEmpty ?? null;
@@ -493,6 +535,30 @@ export const createWorkspaceChatController = (deps = {}) => {
   let typingStopTimeoutId = 0;
   let isTypingSent = false;
   let messageRenderRafId = 0;
+  let imageViewerRoot = null;
+  let imageViewerImage = null;
+  let imageViewerMenu = null;
+  let imageViewerMenuBtn = null;
+  let imageViewerZoomOutBtn = null;
+  let imageViewerZoomInBtn = null;
+  let imageViewerZoomLabel = null;
+  let imageViewerScale = 1;
+  let imageViewerChatId = "";
+  let imageViewerAttachment = null;
+  let nowPlayingPanel = null;
+  let nowPlayingToggleBtn = null;
+  let nowPlayingSenderEl = null;
+  let nowPlayingProgressEl = null;
+  let nowPlayingTimeEl = null;
+  let nowPlayingCloseBtn = null;
+  let nowPlayingVolumeWrap = null;
+  let nowPlayingVolumeBtn = null;
+  let nowPlayingVolumeSlider = null;
+  let nowPlayingVolumeHideTimerId = 0;
+  let activeAudioPlayback = null;
+  let audioOutputVolume = 1;
+  let audioOutputUnmutedVolume = 1;
+  let audioOutputMuted = false;
 
   const realtimeClient = createChatSignalRClient({
     onMessageCreated: (payload) => {
@@ -535,6 +601,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     const taskIdRaw = Number(chat?.taskId ?? chat?.TaskId);
     const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? taskIdRaw : null;
     const updatedAtUtc = normalizeUtcDateValue(chat?.updatedAtUtc ?? chat?.UpdatedAtUtc ?? "");
+    const avatarPath = normalizeToken(chat?.avatarPath ?? chat?.AvatarPath);
 
     return {
       id,
@@ -545,7 +612,8 @@ export const createWorkspaceChatController = (deps = {}) => {
       directPeerUserId: Number.isFinite(directPeerUserIdRaw) && directPeerUserIdRaw > 0 ? directPeerUserIdRaw : null,
       directPeerDisplayName: directPeerDisplayName || null,
       createdByUserId: Number.isFinite(createdByUserIdRaw) && createdByUserIdRaw > 0 ? createdByUserIdRaw : null,
-      updatedAtUtc
+      updatedAtUtc,
+      avatarPath: avatarPath || null
     };
   };
 
@@ -620,9 +688,24 @@ export const createWorkspaceChatController = (deps = {}) => {
     };
   };
 
+  const getRailCollapseProgress = (width) => {
+    const railWidth = clampChatRailWidth(width);
+    if (railWidth >= CHAT_RAIL_EXPANDED_THRESHOLD) return 0;
+    const range = CHAT_RAIL_EXPANDED_THRESHOLD - CHAT_RAIL_MIN_WIDTH;
+    if (range <= 0) return 1;
+    return Math.max(0, Math.min(1, (CHAT_RAIL_EXPANDED_THRESHOLD - railWidth) / Math.max(1, range)));
+  };
+
   const setRailExpandedClass = (width) => {
     if (!(chatRail instanceof HTMLElement)) return;
-    chatRail.classList.toggle("is-expanded", isChatRailExpanded(width));
+    const expanded = isChatRailExpanded(width);
+    const dockedTabs = true;
+    const avatarOnly = width <= CHAT_RAIL_AVATAR_ONLY_THRESHOLD;
+    chatRail.classList.toggle("is-expanded", expanded);
+    chatRail.classList.remove("is-icons-only");
+    chatRail.classList.toggle("is-docked-tabs", dockedTabs);
+    chatRail.classList.toggle("is-avatar-only", avatarOnly);
+    chatRail.style.setProperty("--chat-rail-collapse-progress", getRailCollapseProgress(width).toFixed(3));
   };
 
   const setRailWidth = (width, persist = true) => {
@@ -654,10 +737,25 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const clearComposerIntent = () => {
     composerState = createComposerState();
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.value = "";
     }
+    resizeComposerInput();
     syncComposerUi();
+  };
+
+  const resizeComposerInput = () => {
+    if (!(chatShellInput instanceof HTMLTextAreaElement)) {
+      return;
+    }
+
+    const minHeight = 44;
+    const maxHeight = 168;
+    chatShellInput.style.height = "auto";
+    const contentHeight = Number(chatShellInput.scrollHeight) || minHeight;
+    const nextHeight = Math.max(minHeight, Math.min(maxHeight, contentHeight));
+    chatShellInput.style.height = `${nextHeight}px`;
+    chatShellInput.style.overflowY = contentHeight > maxHeight ? "auto" : "hidden";
   };
 
   const getChatTypeLabel = (type) => {
@@ -691,7 +789,15 @@ export const createWorkspaceChatController = (deps = {}) => {
       return;
     }
 
-    applyAccountAvatarToElement(element, null, toInitials(fallbackTitle || chat?.title || "GR", "GR"), "");
+    const chatId = toChatId(chat?.id);
+    const avatarFromUi = getStoredGroupAvatarDataUrl(chatId);
+    const avatarFromApi = normalizeToken(chat?.avatarPath);
+    applyAccountAvatarToElement(
+      element,
+      null,
+      toInitials(fallbackTitle || chat?.title || "GR", "GR"),
+      avatarFromUi || avatarFromApi
+    );
   };
 
   const syncHomeButtonAvatar = () => {
@@ -1065,8 +1171,9 @@ export const createWorkspaceChatController = (deps = {}) => {
       body: "",
       summary: buildMessageSummary(message)
     };
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.value = "";
+      resizeComposerInput();
       chatShellInput.focus();
     }
     syncComposerUi();
@@ -1091,8 +1198,9 @@ export const createWorkspaceChatController = (deps = {}) => {
       body: message.body,
       summary: buildMessageSummary(message)
     };
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.value = message.body || "";
+      resizeComposerInput();
       chatShellInput.focus();
       chatShellInput.setSelectionRange(chatShellInput.value.length, chatShellInput.value.length);
     }
@@ -1228,6 +1336,67 @@ export const createWorkspaceChatController = (deps = {}) => {
     syncJumpBottomButton();
   };
 
+  const resolveFirstUnreadMessageId = (chatId) => {
+    const normalizedChatId = toChatId(chatId);
+    if (!normalizedChatId) return null;
+
+    const actorId = Number(getActorUserId());
+    if (!Number.isFinite(actorId) || actorId <= 0) return null;
+
+    const actorLastReadMessageId = Number(getReadMap(normalizedChatId).get(actorId) || 0);
+    const messages = store.getMessages(normalizedChatId);
+    const firstUnread = messages.find((message) => {
+      const messageId = Number(message?.id);
+      if (!Number.isFinite(messageId) || messageId <= actorLastReadMessageId) return false;
+      if (Number(message?.senderUserId) === actorId) return false;
+      if (message?.deletedAtUtc) return false;
+      return true;
+    });
+
+    const unreadId = Number(firstUnread?.id);
+    return Number.isFinite(unreadId) && unreadId > 0 ? unreadId : null;
+  };
+
+  const focusFirstUnreadMessage = (chatId) => {
+    const normalizedChatId = toChatId(chatId);
+    if (!normalizedChatId || !(chatShellFeed instanceof HTMLElement) || !(chatShellMessages instanceof HTMLElement)) {
+      return false;
+    }
+
+    const firstUnreadMessageId = resolveFirstUnreadMessageId(normalizedChatId);
+    if (!Number.isFinite(firstUnreadMessageId) || firstUnreadMessageId <= 0) {
+      return false;
+    }
+
+    const list = store.getMessages(normalizedChatId);
+    const unreadIndex = list.findIndex((message) => Number(message?.id) === firstUnreadMessageId);
+    if (unreadIndex < 0) {
+      return false;
+    }
+
+    const start = Math.max(0, unreadIndex - Math.floor(CHAT_MESSAGE_WINDOW_SIZE * 0.35));
+    messageRenderWindowByChatId.set(normalizedChatId, {
+      start,
+      total: list.length
+    });
+    renderMessages(normalizedChatId, { stickToBottom: false });
+
+    window.requestAnimationFrame(() => {
+      const target = chatShellMessages.querySelector(`[data-message-id="${firstUnreadMessageId}"]`);
+      if (!(target instanceof HTMLElement)) return;
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      target.classList.add("is-first-unread-focus");
+      window.setTimeout(() => {
+        if (target.isConnected) {
+          target.classList.remove("is-first-unread-focus");
+        }
+      }, 1400);
+      syncJumpBottomButton();
+    });
+
+    return true;
+  };
+
   const isFeedNearBottom = () => {
     if (!(chatShellFeed instanceof HTMLElement)) return true;
     const remaining = chatShellFeed.scrollHeight - chatShellFeed.clientHeight - chatShellFeed.scrollTop;
@@ -1320,11 +1489,596 @@ export const createWorkspaceChatController = (deps = {}) => {
     attachmentObjectUrls.clear();
   };
 
+  const getPlaybackDuration = (playback) => {
+    const audio = playback?.audio;
+    const fallback = Number(playback?.initialDuration) || 0;
+    const fromAudio = audio instanceof HTMLAudioElement && Number.isFinite(audio.duration) && audio.duration > 0
+      ? audio.duration
+      : 0;
+    return Math.max(fromAudio, fallback, 0);
+  };
+
+  const getPlaybackCurrent = (playback) => {
+    const audio = playback?.audio;
+    if (!(audio instanceof HTMLAudioElement) || !Number.isFinite(audio.currentTime) || audio.currentTime < 0) {
+      return 0;
+    }
+    return audio.currentTime;
+  };
+
+  const clampAudioOutputVolume = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 1;
+    return Math.max(0, Math.min(1, numeric));
+  };
+
+  const applyAudioOutputState = (playback = activeAudioPlayback) => {
+    const audio = playback?.audio;
+    if (!(audio instanceof HTMLAudioElement)) {
+      return;
+    }
+    audio.volume = clampAudioOutputVolume(audioOutputVolume);
+    audio.muted = Boolean(audioOutputMuted);
+  };
+
+  const syncNowPlayingVolumeUi = () => {
+    if (nowPlayingVolumeSlider instanceof HTMLInputElement) {
+      nowPlayingVolumeSlider.value = String(clampAudioOutputVolume(audioOutputVolume));
+    }
+    if (nowPlayingVolumeBtn instanceof HTMLButtonElement) {
+      nowPlayingVolumeBtn.dataset.muted = audioOutputMuted ? "true" : "false";
+      nowPlayingVolumeBtn.setAttribute("aria-label", audioOutputMuted ? "Включить звук" : "Выключить звук");
+      nowPlayingVolumeBtn.title = audioOutputMuted ? "Включить звук" : "Выключить звук";
+    }
+  };
+
+  const clearNowPlayingVolumeHideTimer = () => {
+    if (nowPlayingVolumeHideTimerId) {
+      window.clearTimeout(nowPlayingVolumeHideTimerId);
+      nowPlayingVolumeHideTimerId = 0;
+    }
+  };
+
+  const setNowPlayingVolumeOpen = (open) => {
+    if (!(nowPlayingVolumeWrap instanceof HTMLElement)) {
+      return;
+    }
+    if (open) {
+      clearNowPlayingVolumeHideTimer();
+      nowPlayingVolumeWrap.classList.add("is-open");
+      return;
+    }
+    nowPlayingVolumeWrap.classList.remove("is-open");
+  };
+
+  const scheduleNowPlayingVolumeClose = (delayMs = 180) => {
+    clearNowPlayingVolumeHideTimer();
+    nowPlayingVolumeHideTimerId = window.setTimeout(() => {
+      nowPlayingVolumeHideTimerId = 0;
+      setNowPlayingVolumeOpen(false);
+    }, delayMs);
+  };
+
+  const ensureNowPlayingPanel = () => {
+    if (nowPlayingPanel instanceof HTMLElement) {
+      return;
+    }
+
+    const shell = chatShell instanceof HTMLElement ? chatShell : null;
+    if (!(shell instanceof HTMLElement)) {
+      return;
+    }
+
+    const host = chatShellFeed instanceof HTMLElement && chatShellFeed.parentElement === shell
+      ? chatShellFeed
+      : shell.querySelector(".chat-shell-feed");
+
+    const panel = document.createElement("div");
+    panel.className = "chat-shell-now-playing";
+    panel.hidden = true;
+
+    const toggleBtn = document.createElement("button");
+    toggleBtn.type = "button";
+    toggleBtn.className = "icon-btn chat-shell-now-playing-toggle";
+    toggleBtn.setAttribute("aria-label", "Пауза");
+    toggleBtn.title = "Пауза";
+    toggleBtn.innerHTML = '<svg class="chat-shell-now-playing-icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6l10 6-10 6z" /></svg><svg class="chat-shell-now-playing-icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6v12" /><path d="M15 6v12" /></svg>';
+
+    const main = document.createElement("div");
+    main.className = "chat-shell-now-playing-main";
+
+    const sender = document.createElement("span");
+    sender.className = "chat-shell-now-playing-sender";
+    sender.textContent = "";
+
+    const track = document.createElement("div");
+    track.className = "chat-shell-now-playing-track";
+
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.className = "chat-shell-now-playing-progress";
+    slider.min = "0";
+    slider.max = "1";
+    slider.step = "0.01";
+    slider.value = "0";
+
+    const time = document.createElement("span");
+    time.className = "chat-shell-now-playing-time";
+    time.textContent = "0:00 / 0:00";
+
+    track.append(slider, time);
+    main.append(sender, track);
+
+    const volumeWrap = document.createElement("div");
+    volumeWrap.className = "chat-shell-now-playing-volume";
+
+    const volumeBtn = document.createElement("button");
+    volumeBtn.type = "button";
+    volumeBtn.className = "icon-btn chat-shell-now-playing-volume-btn";
+    volumeBtn.setAttribute("aria-label", "Выключить звук");
+    volumeBtn.title = "Выключить звук";
+    volumeBtn.innerHTML = '<svg class="chat-shell-now-playing-icon-volume" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h4l5 4V6L8 10H4z" /><path d="M16 9a4 4 0 0 1 0 6" /><path d="M18.5 6.5a8 8 0 0 1 0 11" /></svg><svg class="chat-shell-now-playing-icon-muted" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14h4l5 4V6L8 10H4z" /><path d="M16 9l4 4" /><path d="M20 9l-4 4" /></svg>';
+
+    const volumePopover = document.createElement("div");
+    volumePopover.className = "chat-shell-now-playing-volume-popover";
+
+    const volumeSlider = document.createElement("input");
+    volumeSlider.type = "range";
+    volumeSlider.className = "chat-shell-now-playing-volume-slider";
+    volumeSlider.min = "0";
+    volumeSlider.max = "1";
+    volumeSlider.step = "0.01";
+    volumeSlider.value = String(audioOutputVolume);
+
+    volumePopover.appendChild(volumeSlider);
+    volumeWrap.append(volumeBtn, volumePopover);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "icon-btn chat-shell-now-playing-close";
+    closeBtn.setAttribute("aria-label", "Убрать плеер");
+    closeBtn.title = "Закрыть";
+    closeBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10" /><path d="M17 7L7 17" /></svg>';
+
+    panel.append(toggleBtn, main, volumeWrap, closeBtn);
+
+    if (host instanceof HTMLElement && host.parentElement === shell) {
+      shell.insertBefore(panel, host);
+    } else {
+      shell.appendChild(panel);
+    }
+
+    nowPlayingPanel = panel;
+    nowPlayingToggleBtn = toggleBtn;
+    nowPlayingSenderEl = sender;
+    nowPlayingProgressEl = slider;
+    nowPlayingTimeEl = time;
+    nowPlayingCloseBtn = closeBtn;
+    nowPlayingVolumeWrap = volumeWrap;
+    nowPlayingVolumeBtn = volumeBtn;
+    nowPlayingVolumeSlider = volumeSlider;
+
+    syncNowPlayingVolumeUi();
+
+    toggleBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      const playback = activeAudioPlayback;
+      if (!(playback?.audio instanceof HTMLAudioElement)) return;
+
+      if (playback.audio.paused || playback.audio.ended) {
+        try {
+          await playback.audio.play();
+        } catch {
+          // ignore playback failures
+        }
+      } else {
+        playback.audio.pause();
+      }
+      playback.syncPlayState?.();
+      playback.syncTime?.();
+      syncNowPlayingPanel();
+    });
+
+    slider.addEventListener("input", () => {
+      const playback = activeAudioPlayback;
+      if (!(playback?.audio instanceof HTMLAudioElement)) return;
+      const duration = getPlaybackDuration(playback);
+      if (!duration) return;
+      playback.audio.currentTime = Math.max(0, Math.min(duration, Number(slider.value) * duration));
+      playback.syncTime?.();
+      syncNowPlayingPanel();
+    });
+
+    volumeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      setNowPlayingVolumeOpen(true);
+      if (audioOutputMuted) {
+        audioOutputMuted = false;
+        if (audioOutputVolume <= 0) {
+          audioOutputVolume = clampAudioOutputVolume(audioOutputUnmutedVolume || 1);
+        }
+      } else {
+        audioOutputMuted = true;
+        if (audioOutputVolume > 0) {
+          audioOutputUnmutedVolume = clampAudioOutputVolume(audioOutputVolume);
+        }
+      }
+      applyAudioOutputState();
+      syncNowPlayingVolumeUi();
+      syncNowPlayingPanel();
+    });
+
+    const openVolumePopover = () => {
+      setNowPlayingVolumeOpen(true);
+    };
+
+    const closeVolumePopoverDeferred = () => {
+      scheduleNowPlayingVolumeClose(220);
+    };
+
+    volumeWrap.addEventListener("mouseenter", openVolumePopover);
+    volumeWrap.addEventListener("mouseleave", closeVolumePopoverDeferred);
+    volumeWrap.addEventListener("focusin", openVolumePopover);
+    volumeWrap.addEventListener("focusout", (event) => {
+      const nextFocused = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+      if (nextFocused && volumeWrap.contains(nextFocused)) {
+        return;
+      }
+      closeVolumePopoverDeferred();
+    });
+
+    volumeSlider.addEventListener("input", () => {
+      const nextVolume = clampAudioOutputVolume(volumeSlider.value);
+      audioOutputVolume = nextVolume;
+      if (nextVolume > 0) {
+        audioOutputUnmutedVolume = nextVolume;
+        audioOutputMuted = false;
+      } else {
+        audioOutputMuted = true;
+      }
+      applyAudioOutputState();
+      syncNowPlayingVolumeUi();
+      syncNowPlayingPanel();
+    });
+
+    closeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      clearActiveAudioPlayback({ pause: true, reset: false, hide: true });
+    });
+  };
+
+  const syncNowPlayingPanel = () => {
+    ensureNowPlayingPanel();
+    if (!(nowPlayingPanel instanceof HTMLElement)) {
+      return;
+    }
+
+    const playback = activeAudioPlayback;
+    if (!(playback?.audio instanceof HTMLAudioElement)) {
+      nowPlayingPanel.classList.remove("is-animate-in");
+      nowPlayingPanel.hidden = true;
+      setNowPlayingVolumeOpen(false);
+      syncNowPlayingVolumeUi();
+      return;
+    }
+
+    const duration = getPlaybackDuration(playback);
+    const current = getPlaybackCurrent(playback);
+    const ratio = duration > 0 ? Math.max(0, Math.min(1, current / duration)) : 0;
+    const isPlaying = !playback.audio.paused && !playback.audio.ended;
+
+    if (nowPlayingPanel.hidden) {
+      nowPlayingPanel.hidden = false;
+      nowPlayingPanel.classList.remove("is-animate-in");
+      void nowPlayingPanel.offsetWidth;
+      nowPlayingPanel.classList.add("is-animate-in");
+    }
+
+    if (nowPlayingSenderEl instanceof HTMLElement) {
+      nowPlayingSenderEl.textContent = playback.senderName
+        ? `Слушаете: ${playback.senderName}`
+        : "Слушаете аудио";
+    }
+    if (nowPlayingProgressEl instanceof HTMLInputElement) {
+      nowPlayingProgressEl.value = String(ratio);
+    }
+    if (nowPlayingTimeEl instanceof HTMLElement) {
+      nowPlayingTimeEl.textContent = `${formatMediaTime(current)} / ${formatMediaTime(duration)}`;
+    }
+    if (nowPlayingToggleBtn instanceof HTMLButtonElement) {
+      nowPlayingToggleBtn.dataset.playing = isPlaying ? "true" : "false";
+      nowPlayingToggleBtn.setAttribute("aria-label", isPlaying ? "Пауза" : "Воспроизвести");
+      nowPlayingToggleBtn.title = isPlaying ? "Пауза" : "Воспроизвести";
+    }
+    syncNowPlayingVolumeUi();
+  };
+
+  const clearActiveAudioPlayback = ({ pause = true, reset = false, hide = true } = {}) => {
+    const previous = activeAudioPlayback;
+    activeAudioPlayback = null;
+
+    if (previous?.audio instanceof HTMLAudioElement) {
+      if (pause && !previous.audio.paused) {
+        previous.audio.pause();
+      }
+      if (reset) {
+        previous.audio.currentTime = 0;
+      }
+    }
+
+    previous?.syncPlayState?.();
+    previous?.syncTime?.();
+
+    if (hide && nowPlayingPanel instanceof HTMLElement) {
+      nowPlayingPanel.classList.remove("is-animate-in");
+      nowPlayingPanel.hidden = true;
+    }
+    clearNowPlayingVolumeHideTimer();
+    setNowPlayingVolumeOpen(false);
+    syncNowPlayingVolumeUi();
+  };
+
+  const setActiveAudioPlayback = (playback) => {
+    if (!(playback?.audio instanceof HTMLAudioElement)) {
+      return;
+    }
+
+    const previous = activeAudioPlayback;
+    if (previous?.audio instanceof HTMLAudioElement && previous.audio !== playback.audio) {
+      previous.audio.pause();
+      previous.syncPlayState?.();
+      previous.syncTime?.();
+    }
+
+    activeAudioPlayback = playback;
+    applyAudioOutputState(playback);
+    syncNowPlayingPanel();
+  };
+
   const clearAttachmentState = () => {
+    clearActiveAudioPlayback({ pause: true, reset: false, hide: true });
+    closeImageViewer();
     attachmentsByMessageId.clear();
     attachmentLoadingByMessageId.clear();
     pendingVoiceUploadsByMessageId.clear();
     revokeAttachmentUrls();
+  };
+
+  const downloadAttachmentToFile = async (chatId, attachment, fallbackName = "attachment") => {
+    const normalizedChatId = toChatId(chatId);
+    const attachmentId = toChatId(attachment?.id);
+    if (!normalizedChatId || !attachmentId) return;
+    const blob = await api.downloadAttachmentBlob(normalizedChatId, attachmentId);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = normalizeToken(attachment?.fileName) || fallbackName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const clampImageViewerScale = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 1;
+    return Math.max(CHAT_IMAGE_VIEWER_MIN_SCALE, Math.min(CHAT_IMAGE_VIEWER_MAX_SCALE, numeric));
+  };
+
+  const syncImageViewerZoomUi = () => {
+    if (imageViewerImage instanceof HTMLImageElement) {
+      imageViewerImage.style.transform = `scale(${imageViewerScale.toFixed(3)})`;
+    }
+    if (imageViewerZoomLabel instanceof HTMLElement) {
+      imageViewerZoomLabel.textContent = `${Math.round(imageViewerScale * 100)}%`;
+    }
+    if (imageViewerZoomOutBtn instanceof HTMLButtonElement) {
+      imageViewerZoomOutBtn.disabled = imageViewerScale <= CHAT_IMAGE_VIEWER_MIN_SCALE;
+    }
+    if (imageViewerZoomInBtn instanceof HTMLButtonElement) {
+      imageViewerZoomInBtn.disabled = imageViewerScale >= CHAT_IMAGE_VIEWER_MAX_SCALE;
+    }
+  };
+
+  const setImageViewerMenuOpen = (open) => {
+    const visible = Boolean(open);
+    if (imageViewerMenu instanceof HTMLElement) {
+      imageViewerMenu.hidden = !visible;
+    }
+    if (imageViewerMenuBtn instanceof HTMLButtonElement) {
+      imageViewerMenuBtn.setAttribute("aria-expanded", visible ? "true" : "false");
+    }
+  };
+
+  const closeImageViewer = () => {
+    if (!(imageViewerRoot instanceof HTMLElement) || imageViewerRoot.hidden) return false;
+    setImageViewerMenuOpen(false);
+    imageViewerRoot.hidden = true;
+    imageViewerScale = 1;
+    imageViewerChatId = "";
+    imageViewerAttachment = null;
+    if (imageViewerImage instanceof HTMLImageElement) {
+      imageViewerImage.removeAttribute("src");
+      imageViewerImage.style.removeProperty("transform");
+    }
+    document.body.classList.remove("is-chat-image-viewer-open");
+    return true;
+  };
+
+  const ensureImageViewer = () => {
+    if (imageViewerRoot instanceof HTMLElement) {
+      return;
+    }
+
+    const root = document.createElement("div");
+    root.className = "chat-image-viewer";
+    root.hidden = true;
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("aria-label", "Просмотр изображения");
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "chat-image-viewer-toolbar";
+
+    const zoomOutBtn = document.createElement("button");
+    zoomOutBtn.type = "button";
+    zoomOutBtn.className = "icon-btn chat-image-viewer-tool";
+    zoomOutBtn.setAttribute("aria-label", "Уменьшить");
+    zoomOutBtn.title = "Уменьшить";
+    zoomOutBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" /></svg>';
+
+    const zoomLabel = document.createElement("span");
+    zoomLabel.className = "chat-image-viewer-zoom-label";
+    zoomLabel.textContent = "100%";
+
+    const zoomInBtn = document.createElement("button");
+    zoomInBtn.type = "button";
+    zoomInBtn.className = "icon-btn chat-image-viewer-tool";
+    zoomInBtn.setAttribute("aria-label", "Увеличить");
+    zoomInBtn.title = "Увеличить";
+    zoomInBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" /><path d="M12 6v12" /></svg>';
+
+    const menuWrap = document.createElement("div");
+    menuWrap.className = "chat-image-viewer-menu-wrap";
+
+    const menuBtn = document.createElement("button");
+    menuBtn.type = "button";
+    menuBtn.className = "icon-btn chat-image-viewer-tool";
+    menuBtn.setAttribute("aria-label", "Действия");
+    menuBtn.setAttribute("aria-expanded", "false");
+    menuBtn.title = "Действия";
+    menuBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="18" cy="12" r="1.8" /></svg>';
+
+    const menu = document.createElement("div");
+    menu.className = "chat-image-viewer-menu";
+    menu.hidden = true;
+
+    const downloadBtn = document.createElement("button");
+    downloadBtn.type = "button";
+    downloadBtn.className = "chat-image-viewer-menu-item";
+    downloadBtn.textContent = "Скачать";
+    menu.appendChild(downloadBtn);
+
+    menuWrap.append(menuBtn, menu);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "icon-btn chat-image-viewer-tool";
+    closeBtn.setAttribute("aria-label", "Закрыть");
+    closeBtn.title = "Закрыть";
+    closeBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10" /><path d="M17 7L7 17" /></svg>';
+
+    toolbar.append(zoomOutBtn, zoomLabel, zoomInBtn, menuWrap, closeBtn);
+
+    const stage = document.createElement("div");
+    stage.className = "chat-image-viewer-stage";
+
+    const image = document.createElement("img");
+    image.className = "chat-image-viewer-image";
+    image.alt = "Изображение";
+    image.decoding = "async";
+    image.loading = "eager";
+    stage.appendChild(image);
+
+    root.append(toolbar, stage);
+
+    toolbar.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target && !target.closest(".chat-image-viewer-menu-wrap")) {
+        setImageViewerMenuOpen(false);
+      }
+    });
+
+    image.addEventListener("click", (event) => {
+      setImageViewerMenuOpen(false);
+      event.stopPropagation();
+    });
+
+    root.addEventListener("click", () => {
+      closeImageViewer();
+    });
+
+    root.addEventListener("wheel", (event) => {
+      if (root.hidden) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest(".chat-image-viewer-toolbar")) {
+        return;
+      }
+      event.preventDefault();
+      const delta = event.deltaY < 0 ? CHAT_IMAGE_VIEWER_SCALE_STEP : -CHAT_IMAGE_VIEWER_SCALE_STEP;
+      imageViewerScale = clampImageViewerScale(imageViewerScale + delta);
+      syncImageViewerZoomUi();
+    }, { passive: false });
+
+    zoomOutBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      imageViewerScale = clampImageViewerScale(imageViewerScale - CHAT_IMAGE_VIEWER_SCALE_STEP);
+      syncImageViewerZoomUi();
+    });
+
+    zoomInBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      imageViewerScale = clampImageViewerScale(imageViewerScale + CHAT_IMAGE_VIEWER_SCALE_STEP);
+      syncImageViewerZoomUi();
+    });
+
+    menuBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const isOpen = imageViewerMenu instanceof HTMLElement ? !imageViewerMenu.hidden : false;
+      setImageViewerMenuOpen(!isOpen);
+    });
+
+    downloadBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setImageViewerMenuOpen(false);
+      if (!imageViewerAttachment || !imageViewerChatId) return;
+      await downloadAttachmentToFile(imageViewerChatId, imageViewerAttachment, "image");
+    });
+
+    closeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeImageViewer();
+    });
+
+    document.body.appendChild(root);
+
+    imageViewerRoot = root;
+    imageViewerImage = image;
+    imageViewerMenu = menu;
+    imageViewerMenuBtn = menuBtn;
+    imageViewerZoomOutBtn = zoomOutBtn;
+    imageViewerZoomInBtn = zoomInBtn;
+    imageViewerZoomLabel = zoomLabel;
+    imageViewerScale = 1;
+    syncImageViewerZoomUi();
+  };
+
+  const openImageViewer = async (chatId, attachment) => {
+    const normalizedChatId = toChatId(chatId);
+    if (!normalizedChatId || !attachment?.id) return;
+    const url = await ensureAttachmentMediaUrl(normalizedChatId, attachment);
+    if (!url) return;
+
+    ensureImageViewer();
+    if (!(imageViewerRoot instanceof HTMLElement) || !(imageViewerImage instanceof HTMLImageElement)) {
+      return;
+    }
+
+    imageViewerChatId = normalizedChatId;
+    imageViewerAttachment = attachment;
+    imageViewerScale = 1;
+    imageViewerImage.src = url;
+    imageViewerImage.alt = normalizeToken(attachment?.fileName) || "Изображение";
+    imageViewerRoot.hidden = false;
+    document.body.classList.add("is-chat-image-viewer-open");
+    setImageViewerMenuOpen(false);
+    syncImageViewerZoomUi();
   };
 
   const clearRealtimeState = () => {
@@ -1363,6 +2117,17 @@ export const createWorkspaceChatController = (deps = {}) => {
     writeUiSettings(all);
   };
 
+  const getStoredGroupAvatarDataUrl = (chatId) => {
+    const key = String(chatId || "").trim();
+    if (!key) return "";
+    const ui = getStoredUiSetting(key);
+    const value = normalizeToken(ui?.chatGroupAvatarDataUrl);
+    if (!value || !value.startsWith("data:image/")) {
+      return "";
+    }
+    return value;
+  };
+
   const getPreference = (chatId) => {
     const key = String(chatId || "").trim();
     const persisted = preferencesByChatId.get(key) || { isMuted: false, soundEnabled: true, backgroundImageKey: null };
@@ -1388,30 +2153,40 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const getCurrentChatPermissions = () => {
     const chat = store.getChatById(store.getActiveChatId());
+    const chatType = Number(chat?.type);
     const actorId = Number(getActorUserId());
     const workspaceRole = String(getWorkspaceRole() || "Member");
     const isOwner = workspaceRole === "Owner";
     const isAdmin = workspaceRole === "Owner" || workspaceRole === "Admin";
     const isGroupOwner = Number(chat?.createdByUserId) > 0 && Number(chat?.createdByUserId) === actorId;
+    const canEditGroupBackground = chatType === 2 && (isGroupOwner || isAdmin);
 
     return {
       canEditUserPrefs: Boolean(chat),
-      showRoomSettings: Number(chat?.type) !== 3,
-      canEditRoomTitle: Number(chat?.type) === 2
+      showRoomSettings: chatType !== 3,
+      canEditRoomTitle: chatType === 2
         ? isGroupOwner
-        : Number(chat?.type) === 1
+        : chatType === 1
           ? isOwner
           : false,
-      canEditBackground: Number(chat?.type) === 3
+      canEditBackground: chatType === 3
         ? true
-        : Number(chat?.type) === 1
+        : chatType === 1
           ? isAdmin
+          : chatType === 2
+            ? canEditGroupBackground
           : false,
-      backgroundLabel: Number(chat?.type) === 3 ? "DM background" : "General background"
+      canDeleteGroup: chatType === 2 && (isGroupOwner || isAdmin),
+      backgroundLabel: chatType === 3
+        ? "DM background"
+        : chatType === 2
+          ? "Group background"
+          : "General background"
     };
   };
 
   const isDirectChat = (chat) => Number(chat?.type) === 3;
+  const isGroupChat = (chat) => Number(chat?.type) === 2;
 
   const openSettingsModal = () => {
     const activeChatId = store.getActiveChatId();
@@ -1420,6 +2195,13 @@ export const createWorkspaceChatController = (deps = {}) => {
     isSettingsOpen = true;
     syncSettingsPanel();
     void loadSettingsModalData(activeChatId);
+  };
+
+  const openActiveChatSettings = () => {
+    const activeChatId = store.getActiveChatId();
+    if (!store.getChatById(activeChatId)) return false;
+    openSettingsModal();
+    return true;
   };
 
   const closeSettingsModal = () => {
@@ -1517,15 +2299,26 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (chatSettingsModalSub instanceof HTMLElement) {
       chatSettingsModalSub.textContent = getChatTypeLabel(chat?.type);
     }
+
+    const canEditGroupAvatar = isGroupChat(chat);
+
     if (chatSettingsModalAvatar instanceof HTMLElement) {
       applyChatAvatar(chatSettingsModalAvatar, chat, chat?.title || "Чат");
-      chatSettingsModalAvatar.setAttribute("aria-label", isDirectChat(chat) ? "Открыть профиль пользователя" : "Аватар чата");
+      if (isDirectChat(chat)) {
+        chatSettingsModalAvatar.setAttribute("aria-label", "Открыть профиль пользователя");
+      } else if (canEditGroupAvatar) {
+        chatSettingsModalAvatar.setAttribute("aria-label", "Сменить аватар группы");
+      } else {
+        chatSettingsModalAvatar.setAttribute("aria-label", "Аватар чата");
+      }
+
+      chatSettingsModalAvatar.classList.toggle("is-group-editable", canEditGroupAvatar);
     }
     if (chatSettingsModalMain instanceof HTMLButtonElement) {
       chatSettingsModalMain.disabled = !isDirectChat(chat);
     }
     if (chatSettingsModalAvatar instanceof HTMLButtonElement) {
-      chatSettingsModalAvatar.disabled = !isDirectChat(chat);
+      chatSettingsModalAvatar.disabled = !(isDirectChat(chat) || canEditGroupAvatar);
     }
 
     if (chatSettingsMuted instanceof HTMLInputElement) {
@@ -1571,7 +2364,9 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
     if (chatSettingsNote instanceof HTMLElement) {
       if (Number(chat?.type) === 2 && !permissions.canEditRoomTitle) {
-        chatSettingsNote.textContent = "Только GroupOwner может менять параметры group-чата.";
+        chatSettingsNote.textContent = permissions.canEditBackground
+          ? "Фон группы могут менять GroupOwner и Admin/Owner, название - только GroupOwner."
+          : "Только GroupOwner и Admin/Owner могут менять параметры группы.";
       } else if (Number(chat?.type) === 1 && !permissions.canEditRoomTitle) {
         chatSettingsNote.textContent = permissions.canEditBackground
           ? "Фон General можно менять Admin/Owner, название - только Owner."
@@ -1583,6 +2378,10 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (chatSettingsSaveBtn instanceof HTMLButtonElement) {
       chatSettingsSaveBtn.disabled = settingsSaving;
       chatSettingsSaveBtn.textContent = settingsSaving ? "Сохраняем..." : "Сохранить";
+    }
+    if (chatSettingsDeleteBtn instanceof HTMLButtonElement) {
+      chatSettingsDeleteBtn.hidden = !permissions.canDeleteGroup;
+      chatSettingsDeleteBtn.disabled = settingsSaving;
     }
     applyChatBackground(activeChatId, backgroundValue);
     renderSettingsMembers(activeChatId);
@@ -1822,7 +2621,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (!pending) return false;
 
     const card = document.createElement("div");
-    card.className = "chat-attachment-card is-uploading-voice";
+    card.className = "chat-attachment-card is-uploading-voice is-audio";
 
     const player = document.createElement("div");
     player.className = "chat-voice-player is-uploading";
@@ -1996,6 +2795,10 @@ export const createWorkspaceChatController = (deps = {}) => {
     ];
   };
 
+  const getRailTabIconMarkup = (tabKey) => {
+    return CHAT_RAIL_TAB_ICONS[String(tabKey || "")] || CHAT_RAIL_TAB_ICONS.all;
+  };
+
   const renderRailTabs = () => {
     if (!(chatRailTabs instanceof HTMLElement)) return;
     chatRailTabs.innerHTML = "";
@@ -2005,7 +2808,10 @@ export const createWorkspaceChatController = (deps = {}) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "chat-rail-tab";
-      button.textContent = tab.label;
+      button.setAttribute("aria-label", tab.label);
+      button.title = tab.label;
+      button.dataset.tabKey = tab.key;
+      button.innerHTML = `<span class="chat-rail-tab-icon" aria-hidden="true">${getRailTabIconMarkup(tab.key)}</span><span class="chat-rail-tab-label">${tab.label}</span>`;
       button.classList.toggle("is-active", tab.key === activeRailTab);
       button.addEventListener("click", () => {
         activeRailTab = tab.key;
@@ -2131,7 +2937,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     const isEditMode = composerState.mode === "edit";
     const isReplyMode = composerState.mode === "reply";
     const isVoiceRecordingUi = voiceRecordingMode === "starting" || voiceRecordingMode === "recording" || voiceRecordingMode === "paused";
-    const hasText = normalizeToken(chatShellInput instanceof HTMLInputElement ? chatShellInput.value : "").length > 0;
+    const hasText = normalizeToken(chatShellInput instanceof HTMLTextAreaElement ? chatShellInput.value : "").length > 0;
     const isRecording = Boolean(mediaRecorder && mediaRecorder.state === "recording");
 
     if (chatShellContext instanceof HTMLElement) {
@@ -2150,7 +2956,7 @@ export const createWorkspaceChatController = (deps = {}) => {
       }
     }
 
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.disabled = !hasActiveChat || isForwardMode || isLoadingMessages || isLoadingOlderMessages || isSendingMessage;
       chatShellInput.disabled = !hasActiveChat || isForwardMode || isBulkForwardMode || isLoadingMessages || isLoadingOlderMessages || isSendingMessage;
       chatShellInput.placeholder = !hasActiveChat
@@ -2194,7 +3000,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (chatShellAttachBtn instanceof HTMLButtonElement) {
       chatShellAttachBtn.hidden = isVoiceRecordingUi;
     }
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.hidden = isVoiceRecordingUi;
     }
     if (chatShellForm instanceof HTMLFormElement) {
@@ -2239,6 +3045,7 @@ export const createWorkspaceChatController = (deps = {}) => {
 
     syncVoiceRecordingUi();
     syncLoadMoreButton();
+    resizeComposerInput();
   };
 
   const renderAttachmentCollection = (chatId, message, parent) => {
@@ -2273,10 +3080,27 @@ export const createWorkspaceChatController = (deps = {}) => {
       const isImage = isImageContentType(attachment.contentType);
       const isVoice = isVoiceContentType(attachment.contentType);
 
+      if (isVoice) {
+        card.classList.add("is-audio");
+      }
+
       if (isImage) {
+        card.classList.add("is-image");
         const img = document.createElement("img");
         img.className = "chat-attachment-preview";
         img.alt = attachment.fileName;
+        img.loading = "lazy";
+        img.decoding = "async";
+
+        const applyImageRatio = () => {
+          const width = Number(img.naturalWidth);
+          const height = Number(img.naturalHeight);
+          if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+          card.style.setProperty("--chat-image-ratio", `${width} / ${height}`);
+        };
+
+        img.addEventListener("load", applyImageRatio);
+
         const existing = getAttachmentUrl(attachment.id);
         if (existing) {
           img.src = existing;
@@ -2295,12 +3119,11 @@ export const createWorkspaceChatController = (deps = {}) => {
             }
           });
         }
-        img.addEventListener("click", () => {
-          void ensureAttachmentMediaUrl(chatId, attachment).then((url) => {
-            if (!url) return;
-            window.open(url, "_blank", "noopener,noreferrer");
-          });
+        img.addEventListener("click", (event) => {
+          suppressMessageSelectionEvent(event);
+          void openImageViewer(chatId, attachment);
         });
+        img.addEventListener("dblclick", suppressMessageSelectionEvent);
         card.appendChild(img);
       }
 
@@ -2324,6 +3147,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         const time = document.createElement("div");
         time.className = "chat-voice-time";
         const initialDuration = Number(attachment.durationMs) > 0 ? Number(attachment.durationMs) / 1000 : 0;
+        const senderName = resolveMemberName(message.senderUserId);
         time.textContent = `0:00 / ${formatMediaTime(initialDuration)}`;
 
         const speedBtn = document.createElement("button");
@@ -2376,16 +3200,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         downloadBtn.title = "Скачать";
         downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 18h14" /></svg>';
         downloadBtn.addEventListener("click", async () => {
-          const blob = await api.downloadAttachmentBlob(chatId, attachment.id);
-          if (!blob) return;
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = attachment.fileName || "voice-message";
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          URL.revokeObjectURL(url);
+          await downloadAttachmentToFile(chatId, attachment, "voice-message");
         });
         downloadBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
         actions.appendChild(downloadBtn);
@@ -2412,7 +3227,16 @@ export const createWorkspaceChatController = (deps = {}) => {
           playBtn.setAttribute("aria-label", isPlaying ? "Пауза" : "Воспроизвести голосовое сообщение");
         };
 
+        const playbackState = {
+          audio,
+          senderName,
+          initialDuration,
+          syncTime,
+          syncPlayState
+        };
+
         playBtn.addEventListener("click", async () => {
+          setActiveAudioPlayback(playbackState);
           if (audio.paused || audio.ended) {
             try {
               await audio.play();
@@ -2423,6 +3247,7 @@ export const createWorkspaceChatController = (deps = {}) => {
             audio.pause();
           }
           syncPlayState();
+          syncNowPlayingPanel();
         });
         playBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
 
@@ -2440,6 +3265,9 @@ export const createWorkspaceChatController = (deps = {}) => {
           if (!duration) return;
           audio.currentTime = Math.max(0, Math.min(duration, Number(progress.value) * duration));
           syncTime();
+          if (activeAudioPlayback?.audio === audio) {
+            syncNowPlayingPanel();
+          }
         });
         progress.addEventListener("dblclick", suppressMessageSelectionEvent);
 
@@ -2450,14 +3278,34 @@ export const createWorkspaceChatController = (deps = {}) => {
           const ratio = rect.width > 0 ? Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)) : 0;
           audio.currentTime = ratio * duration;
           syncTime();
+          if (activeAudioPlayback?.audio === audio) {
+            syncNowPlayingPanel();
+          }
         });
         waveform.addEventListener("dblclick", suppressMessageSelectionEvent);
 
         audio.addEventListener("loadedmetadata", syncTime);
-        audio.addEventListener("timeupdate", syncTime);
-        audio.addEventListener("play", syncPlayState);
-        audio.addEventListener("pause", syncPlayState);
+        audio.addEventListener("timeupdate", () => {
+          syncTime();
+          if (activeAudioPlayback?.audio === audio) {
+            syncNowPlayingPanel();
+          }
+        });
+        audio.addEventListener("play", () => {
+          setActiveAudioPlayback(playbackState);
+          syncPlayState();
+          syncNowPlayingPanel();
+        });
+        audio.addEventListener("pause", () => {
+          syncPlayState();
+          if (activeAudioPlayback?.audio === audio) {
+            syncNowPlayingPanel();
+          }
+        });
         audio.addEventListener("ended", () => {
+          if (activeAudioPlayback?.audio === audio) {
+            clearActiveAudioPlayback({ pause: false, reset: true, hide: true });
+          }
           syncPlayState();
           syncTime();
         });
@@ -2485,52 +3333,56 @@ export const createWorkspaceChatController = (deps = {}) => {
         card.appendChild(player);
       }
 
-      if (!isVoice) {
-        const meta = document.createElement("div");
-        meta.className = "chat-attachment-meta";
-        const name = document.createElement("div");
-        name.className = "chat-attachment-name";
-        name.textContent = attachment.fileName;
-        const sub = document.createElement("div");
-        sub.className = "chat-attachment-sub";
-        sub.textContent = `${attachment.contentType} · ${formatBytes(attachment.size)}`;
-        meta.append(name, sub);
+      if (!isVoice && !isImage) {
+        card.classList.add("is-file");
 
-        const actions = document.createElement("div");
-        actions.className = "chat-attachment-actions";
+        const fileEntry = document.createElement("div");
+        fileEntry.className = "chat-file-entry";
 
         const openBtn = document.createElement("button");
         openBtn.type = "button";
-        openBtn.className = "chat-msg-action";
-        openBtn.textContent = "Открыть";
+        openBtn.className = "chat-file-open";
+        openBtn.setAttribute("aria-label", "Открыть файл");
+        openBtn.title = "Открыть файл";
+
+        const icon = document.createElement("span");
+        icon.className = "chat-file-icon";
+        icon.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4h7l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" /><path d="M14 4v5h5" /></svg>';
+
+        const content = document.createElement("span");
+        content.className = "chat-file-content";
+
+        const name = document.createElement("span");
+        name.className = "chat-file-name";
+        name.textContent = attachment.fileName;
+
+        const sub = document.createElement("span");
+        sub.className = "chat-file-sub";
+        sub.textContent = `${getAttachmentFileTypeLabel(attachment)} · ${formatBytes(attachment.size)}`;
+
+        content.append(name, sub);
+        openBtn.append(icon, content);
         openBtn.addEventListener("click", () => {
           void ensureAttachmentMediaUrl(chatId, attachment).then((url) => {
             if (!url) return;
             window.open(url, "_blank", "noopener,noreferrer");
           });
         });
-        actions.appendChild(openBtn);
+        openBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
 
         const downloadBtn = document.createElement("button");
         downloadBtn.type = "button";
-        downloadBtn.className = "chat-msg-action";
-        downloadBtn.textContent = "Скачать";
+        downloadBtn.className = "chat-file-download";
+        downloadBtn.setAttribute("aria-label", "Скачать файл");
+        downloadBtn.title = "Скачать";
+        downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 18h14" /></svg>';
         downloadBtn.addEventListener("click", async () => {
-          const blob = await api.downloadAttachmentBlob(chatId, attachment.id);
-          if (!blob) return;
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = attachment.fileName || "attachment";
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          URL.revokeObjectURL(url);
+          await downloadAttachmentToFile(chatId, attachment, "attachment");
         });
         downloadBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
-        actions.appendChild(downloadBtn);
 
-        card.append(meta, actions);
+        fileEntry.append(openBtn, downloadBtn);
+        card.appendChild(fileEntry);
       }
       wrap.appendChild(card);
     });
@@ -2613,6 +3465,11 @@ export const createWorkspaceChatController = (deps = {}) => {
       row.className = "chat-msg-row";
       const item = document.createElement("article");
       item.className = "chat-msg";
+      const messageId = Number(message?.id);
+      if (Number.isFinite(messageId) && messageId > 0) {
+        row.dataset.messageId = String(messageId);
+        item.dataset.messageId = String(messageId);
+      }
       item.addEventListener("contextmenu", (event) => {
         event.preventDefault();
         openMessageContextMenu(event, chatId, message);
@@ -2642,10 +3499,20 @@ export const createWorkspaceChatController = (deps = {}) => {
         item.classList.add("is-own");
       }
       const isOwnMessage = Number.isFinite(actorUserId) && Number(message.senderUserId) === actorUserId;
+      const attachments = getMessageAttachments(message?.id);
+      const isImageMessage = Number(message.kind) === 3 && !message.deletedAtUtc;
+      const hasVoiceAttachment = attachments.some((attachment) => isVoiceContentType(attachment?.contentType));
+      const isAudioMessage = (Number(message.kind) === 4 || hasVoiceAttachment) && !message.deletedAtUtc;
       row.classList.toggle("is-own", isOwnMessage);
       row.classList.toggle("is-avatar-spaced", shouldReserveAvatarSlot && !showSenderAvatar);
       if (message.deletedAtUtc) {
         item.classList.add("is-deleted");
+      }
+      if (isImageMessage) {
+        item.classList.add("is-image-message");
+      }
+      if (isAudioMessage) {
+        item.classList.add("is-audio-message");
       }
       if (isSelectionMode() && canSelectMessage(message)) {
         item.classList.add("is-selection-mode");
@@ -2694,7 +3561,9 @@ export const createWorkspaceChatController = (deps = {}) => {
         item.appendChild(refs);
       }
 
-      const shouldRenderBody = message.deletedAtUtc || Number(message.kind) !== 4;
+      const messageKind = Number(message.kind);
+      const shouldHideFileCaption = messageKind === 2 && attachments.length > 0;
+      const shouldRenderBody = message.deletedAtUtc || (messageKind !== 3 && messageKind !== 4 && !shouldHideFileCaption);
       let body = null;
       if (shouldRenderBody) {
         body = document.createElement("div");
@@ -3015,7 +3884,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const notifyTyping = () => {
     const activeChatId = store.getActiveChatId();
     if (!activeChatId || store.isUsingMockData()) return;
-    const currentText = normalizeToken(chatShellInput instanceof HTMLInputElement ? chatShellInput.value : "");
+    const currentText = normalizeToken(chatShellInput instanceof HTMLTextAreaElement ? chatShellInput.value : "");
     if (!currentText) {
       stopTyping();
       return;
@@ -3113,6 +3982,33 @@ export const createWorkspaceChatController = (deps = {}) => {
     updateHeader(store.getChatById(activeChatId));
   };
 
+  const persistUserSettingsForActiveChat = async () => {
+    const activeChatId = store.getActiveChatId();
+    const chat = store.getChatById(activeChatId);
+    if (!activeChatId || !chat) return false;
+
+    const nextPreference = {
+      isMuted: chatSettingsMuted instanceof HTMLInputElement ? chatSettingsMuted.checked : false,
+      soundEnabled: true,
+      backgroundImageKey: null
+    };
+
+    const savedPreference = store.isUsingMockData()
+      ? nextPreference
+      : await api.updatePreferences(activeChatId, nextPreference);
+
+    if (!savedPreference && !store.isUsingMockData()) {
+      return false;
+    }
+
+    setPreference(activeChatId, savedPreference || nextPreference);
+    setStoredUiSetting(activeChatId, {
+      suppressActiveSound: chatSettingsSkipActive instanceof HTMLInputElement ? chatSettingsSkipActive.checked : true
+    });
+
+    return true;
+  };
+
   const saveChatSettings = async () => {
     const activeChatId = store.getActiveChatId();
     const chat = store.getChatById(activeChatId);
@@ -3126,19 +4022,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     syncSettingsPanel();
 
     const permissions = getCurrentChatPermissions();
-    const nextPreference = {
-      isMuted: chatSettingsMuted instanceof HTMLInputElement ? chatSettingsMuted.checked : false,
-      soundEnabled: true,
-      backgroundImageKey: null
-    };
-
-    const savedPreference = store.isUsingMockData()
-      ? nextPreference
-      : await api.updatePreferences(activeChatId, nextPreference);
-
-    if (savedPreference) {
-      setPreference(activeChatId, savedPreference);
-    }
+    await persistUserSettingsForActiveChat();
 
     setStoredUiSetting(activeChatId, {
       suppressActiveSound: chatSettingsSkipActive instanceof HTMLInputElement ? chatSettingsSkipActive.checked : true,
@@ -3165,6 +4049,54 @@ export const createWorkspaceChatController = (deps = {}) => {
     syncSettingsPanel();
   };
 
+  const deleteGroupChatFromSettings = async () => {
+    const activeChatId = store.getActiveChatId();
+    const chat = store.getChatById(activeChatId);
+    if (!activeChatId || !chat || !isGroupChat(chat)) return;
+
+    const permissions = getCurrentChatPermissions();
+    if (!permissions.canDeleteGroup) return;
+
+    const confirmed = window.confirm(`Удалить группу \"${chat?.title || "Группа"}\"? Это действие нельзя отменить.`);
+    if (!confirmed) {
+      return;
+    }
+
+    settingsSaving = true;
+    syncSettingsPanel();
+
+    const deleted = store.isUsingMockData()
+      ? true
+      : await api.deleteChat(activeChatId);
+
+    settingsSaving = false;
+
+    if (!deleted) {
+      syncSettingsPanel();
+      return;
+    }
+
+    const key = String(activeChatId || "").trim();
+    unreadByChatId.delete(key);
+    readStateByChatId.delete(key);
+    typingByChatId.delete(key);
+    preferencesByChatId.delete(key);
+    modalMembersByChatId.delete(key);
+    modalAttachmentsByChatId.delete(key);
+    messageRenderWindowByChatId.delete(key);
+    pendingMessageRenderByChatId.delete(key);
+
+    store.setChats(store.getChats().filter((item) => toChatId(item?.id) !== key));
+    store.setActiveChatId(null);
+    closeSettingsModal();
+    clearComposerIntent();
+    closeMessageContextMenu();
+    renderRailList();
+    showChatPlaceholder("Выберите чат", "Диалог внутри проекта", "Выберите чат слева, чтобы открыть диалог.");
+    updateHeader(null);
+    syncComposerUi();
+  };
+
   const markActiveChatAsRead = async () => {
     if (store.isUsingMockData()) return;
     const activeChatId = store.getActiveChatId();
@@ -3182,8 +4114,26 @@ export const createWorkspaceChatController = (deps = {}) => {
     await api.markAsRead(activeChatId, lastMessageId);
   };
 
+  const focusFirstUnreadInActiveChat = async (options = {}) => {
+    const activeChatId = store.getActiveChatId();
+    if (!activeChatId) return false;
+
+    const focused = focusFirstUnreadMessage(activeChatId);
+    if (!focused && options?.fallbackToBottom !== false) {
+      scrollMessagesToBottom();
+    }
+
+    if (options?.markAsRead !== false) {
+      await markActiveChatAsRead();
+    }
+
+    return focused;
+  };
+
   const loadMessages = async (chatId, options = {}) => {
     const appendOlder = Boolean(options.appendOlder);
+    const skipInitialScrollBottom = Boolean(options.skipInitialScrollBottom);
+    const skipInitialMarkAsRead = Boolean(options.skipInitialMarkAsRead);
     const current = store.getMessages(chatId);
     const oldestMessage = current.length ? current[0] : null;
     const beforeMessageId = appendOlder ? Number(oldestMessage?.id) : null;
@@ -3215,12 +4165,12 @@ export const createWorkspaceChatController = (deps = {}) => {
       stickToBottom: !appendOlder,
       prependCount: appendOlder ? normalized.length : 0
     });
-    if (!appendOlder) {
+    if (!appendOlder && !skipInitialScrollBottom) {
       scrollMessagesToBottom();
     }
     renderRailList();
     void loadAttachmentsForMessages(chatId, store.getMessages(chatId), { stickToBottom: !appendOlder });
-    if (!appendOlder) {
+    if (!appendOlder && !skipInitialMarkAsRead) {
       await markActiveChatAsRead();
     }
     return true;
@@ -3264,15 +4214,18 @@ export const createWorkspaceChatController = (deps = {}) => {
     showChatPlaceholder("Демо-режим чатов", "REST fallback", "Откройте любой чат слева: доступен локальный макет диалога.");
   };
 
-  const openChat = async (chatId) => {
+  const openChat = async (chatId, options = {}) => {
     const targetId = toChatId(chatId);
     if (!targetId || !store.isFeatureEnabled()) return;
+    const focusFirstUnread = options?.focusFirstUnread === true;
+    const deferUnreadFocus = options?.deferUnreadFocus === true;
 
     const chat = store.getChatById(targetId);
     if (!chat) return;
 
     const previousChatId = store.getActiveChatId();
     if (previousChatId && previousChatId !== targetId) {
+      clearActiveAudioPlayback({ pause: true, reset: false, hide: true });
       stopTyping();
       resetVoiceRecorder();
       clearSelectedMessages();
@@ -3299,37 +4252,57 @@ export const createWorkspaceChatController = (deps = {}) => {
       chatShellMessages.innerHTML = "";
     }
 
-    onOpenChat(chat);
+    onOpenChat(chat, options);
 
     if (store.isUsingMockData()) {
       await loadPreferencesForChat(targetId);
       await loadReadStatesForChat(targetId);
       renderMessages(targetId, { stickToBottom: true });
-      scrollMessagesToBottom();
+      if (!focusFirstUnread || !focusFirstUnreadMessage(targetId)) {
+        scrollMessagesToBottom();
+      }
       renderRailList();
       renderRealtimePresence();
       syncComposerUi();
-      if (chatShellInput instanceof HTMLInputElement && composerState.mode !== "forward" && composerState.mode !== "bulk-forward") {
+      if (chatShellInput instanceof HTMLTextAreaElement && composerState.mode !== "forward" && composerState.mode !== "bulk-forward") {
+        resizeComposerInput();
         chatShellInput.focus();
       }
       return;
     }
 
+    if (focusFirstUnread) {
+      await loadReadStatesForChat(targetId);
+    }
+
     isLoadingMessages = true;
     syncComposerUi();
-    const loaded = await loadMessages(targetId);
+    const loaded = await loadMessages(targetId, {
+      skipInitialScrollBottom: focusFirstUnread,
+      skipInitialMarkAsRead: focusFirstUnread
+    });
     isLoadingMessages = false;
     syncComposerUi();
     renderRealtimePresence();
     await loadPreferencesForChat(targetId);
-    await loadReadStatesForChat(targetId);
+    if (!focusFirstUnread) {
+      await loadReadStatesForChat(targetId);
+    }
+
+    if (loaded && focusFirstUnread && !deferUnreadFocus) {
+      if (!focusFirstUnreadMessage(targetId)) {
+        scrollMessagesToBottom();
+      }
+      await markActiveChatAsRead();
+    }
 
     if (!loaded && previousChatId && previousChatId !== targetId) {
       store.setActiveChatId(previousChatId);
       renderRailList();
     }
 
-    if (chatShellInput instanceof HTMLInputElement && composerState.mode !== "forward" && composerState.mode !== "bulk-forward") {
+    if (chatShellInput instanceof HTMLTextAreaElement && composerState.mode !== "forward" && composerState.mode !== "bulk-forward") {
+      resizeComposerInput();
       chatShellInput.focus();
     }
   };
@@ -3398,6 +4371,60 @@ export const createWorkspaceChatController = (deps = {}) => {
     await openChat(normalized.id);
   };
 
+  const createGroupChat = async (title, options = {}) => {
+    const workspaceId = Number(getWorkspaceId());
+    if (!Number.isFinite(workspaceId) || workspaceId <= 0) {
+      return null;
+    }
+
+    const safeTitle = normalizeToken(title);
+    if (!safeTitle) {
+      return null;
+    }
+
+    const openAfterCreate = options?.open !== false;
+
+    if (store.isUsingMockData()) {
+      const mockId = `mock-group-${Date.now()}`;
+      const chat = {
+        id: mockId,
+        type: 2,
+        title: safeTitle,
+        taskId: null,
+        updatedAtUtc: new Date().toISOString()
+      };
+      store.upsertChat(chat);
+      store.setMessages(mockId, [], { hasMore: false });
+      renderRailList();
+      if (openAfterCreate) {
+        const openOptions = options?.openOptions && typeof options.openOptions === "object"
+          ? options.openOptions
+          : {};
+        await openChat(mockId, openOptions);
+      }
+      return chat;
+    }
+
+    const payload = await api.createGroupChat(workspaceId, safeTitle);
+    const normalized = normalizeChatRoom(payload || {});
+    if (!normalized?.id) {
+      return null;
+    }
+
+    store.upsertChat(normalized);
+    await realtimeClient.joinChat(normalized.id);
+    renderRailList();
+
+    if (openAfterCreate) {
+      const openOptions = options?.openOptions && typeof options.openOptions === "object"
+        ? options.openOptions
+        : {};
+      await openChat(normalized.id, openOptions);
+    }
+
+    return normalized;
+  };
+
   const openDirectChatByUser = async (userId) => {
     await openDirectChat(userId);
   };
@@ -3419,7 +4446,10 @@ export const createWorkspaceChatController = (deps = {}) => {
 
     const openAfterEnsure = options?.open !== false;
     if (openAfterEnsure) {
-      await openChat(normalized.id);
+      const openOptions = options?.openOptions && typeof options.openOptions === "object"
+        ? options.openOptions
+        : {};
+      await openChat(normalized.id, openOptions);
     }
 
     return normalized;
@@ -3766,7 +4796,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const applyMockSend = () => {
     const activeChatId = store.getActiveChatId();
     if (!activeChatId) return false;
-    const body = normalizeToken(chatShellInput instanceof HTMLInputElement ? chatShellInput.value : "");
+    const body = normalizeToken(chatShellInput instanceof HTMLTextAreaElement ? chatShellInput.value : "");
     const actorIdRaw = Number(getActorUserId());
     const actorId = Number.isFinite(actorIdRaw) && actorIdRaw > 0 ? actorIdRaw : 1;
 
@@ -3829,13 +4859,14 @@ export const createWorkspaceChatController = (deps = {}) => {
     const activeChatId = store.getActiveChatId();
     if (!activeChatId || !store.isFeatureEnabled()) return;
 
-    const body = normalizeToken(chatShellInput instanceof HTMLInputElement ? chatShellInput.value : "");
+    const body = normalizeToken(chatShellInput instanceof HTMLTextAreaElement ? chatShellInput.value : "");
     if (!body && composerState.mode !== "forward") return;
 
     if (store.isUsingMockData()) {
       const applied = applyMockSend();
-      if (applied && chatShellInput instanceof HTMLInputElement && composerState.mode !== "forward") {
+      if (applied && chatShellInput instanceof HTMLTextAreaElement && composerState.mode !== "forward") {
         chatShellInput.value = "";
+        resizeComposerInput();
         chatShellInput.focus();
       }
       return;
@@ -3963,8 +4994,9 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
 
     clearComposerIntent();
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.value = "";
+      resizeComposerInput();
       chatShellInput.focus();
     }
     syncComposerUi();
@@ -4038,6 +5070,7 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const activateTasks = () => {
     store.setActiveChatId(null);
+    clearActiveAudioPlayback({ pause: true, reset: false, hide: true });
     clearComposerIntent();
     clearSelectedMessages();
     resetVoiceRecorder();
@@ -4093,39 +5126,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const handleResizeMove = (event) => {
     if (!dragState) return;
     const deltaX = event.clientX - dragState.startX;
-    const requestedWidth = clampChatRailWidth(dragState.startWidth + deltaX);
-    const collapseTriggerWidth = CHAT_RAIL_EXPANDED_THRESHOLD - CHAT_RAIL_COLLAPSE_DRAG_OFFSET;
-    const expandTriggerWidth = CHAT_RAIL_MIN_WIDTH + CHAT_RAIL_EXPAND_DRAG_OFFSET;
-
-    if (dragState.startWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
-      if (requestedWidth <= expandTriggerWidth) {
-        setRailWidth(CHAT_RAIL_MIN_WIDTH, true);
-      } else {
-        setRailWidth(Math.max(CHAT_RAIL_EXPANDED_THRESHOLD, requestedWidth), true);
-      }
-      return;
-    }
-
-    if (dragState.startWidth > CHAT_RAIL_EXPANDED_THRESHOLD && requestedWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
-      dragState.thresholdHold = true;
-      setRailWidth(CHAT_RAIL_EXPANDED_THRESHOLD, true);
-      return;
-    }
-
-    if ((dragState.thresholdHold || dragState.startWidth === CHAT_RAIL_EXPANDED_THRESHOLD) && requestedWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
-      if (requestedWidth <= collapseTriggerWidth) {
-        setRailWidth(CHAT_RAIL_MIN_WIDTH, true);
-      } else {
-        setRailWidth(CHAT_RAIL_EXPANDED_THRESHOLD, true);
-      }
-      return;
-    }
-
-    if (requestedWidth >= CHAT_RAIL_EXPANDED_THRESHOLD) {
-      dragState.thresholdHold = false;
-    }
-
-    setRailWidth(requestedWidth, true);
+    setRailWidth(dragState.startWidth + deltaX, true);
   };
 
   const startResize = (event) => {
@@ -4133,7 +5134,6 @@ export const createWorkspaceChatController = (deps = {}) => {
     dragState = {
       startX: event.clientX,
       startWidth: currentRailWidth,
-      thresholdHold: false,
       pointerId: event.pointerId
     };
     if (chatRailResizer instanceof HTMLElement && Number.isFinite(event.pointerId)) {
@@ -4153,23 +5153,11 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (!event) return;
     if (event.key === "ArrowLeft") {
       event.preventDefault();
-      if (currentRailWidth > CHAT_RAIL_EXPANDED_THRESHOLD) {
-        setRailWidth(Math.max(CHAT_RAIL_EXPANDED_THRESHOLD, currentRailWidth - 16), true);
-        return;
-      }
-      if (currentRailWidth === CHAT_RAIL_EXPANDED_THRESHOLD) {
-        setRailWidth(CHAT_RAIL_MIN_WIDTH, true);
-        return;
-      }
       setRailWidth(currentRailWidth - 16, true);
       return;
     }
     if (event.key === "ArrowRight") {
       event.preventDefault();
-      if (currentRailWidth < CHAT_RAIL_EXPANDED_THRESHOLD) {
-        setRailWidth(CHAT_RAIL_EXPANDED_THRESHOLD, true);
-        return;
-      }
       setRailWidth(currentRailWidth + 16, true);
       return;
     }
@@ -4224,7 +5212,15 @@ export const createWorkspaceChatController = (deps = {}) => {
       chatSettingsModalAvatar.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        openProfileFromSettingsModal();
+        const chat = store.getChatById(store.getActiveChatId());
+        if (isDirectChat(chat)) {
+          openProfileFromSettingsModal();
+          return;
+        }
+
+        if (isGroupChat(chat)) {
+          chatSettingsAvatarInput?.click();
+        }
       });
     }
 
@@ -4266,6 +5262,26 @@ export const createWorkspaceChatController = (deps = {}) => {
       });
     }
 
+    if (chatSettingsDeleteBtn instanceof HTMLButtonElement) {
+      chatSettingsDeleteBtn.addEventListener("click", () => {
+        void deleteGroupChatFromSettings();
+      });
+    }
+
+    if (chatSettingsMuted instanceof HTMLInputElement) {
+      chatSettingsMuted.addEventListener("change", () => {
+        if (!isSettingsOpen || settingsSaving) return;
+        void persistUserSettingsForActiveChat();
+      });
+    }
+
+    if (chatSettingsSkipActive instanceof HTMLInputElement) {
+      chatSettingsSkipActive.addEventListener("change", () => {
+        if (!isSettingsOpen || settingsSaving) return;
+        void persistUserSettingsForActiveChat();
+      });
+    }
+
     if (chatSettingsAttachmentTabs instanceof HTMLElement) {
       chatSettingsAttachmentTabs.querySelectorAll("[data-attachment-tab]").forEach((button) => {
         button.addEventListener("click", () => {
@@ -4301,6 +5317,34 @@ export const createWorkspaceChatController = (deps = {}) => {
       });
     }
 
+    if (chatSettingsAvatarInput instanceof HTMLInputElement) {
+      chatSettingsAvatarInput.addEventListener("change", async () => {
+        const file = chatSettingsAvatarInput.files?.[0] || null;
+        chatSettingsAvatarInput.value = "";
+        if (!file) return;
+
+        const activeChatId = store.getActiveChatId();
+        const chat = store.getChatById(activeChatId);
+        if (!activeChatId || !isGroupChat(chat)) {
+          return;
+        }
+
+        const dataUrl = await resizeImageToDataUrl(file);
+        const avatarDataUrl = String(dataUrl || "").trim();
+        if (!avatarDataUrl) {
+          return;
+        }
+
+        setStoredUiSetting(activeChatId, {
+          chatGroupAvatarDataUrl: avatarDataUrl
+        });
+
+        renderRailList();
+        updateHeader(store.getChatById(activeChatId) || chat);
+        syncSettingsPanel();
+      });
+    }
+
     if (chatShellForm instanceof HTMLFormElement) {
       chatShellForm.addEventListener("submit", (event) => {
         event.preventDefault();
@@ -4308,7 +5352,7 @@ export const createWorkspaceChatController = (deps = {}) => {
       });
     }
 
-    if (chatShellInput instanceof HTMLInputElement) {
+    if (chatShellInput instanceof HTMLTextAreaElement) {
       chatShellInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
@@ -4316,6 +5360,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         }
       });
       chatShellInput.addEventListener("input", () => {
+        resizeComposerInput();
         if (composerState.mode === "edit") {
           composerState = {
             ...composerState,
@@ -4387,6 +5432,9 @@ export const createWorkspaceChatController = (deps = {}) => {
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
+        if (closeImageViewer()) {
+          return;
+        }
         closeMessageContextMenu();
         closeSettingsModal();
       }
@@ -4460,6 +5508,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     renderUploadQueue();
     setVoiceStatus("Голосовые сообщения готовы");
     syncJumpBottomButton();
+    resizeComposerInput();
     syncComposerUi();
   };
 
@@ -4468,7 +5517,10 @@ export const createWorkspaceChatController = (deps = {}) => {
     refreshChats,
     openChat,
     openDirectChatByUser,
+    createGroupChat,
+    openActiveChatSettings,
     ensureTaskChat,
+    focusFirstUnreadInActiveChat,
     activateTasks,
     clearWorkspaceData,
     syncMembers
