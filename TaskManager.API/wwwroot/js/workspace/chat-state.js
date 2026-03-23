@@ -1,4 +1,4 @@
-export const CHAT_RAIL_MIN_WIDTH = 92;
+export const CHAT_RAIL_MIN_WIDTH = 78;
 export const CHAT_RAIL_MAX_WIDTH = 345;
 export const CHAT_RAIL_DEFAULT_WIDTH = 345;
 export const CHAT_RAIL_EXPANDED_THRESHOLD = 225;

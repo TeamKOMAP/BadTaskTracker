@@ -48,7 +48,9 @@ const requiredIds = [
   "chat-shell-send",
   "chat-shell-settings-btn",
   "chat-shell-load-more",
-  "chat-shell-voice-status"
+  "chat-shell-voice-status",
+  "profile-message-btn",
+  "profile-notifications-btn"
 ];
 
 const missingIds = requiredIds.filter((id) => !htmlIds.has(id));
@@ -59,6 +61,7 @@ assert(mainSource.includes("workspaceContent.classList.toggle(\"is-chat-active\"
 assert(mainSource.includes("workspaceMain.classList.toggle(\"is-chat-active\", showChat)"), "workspace-main chat toggle is missing");
 assert(mainSource.includes("appShell.classList.toggle(\"is-chat-active\", showChat)"), "app-shell chat toggle is missing");
 assert(mainSource.includes("appShell.classList.toggle(\"is-panel-open\", open)"), "drawer panel toggle is missing");
+assert(mainSource.includes("isSelf: true"), "main.js should explicitly open self profile with hidden quick chat actions");
 
 assert(/\.topbar\s*,\s*\.workspace-body\s*\{/.test(workspaceCss), "Compression rule for .topbar and .workspace-body is missing");
 
@@ -75,6 +78,7 @@ assert(chatCss.includes("grid-auto-rows: 1fr;"), "chat.css is missing equal-heig
 assert(chatCss.includes(".chat-rail.is-docked-tabs .chat-rail-home"), "chat.css is missing full-width home button rule in docked mode");
 assert(chatCss.includes(".chat-rail.is-docked-tabs .chat-rail-tab.is-active"), "chat.css is missing selected state for docked chat folders");
 assert(chatCss.includes(".chat-rail.is-avatar-only .chat-rail-meta"), "chat.css is missing avatar-only compact chat list mode");
+assert(chatCss.includes(".chat-image-viewer"), "chat.css is missing in-app image viewer styles");
 
 assert(chatControllerSource.includes("CHAT_MESSAGE_WINDOW_SIZE"), "chat/controller.js is missing message window constant");
 assert(chatControllerSource.includes("scheduleRenderMessages"), "chat/controller.js is missing render scheduling");
@@ -84,5 +88,8 @@ assert(chatControllerSource.includes("is-docked-tabs"), "chat/controller.js does
 assert(chatControllerSource.includes("classList.remove(\"is-icons-only\")"), "chat/controller.js should remove legacy icons-only auto mode");
 assert(chatControllerSource.includes("const dockedTabs = true"), "chat/controller.js should keep tabs docked for all rail widths");
 assert(chatControllerSource.includes("CHAT_RAIL_AVATAR_ONLY_THRESHOLD"), "chat/controller.js is missing avatar-only threshold for collapsed rail");
+assert(chatControllerSource.includes("openImageViewer"), "chat/controller.js is missing in-app image viewer open handler");
+assert(chatControllerSource.includes("downloadAttachmentToFile"), "chat/controller.js is missing unified attachment download helper");
+assert(chatControllerSource.includes("CHAT_IMAGE_VIEWER_MIN_SCALE"), "chat/controller.js is missing image viewer zoom limits");
 
 console.log("[workspace-smoke] OK: drawer/chat contracts are valid.");

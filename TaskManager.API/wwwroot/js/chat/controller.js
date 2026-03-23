@@ -7,7 +7,7 @@ import {
   isChatRailExpanded,
   readStoredChatRailWidth,
   storeChatRailWidth
-} from "../workspace/chat-state.js?v=chatstate6";
+} from "../workspace/chat-state.js?v=chatstate7";
 import { createChatApi } from "./api.js?v=chat5";
 import { createChatStore } from "./store.js?v=chat4";
 import { createChatSignalRClient } from "./signalr-client.js?v=chatrt1";
@@ -20,6 +20,9 @@ const CHAT_TOP_THRESHOLD_PX = 56;
 const CHAT_MESSAGE_WINDOW_SIZE = 140;
 const CHAT_MESSAGE_WINDOW_EXPAND_STEP = 70;
 const CHAT_RAIL_AVATAR_ONLY_THRESHOLD = Math.min(CHAT_RAIL_EXPANDED_THRESHOLD - 1, CHAT_RAIL_MIN_WIDTH + 28);
+const CHAT_IMAGE_VIEWER_MIN_SCALE = 0.75;
+const CHAT_IMAGE_VIEWER_MAX_SCALE = 4;
+const CHAT_IMAGE_VIEWER_SCALE_STEP = 0.2;
 
 const CHAT_TYPE_LABELS = {
   1: "General",
@@ -121,7 +124,7 @@ const getMessageBodyForFile = (file, kind) => {
     return name || "Голосовое сообщение";
   }
   if (kind === 3) {
-    return name || "Изображение";
+    return "Изображение";
   }
   return name || "Файл";
 };
@@ -500,6 +503,16 @@ export const createWorkspaceChatController = (deps = {}) => {
   let typingStopTimeoutId = 0;
   let isTypingSent = false;
   let messageRenderRafId = 0;
+  let imageViewerRoot = null;
+  let imageViewerImage = null;
+  let imageViewerMenu = null;
+  let imageViewerMenuBtn = null;
+  let imageViewerZoomOutBtn = null;
+  let imageViewerZoomInBtn = null;
+  let imageViewerZoomLabel = null;
+  let imageViewerScale = 1;
+  let imageViewerChatId = "";
+  let imageViewerAttachment = null;
 
   const realtimeClient = createChatSignalRClient({
     onMessageCreated: (payload) => {
@@ -1343,10 +1356,248 @@ export const createWorkspaceChatController = (deps = {}) => {
   };
 
   const clearAttachmentState = () => {
+    closeImageViewer();
     attachmentsByMessageId.clear();
     attachmentLoadingByMessageId.clear();
     pendingVoiceUploadsByMessageId.clear();
     revokeAttachmentUrls();
+  };
+
+  const downloadAttachmentToFile = async (chatId, attachment, fallbackName = "attachment") => {
+    const normalizedChatId = toChatId(chatId);
+    const attachmentId = toChatId(attachment?.id);
+    if (!normalizedChatId || !attachmentId) return;
+    const blob = await api.downloadAttachmentBlob(normalizedChatId, attachmentId);
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = normalizeToken(attachment?.fileName) || fallbackName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const clampImageViewerScale = (value) => {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 1;
+    return Math.max(CHAT_IMAGE_VIEWER_MIN_SCALE, Math.min(CHAT_IMAGE_VIEWER_MAX_SCALE, numeric));
+  };
+
+  const syncImageViewerZoomUi = () => {
+    if (imageViewerImage instanceof HTMLImageElement) {
+      imageViewerImage.style.transform = `scale(${imageViewerScale.toFixed(3)})`;
+    }
+    if (imageViewerZoomLabel instanceof HTMLElement) {
+      imageViewerZoomLabel.textContent = `${Math.round(imageViewerScale * 100)}%`;
+    }
+    if (imageViewerZoomOutBtn instanceof HTMLButtonElement) {
+      imageViewerZoomOutBtn.disabled = imageViewerScale <= CHAT_IMAGE_VIEWER_MIN_SCALE;
+    }
+    if (imageViewerZoomInBtn instanceof HTMLButtonElement) {
+      imageViewerZoomInBtn.disabled = imageViewerScale >= CHAT_IMAGE_VIEWER_MAX_SCALE;
+    }
+  };
+
+  const setImageViewerMenuOpen = (open) => {
+    const visible = Boolean(open);
+    if (imageViewerMenu instanceof HTMLElement) {
+      imageViewerMenu.hidden = !visible;
+    }
+    if (imageViewerMenuBtn instanceof HTMLButtonElement) {
+      imageViewerMenuBtn.setAttribute("aria-expanded", visible ? "true" : "false");
+    }
+  };
+
+  const closeImageViewer = () => {
+    if (!(imageViewerRoot instanceof HTMLElement) || imageViewerRoot.hidden) return false;
+    setImageViewerMenuOpen(false);
+    imageViewerRoot.hidden = true;
+    imageViewerScale = 1;
+    imageViewerChatId = "";
+    imageViewerAttachment = null;
+    if (imageViewerImage instanceof HTMLImageElement) {
+      imageViewerImage.removeAttribute("src");
+      imageViewerImage.style.removeProperty("transform");
+    }
+    document.body.classList.remove("is-chat-image-viewer-open");
+    return true;
+  };
+
+  const ensureImageViewer = () => {
+    if (imageViewerRoot instanceof HTMLElement) {
+      return;
+    }
+
+    const root = document.createElement("div");
+    root.className = "chat-image-viewer";
+    root.hidden = true;
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("aria-label", "Просмотр изображения");
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "chat-image-viewer-toolbar";
+
+    const zoomOutBtn = document.createElement("button");
+    zoomOutBtn.type = "button";
+    zoomOutBtn.className = "icon-btn chat-image-viewer-tool";
+    zoomOutBtn.setAttribute("aria-label", "Уменьшить");
+    zoomOutBtn.title = "Уменьшить";
+    zoomOutBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" /></svg>';
+
+    const zoomLabel = document.createElement("span");
+    zoomLabel.className = "chat-image-viewer-zoom-label";
+    zoomLabel.textContent = "100%";
+
+    const zoomInBtn = document.createElement("button");
+    zoomInBtn.type = "button";
+    zoomInBtn.className = "icon-btn chat-image-viewer-tool";
+    zoomInBtn.setAttribute("aria-label", "Увеличить");
+    zoomInBtn.title = "Увеличить";
+    zoomInBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12h12" /><path d="M12 6v12" /></svg>';
+
+    const menuWrap = document.createElement("div");
+    menuWrap.className = "chat-image-viewer-menu-wrap";
+
+    const menuBtn = document.createElement("button");
+    menuBtn.type = "button";
+    menuBtn.className = "icon-btn chat-image-viewer-tool";
+    menuBtn.setAttribute("aria-label", "Действия");
+    menuBtn.setAttribute("aria-expanded", "false");
+    menuBtn.title = "Действия";
+    menuBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="18" cy="12" r="1.8" /></svg>';
+
+    const menu = document.createElement("div");
+    menu.className = "chat-image-viewer-menu";
+    menu.hidden = true;
+
+    const downloadBtn = document.createElement("button");
+    downloadBtn.type = "button";
+    downloadBtn.className = "chat-image-viewer-menu-item";
+    downloadBtn.textContent = "Скачать";
+    menu.appendChild(downloadBtn);
+
+    menuWrap.append(menuBtn, menu);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.type = "button";
+    closeBtn.className = "icon-btn chat-image-viewer-tool";
+    closeBtn.setAttribute("aria-label", "Закрыть");
+    closeBtn.title = "Закрыть";
+    closeBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10" /><path d="M17 7L7 17" /></svg>';
+
+    toolbar.append(zoomOutBtn, zoomLabel, zoomInBtn, menuWrap, closeBtn);
+
+    const stage = document.createElement("div");
+    stage.className = "chat-image-viewer-stage";
+
+    const image = document.createElement("img");
+    image.className = "chat-image-viewer-image";
+    image.alt = "Изображение";
+    image.decoding = "async";
+    image.loading = "eager";
+    stage.appendChild(image);
+
+    root.append(toolbar, stage);
+
+    toolbar.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target && !target.closest(".chat-image-viewer-menu-wrap")) {
+        setImageViewerMenuOpen(false);
+      }
+    });
+
+    image.addEventListener("click", (event) => {
+      setImageViewerMenuOpen(false);
+      event.stopPropagation();
+    });
+
+    root.addEventListener("click", () => {
+      closeImageViewer();
+    });
+
+    root.addEventListener("wheel", (event) => {
+      if (root.hidden) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest(".chat-image-viewer-toolbar")) {
+        return;
+      }
+      event.preventDefault();
+      const delta = event.deltaY < 0 ? CHAT_IMAGE_VIEWER_SCALE_STEP : -CHAT_IMAGE_VIEWER_SCALE_STEP;
+      imageViewerScale = clampImageViewerScale(imageViewerScale + delta);
+      syncImageViewerZoomUi();
+    }, { passive: false });
+
+    zoomOutBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      imageViewerScale = clampImageViewerScale(imageViewerScale - CHAT_IMAGE_VIEWER_SCALE_STEP);
+      syncImageViewerZoomUi();
+    });
+
+    zoomInBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      imageViewerScale = clampImageViewerScale(imageViewerScale + CHAT_IMAGE_VIEWER_SCALE_STEP);
+      syncImageViewerZoomUi();
+    });
+
+    menuBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const isOpen = imageViewerMenu instanceof HTMLElement ? !imageViewerMenu.hidden : false;
+      setImageViewerMenuOpen(!isOpen);
+    });
+
+    downloadBtn.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setImageViewerMenuOpen(false);
+      if (!imageViewerAttachment || !imageViewerChatId) return;
+      await downloadAttachmentToFile(imageViewerChatId, imageViewerAttachment, "image");
+    });
+
+    closeBtn.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      closeImageViewer();
+    });
+
+    document.body.appendChild(root);
+
+    imageViewerRoot = root;
+    imageViewerImage = image;
+    imageViewerMenu = menu;
+    imageViewerMenuBtn = menuBtn;
+    imageViewerZoomOutBtn = zoomOutBtn;
+    imageViewerZoomInBtn = zoomInBtn;
+    imageViewerZoomLabel = zoomLabel;
+    imageViewerScale = 1;
+    syncImageViewerZoomUi();
+  };
+
+  const openImageViewer = async (chatId, attachment) => {
+    const normalizedChatId = toChatId(chatId);
+    if (!normalizedChatId || !attachment?.id) return;
+    const url = await ensureAttachmentMediaUrl(normalizedChatId, attachment);
+    if (!url) return;
+
+    ensureImageViewer();
+    if (!(imageViewerRoot instanceof HTMLElement) || !(imageViewerImage instanceof HTMLImageElement)) {
+      return;
+    }
+
+    imageViewerChatId = normalizedChatId;
+    imageViewerAttachment = attachment;
+    imageViewerScale = 1;
+    imageViewerImage.src = url;
+    imageViewerImage.alt = normalizeToken(attachment?.fileName) || "Изображение";
+    imageViewerRoot.hidden = false;
+    document.body.classList.add("is-chat-image-viewer-open");
+    setImageViewerMenuOpen(false);
+    syncImageViewerZoomUi();
   };
 
   const clearRealtimeState = () => {
@@ -1851,7 +2102,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (!pending) return false;
 
     const card = document.createElement("div");
-    card.className = "chat-attachment-card is-uploading-voice";
+    card.className = "chat-attachment-card is-uploading-voice is-audio";
 
     const player = document.createElement("div");
     player.className = "chat-voice-player is-uploading";
@@ -2309,10 +2560,27 @@ export const createWorkspaceChatController = (deps = {}) => {
       const isImage = isImageContentType(attachment.contentType);
       const isVoice = isVoiceContentType(attachment.contentType);
 
+      if (isVoice) {
+        card.classList.add("is-audio");
+      }
+
       if (isImage) {
+        card.classList.add("is-image");
         const img = document.createElement("img");
         img.className = "chat-attachment-preview";
         img.alt = attachment.fileName;
+        img.loading = "lazy";
+        img.decoding = "async";
+
+        const applyImageRatio = () => {
+          const width = Number(img.naturalWidth);
+          const height = Number(img.naturalHeight);
+          if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+          card.style.setProperty("--chat-image-ratio", `${width} / ${height}`);
+        };
+
+        img.addEventListener("load", applyImageRatio);
+
         const existing = getAttachmentUrl(attachment.id);
         if (existing) {
           img.src = existing;
@@ -2331,12 +2599,11 @@ export const createWorkspaceChatController = (deps = {}) => {
             }
           });
         }
-        img.addEventListener("click", () => {
-          void ensureAttachmentMediaUrl(chatId, attachment).then((url) => {
-            if (!url) return;
-            window.open(url, "_blank", "noopener,noreferrer");
-          });
+        img.addEventListener("click", (event) => {
+          suppressMessageSelectionEvent(event);
+          void openImageViewer(chatId, attachment);
         });
+        img.addEventListener("dblclick", suppressMessageSelectionEvent);
         card.appendChild(img);
       }
 
@@ -2412,16 +2679,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         downloadBtn.title = "Скачать";
         downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v10" /><path d="M8 10l4 4 4-4" /><path d="M5 18h14" /></svg>';
         downloadBtn.addEventListener("click", async () => {
-          const blob = await api.downloadAttachmentBlob(chatId, attachment.id);
-          if (!blob) return;
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = attachment.fileName || "voice-message";
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          URL.revokeObjectURL(url);
+          await downloadAttachmentToFile(chatId, attachment, "voice-message");
         });
         downloadBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
         actions.appendChild(downloadBtn);
@@ -2521,7 +2779,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         card.appendChild(player);
       }
 
-      if (!isVoice) {
+      if (!isVoice && !isImage) {
         const meta = document.createElement("div");
         meta.className = "chat-attachment-meta";
         const name = document.createElement("div");
@@ -2552,16 +2810,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         downloadBtn.className = "chat-msg-action";
         downloadBtn.textContent = "Скачать";
         downloadBtn.addEventListener("click", async () => {
-          const blob = await api.downloadAttachmentBlob(chatId, attachment.id);
-          if (!blob) return;
-          const url = URL.createObjectURL(blob);
-          const anchor = document.createElement("a");
-          anchor.href = url;
-          anchor.download = attachment.fileName || "attachment";
-          document.body.appendChild(anchor);
-          anchor.click();
-          anchor.remove();
-          URL.revokeObjectURL(url);
+          await downloadAttachmentToFile(chatId, attachment, "attachment");
         });
         downloadBtn.addEventListener("dblclick", suppressMessageSelectionEvent);
         actions.appendChild(downloadBtn);
@@ -2678,10 +2927,19 @@ export const createWorkspaceChatController = (deps = {}) => {
         item.classList.add("is-own");
       }
       const isOwnMessage = Number.isFinite(actorUserId) && Number(message.senderUserId) === actorUserId;
+      const isImageMessage = Number(message.kind) === 3 && !message.deletedAtUtc;
+      const hasVoiceAttachment = getMessageAttachments(message?.id).some((attachment) => isVoiceContentType(attachment?.contentType));
+      const isAudioMessage = (Number(message.kind) === 4 || hasVoiceAttachment) && !message.deletedAtUtc;
       row.classList.toggle("is-own", isOwnMessage);
       row.classList.toggle("is-avatar-spaced", shouldReserveAvatarSlot && !showSenderAvatar);
       if (message.deletedAtUtc) {
         item.classList.add("is-deleted");
+      }
+      if (isImageMessage) {
+        item.classList.add("is-image-message");
+      }
+      if (isAudioMessage) {
+        item.classList.add("is-audio-message");
       }
       if (isSelectionMode() && canSelectMessage(message)) {
         item.classList.add("is-selection-mode");
@@ -2730,7 +2988,8 @@ export const createWorkspaceChatController = (deps = {}) => {
         item.appendChild(refs);
       }
 
-      const shouldRenderBody = message.deletedAtUtc || Number(message.kind) !== 4;
+      const messageKind = Number(message.kind);
+      const shouldRenderBody = message.deletedAtUtc || (messageKind !== 3 && messageKind !== 4);
       let body = null;
       if (shouldRenderBody) {
         body = document.createElement("div");
@@ -4378,6 +4637,9 @@ export const createWorkspaceChatController = (deps = {}) => {
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
+        if (closeImageViewer()) {
+          return;
+        }
         closeMessageContextMenu();
         closeSettingsModal();
       }

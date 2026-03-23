@@ -43,6 +43,7 @@ export const createProfileModalsController = ({
   let profileReportsRequestSeq = 0;
   let profileDetailsRequestSeq = 0;
   let activeProfileMember = null;
+  let profileActionForcedHidden = false;
 
   const isProfileModalOpen = () => Boolean(profileModal && !profileModal.hasAttribute("hidden"));
   const isAvatarModalOpen = () => Boolean(avatarModal && !avatarModal.hasAttribute("hidden"));
@@ -51,6 +52,7 @@ export const createProfileModalsController = ({
     if (!isProfileModalOpen()) return false;
     profileModal.setAttribute("hidden", "");
     activeProfileMember = null;
+    profileActionForcedHidden = false;
     profileReportsRequestSeq += 1;
     return true;
   };
@@ -481,10 +483,11 @@ export const createProfileModalsController = ({
     applyAccountAvatarToElement(profileAvatarEl, profileAvatarTextEl, initials, avatarPath);
   };
 
-  const syncProfileActionButtonsState = (userIdValue) => {
+  const syncProfileActionButtonsState = (userIdValue, options = {}) => {
     const userId = Number(userIdValue);
     const actorId = typeof getActorUserId === "function" ? Number(getActorUserId()) : 0;
-    const hidden = !Number.isFinite(userId) || userId <= 0 || userId === actorId;
+    const forceHide = options?.forceHide === true;
+    const hidden = forceHide || !Number.isFinite(userId) || userId <= 0 || userId === actorId;
     [profileMessageBtn, profileNotificationsBtn, profileChatBtn].forEach((btn) => {
       if (!(btn instanceof HTMLButtonElement)) return;
       btn.hidden = hidden;
@@ -524,7 +527,7 @@ export const createProfileModalsController = ({
     };
   };
 
-  const openProfileModal = async (member) => {
+  const openProfileModal = async (member, options = {}) => {
     if (!profileModal) {
       const name = normalizeToken(member?.name) || "Пользователь";
       const email = normalizeToken(member?.email) || "-";
@@ -533,6 +536,7 @@ export const createProfileModalsController = ({
       return;
     }
 
+    profileActionForcedHidden = options?.isSelf === true;
     const id = Number(member?.id ?? member?.userId);
     applyProfileMemberToUi({
       id,
@@ -541,7 +545,7 @@ export const createProfileModalsController = ({
       role: normalizeRoleValue(member?.role),
       avatarPath: normalizeToken(member?.avatarPath)
     });
-    syncProfileActionButtonsState(id);
+    syncProfileActionButtonsState(id, { forceHide: profileActionForcedHidden });
 
     profileModal.removeAttribute("hidden");
     void renderProfileReports(activeProfileMember);
@@ -560,7 +564,7 @@ export const createProfileModalsController = ({
         return;
       }
       applyProfileMemberToUi(freshMember);
-      syncProfileActionButtonsState(freshMember.id);
+      syncProfileActionButtonsState(freshMember.id, { forceHide: profileActionForcedHidden });
       void renderProfileReports(activeProfileMember);
     }
   };
@@ -591,7 +595,7 @@ export const createProfileModalsController = ({
       await handler(userId);
       closeProfileModal();
     } finally {
-      syncProfileActionButtonsState(userId);
+      syncProfileActionButtonsState(userId, { forceHide: profileActionForcedHidden });
     }
   };
 

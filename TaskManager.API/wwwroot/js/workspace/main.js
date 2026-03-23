@@ -193,14 +193,14 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge9";
+import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge11";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf6";
 import { createTaskDetailController } from "./task-detail.js?v=perf15";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
-import { createProfileModalsController } from "./profile-modals.js?v=profile6";
+import { createProfileModalsController } from "./profile-modals.js?v=profile7";
 
 let lastNormalizedTasks = [];
 
@@ -1596,7 +1596,7 @@ const updateActorUi = () => {
 
 const setActorUser = (user) => {
   if (!user) return;
-  const id = Number(user.id);
+  const id = Number(user?.id ?? user?.userId);
   if (!Number.isFinite(id) || id <= 0) return;
   actorUser = {
     id,
@@ -1724,7 +1724,13 @@ chatController = createWorkspaceChatBridge({
   getWorkspaceMembers: () => (Array.isArray(workspaceMembers) ? workspaceMembers : []),
   getWorkspaceRole: () => String(currentWorkspaceRole || "Member"),
   applyAccountAvatarToElement,
-  onOpenProfile: (member) => profileModalsController.openProfileModal(member),
+  onOpenProfile: (member) => {
+    const memberId = Number(member?.id ?? member?.userId);
+    const actorId = Number(getActorUserId());
+    profileModalsController.openProfileModal(member, {
+      isSelf: Number.isFinite(memberId) && Number.isFinite(actorId) && memberId > 0 && actorId > 0 && memberId === actorId
+    });
+  },
   onOpenTasks: () => {
     setAppScreen("board");
   },
@@ -1740,7 +1746,8 @@ const loadCurrentUserFromApi = async () => {
     headers: { Accept: "application/json" }
   });
 
-  if (me && Number.isFinite(Number(me.id))) {
+  const meId = Number(me?.id ?? me?.userId);
+  if (me && Number.isFinite(meId) && meId > 0) {
     setActorUser(me);
     return;
   }
@@ -3835,7 +3842,7 @@ if (accountAvatarEl) {
       email: normalizeToken(actorUser?.email) || "-",
       role: normalizeToken(currentWorkspaceRole) || "Member"
     };
-    profileModalsController.openProfileModal(member || fallback);
+    profileModalsController.openProfileModal(member || fallback, { isSelf: true });
   });
 }
 
