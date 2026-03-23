@@ -42,7 +42,7 @@ TaskManager/
 
 - **.NET 8.0** — Backend framework
 - **ASP.NET Core Web API** — REST API
-- **Entity Framework Core** — ORM (SQLite по умолчанию)
+- **Entity Framework Core** — ORM (SQLite/PostgreSQL)
 - **JWT** — Аутентификация и авторизация
 - **HTML/CSS/JS** — Frontend (без фреймворков, нативный JS)
 - **RateLimiting** — Ограничение частоты запросов
@@ -67,6 +67,19 @@ dotnet run --project TaskManager.API
 При первом запуске автоматически:
 - Создаётся база данных SQLite (`TaskManager.db`)
 - Применяются миграции
+
+### Настройка БД (Sqlite / Postgres)
+
+```env
+Database__Provider=Sqlite
+ConnectionStrings__DefaultConnection=Data Source=TaskManager.db
+ConnectionStrings__Postgres=
+```
+
+- `Database__Provider=Sqlite` — использует `ConnectionStrings__DefaultConnection`
+- `Database__Provider=Postgres` — использует `ConnectionStrings__Postgres`
+- В `Production` по умолчанию используется `Postgres` (см. `TaskManager.API/appsettings.Production.json`)
+- Реальные секреты (например `Jwt__SigningKey`) храните в локальном `.env`, а в `.env.example` оставляйте только шаблоны
 
 ### Настройка email (опционально)
 
@@ -98,16 +111,83 @@ Storage__ForcePathStyle=true
 Storage__LocalRootPath=App_Data/object-storage
 ```
 
+Для хранения в PostgreSQL:
+
+```env
+Storage__Provider=Postgres
+Storage__PostgresConnectionString=
+Storage__PostgresSchema=public
+Storage__PostgresTable=object_storage_items
+```
+
 ## Deploy на Render (Scenario 1)
 
 В проект уже добавлены артефакты для быстрого production-деплоя с текущей архитектурой:
 
-- `render.yaml` — Blueprint с двумя сервисами (API + private MinIO)
+- `render.yaml` — Blueprint с API, managed PostgreSQL и private MinIO
+- `railway.json` — шаблон сборки/healthcheck для Railway
 - `TaskManager.API/Dockerfile` — контейнеризация API
 - `.dockerignore` — исключения для сборки образа
 - `GET /healthz` — endpoint для health check
 
 Подробный пошаговый продакшен-план и чек-листы находятся в `docs/render-scenario1-production.md`.
+
+Минимальные обязательные переменные/секреты для API в Render:
+
+```env
+Database__Provider=Postgres
+Jwt__SigningKey=<unique-32+-chars-secret>
+```
+
+`ConnectionStrings__Postgres` в `render.yaml` теперь подставляется автоматически из managed базы (`fromDatabase.connectionString`).
+
+## Deploy на Railway (чеклист)
+
+1. Создайте проект в Railway и добавьте сервис PostgreSQL.
+2. Добавьте сервис API из этого репозитория (Railway подхватит `railway.json` и `TaskManager.API/Dockerfile`).
+3. В API-сервисе откройте вкладку `Variables` и задайте:
+
+```env
+ASPNETCORE_ENVIRONMENT=Production
+ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+ASPNETCORE_URLS=http://0.0.0.0:${{PORT}}
+
+Database__Provider=Postgres
+ConnectionStrings__Postgres=${{Postgres.DATABASE_URL}}
+
+Jwt__Issuer=GoodTaskTracker
+Jwt__Audience=GoodTaskTracker.Client
+Jwt__SigningKey=<unique-32+-chars-secret>
+
+DatabaseStartup__ApplyMigrations=true
+DatabaseStartup__Seed=false
+DatabaseStartup__MigrateLegacyFiles=false
+
+Email__Provider=HttpApi
+Email__HttpApi__Provider=Resend
+Email__HttpApi__BaseUrl=https://api.resend.com
+Email__HttpApi__SendPath=/emails
+Email__HttpApi__FromName=BadTaskTracker
+Email__HttpApi__ApiKey=<secret>
+Email__HttpApi__FromEmail=<secret>
+```
+
+Если PostgreSQL-сервис в Railway называется не `Postgres`, замените имя в ссылке `ConnectionStrings__Postgres=${{...DATABASE_URL}}`.
+
+4. Для вложений/аватаров в production задайте S3-совместимое хранилище (на Railway локальная файловая система эфемерна):
+
+```env
+Storage__Provider=S3
+Storage__PublicBucket=<bucket-public>
+Storage__PrivateBucket=<bucket-private>
+Storage__Endpoint=<s3-endpoint>
+Storage__Region=<region>
+Storage__AccessKey=<access-key>
+Storage__SecretKey=<secret-key>
+Storage__ForcePathStyle=true
+```
+
+5. После деплоя проверьте `GET /healthz` и убедитесь, что приложение поднялось без ошибок миграции.
 
 ## API Endpoints
 
@@ -172,6 +252,34 @@ Storage__LocalRootPath=App_Data/object-storage
 | GET | `/api/tasks/{taskId}/attachments/{id}` | Скачать вложение |
 | DELETE | `/api/tasks/{taskId}/attachments/{id}` | Удалить вложение |
 
+### Чаты
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| GET | `/api/chats?workspaceId={id}` | Список чатов пользователя в workspace |
+| GET | `/api/chats/{chatId}` | Получить чат |
+| POST | `/api/chats/groups` | Создать групповой чат |
+| POST | `/api/chats/direct/{userId}?workspaceId={id}` | Создать/получить direct чат |
+| POST | `/api/tasks/{taskId}/chat/open?workspaceId={id}` | Открыть task-чат |
+| GET | `/api/chats/{chatId}/messages` | История сообщений |
+| POST | `/api/chats/{chatId}/messages` | Отправить сообщение |
+| PATCH | `/api/chats/{chatId}/messages/{messageId}` | Редактировать сообщение |
+| DELETE | `/api/chats/{chatId}/messages/{messageId}` | Soft-delete сообщение (tombstone в истории) |
+| POST | `/api/chats/{chatId}/messages/{messageId}/reply` | Ответить на сообщение |
+| POST | `/api/chats/{chatId}/messages/{messageId}/forward` | Переслать сообщение |
+| POST | `/api/chats/{chatId}/read` | Отметить сообщения как прочитанные |
+| POST | `/api/chats/{chatId}/messages/read` | Legacy endpoint (deprecated) |
+| GET | `/api/chats/{chatId}/attachments?messageId={id}` | Список вложений сообщения |
+| POST | `/api/chats/{chatId}/attachments` | Загрузить вложение сообщения (form-data: `messageId`, `file`) |
+| GET | `/api/chats/{chatId}/attachments/{attachmentId}` | Скачать вложение чата |
+| DELETE | `/api/chats/{chatId}/attachments/{attachmentId}` | Удалить вложение чата |
+
+### Chat real-time (SignalR)
+
+- Hub endpoint: `/hubs/chat`
+- Hub methods: `JoinChat(chatId)`, `LeaveChat(chatId)`
+- Server events: `chat.message.created`, `chat.message.updated`, `chat.message.deleted`, `chat.read.updated`, `chat.attachment.uploaded`, `chat.attachment.deleted`
+
 ### Отчеты
 
 | Метод | Путь | Описание |
@@ -230,6 +338,14 @@ Authorization: Bearer {token}
 dotnet test
 ```
 
+Для запуска интеграционных тестов `PostgresObjectStorage` и smoke-тестов провайдера БД (`DatabaseProviderSmokeTests`) задайте одну из переменных окружения:
+
+```env
+TEST_POSTGRES_CONNECTION_STRING=Host=localhost;Port=5432;Database=taskmanager_tests;Username=postgres;Password=postgres
+# или
+ConnectionStrings__Postgres=Host=localhost;Port=5432;Database=taskmanager_tests;Username=postgres;Password=postgres
+```
+
 ## Known Issues
 
 ### Безопасность и производительность
@@ -238,13 +354,13 @@ dotnet test
 
 2. **CORS** — CORS-политика в проекте не включена по умолчанию. Для multi-origin frontend в продакшене требуется явная настройка.
 
-3. **SQLite** — Для high-load production рекомендуется переход на PostgreSQL. SQLite не поддерживает параллельные записи и не подходит для высоконагруженных систем.
+3. **SQLite** — Используется в development/локальном сценарии. Для production дефолтный провайдер — PostgreSQL.
 
 4. **JWT Token** — Токены хранятся на клиенте в localStorage. В production рекомендуется использовать httpOnly cookies для защиты от XSS.
 
 ### Хранение данных
 
-5. **Файловое хранилище** — Аватары и вложения работают через object storage (`Storage:Provider`: Local/S3). Для production рекомендуется S3-совместимое хранилище.
+5. **Файловое хранилище** — Аватары и вложения работают через object storage (`Storage:Provider`: Local/S3/Postgres). Для production рекомендуется S3-совместимое хранилище или PostgreSQL backend с бэкапами.
 
 6. **Очистка object storage** — При удалении workspace нужно дополнительно учитывать очистку связанных object keys.
 

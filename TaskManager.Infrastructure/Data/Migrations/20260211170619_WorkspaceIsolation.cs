@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -46,11 +47,12 @@ namespace TaskManager.Infrastructure.Data.Migrations
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
-                        .Annotation("Sqlite:Autoincrement", true),
+                        .Annotation("Sqlite:Autoincrement", true)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "TEXT", maxLength: 120, nullable: false),
                     AvatarPath = table.Column<string>(type: "TEXT", maxLength: 400, nullable: true),
                     CreatedByUserId = table.Column<int>(type: "INTEGER", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false, defaultValueSql: "datetime('now')")
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
                 },
                 constraints: table =>
                 {
@@ -70,7 +72,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     WorkspaceId = table.Column<int>(type: "INTEGER", nullable: false),
                     UserId = table.Column<int>(type: "INTEGER", nullable: false),
                     Role = table.Column<int>(type: "INTEGER", nullable: false),
-                    AddedAt = table.Column<DateTime>(type: "TEXT", nullable: false, defaultValueSql: "datetime('now')")
+                    AddedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP")
                 },
                 constraints: table =>
                 {
@@ -90,40 +92,40 @@ namespace TaskManager.Infrastructure.Data.Migrations
                 });
 
             migrationBuilder.Sql(@"
-                INSERT INTO Users (Name, Email, CreatedAt)
-                SELECT 'System', 'system@goodtask.local', datetime('now')
-                WHERE NOT EXISTS (SELECT 1 FROM Users);
+                INSERT INTO ""Users"" (""Name"", ""Email"", ""CreatedAt"")
+                SELECT 'System', 'system@goodtask.local', CURRENT_TIMESTAMP
+                WHERE NOT EXISTS (SELECT 1 FROM ""Users"");
             ");
 
             migrationBuilder.Sql(@"
-                INSERT INTO Workspaces (Name, AvatarPath, CreatedByUserId, CreatedAt)
-                SELECT 'General', NULL, Id, datetime('now')
-                FROM Users
-                ORDER BY Id
+                INSERT INTO ""Workspaces"" (""Name"", ""AvatarPath"", ""CreatedByUserId"", ""CreatedAt"")
+                SELECT 'General', NULL, ""Id"", CURRENT_TIMESTAMP
+                FROM ""Users""
+                ORDER BY ""Id""
                 LIMIT 1;
             ");
 
             migrationBuilder.Sql(@"
-                UPDATE Tasks
-                SET WorkspaceId = (SELECT Id FROM Workspaces ORDER BY Id LIMIT 1)
-                WHERE WorkspaceId IS NULL OR WorkspaceId = 0;
+                UPDATE ""Tasks""
+                SET ""WorkspaceId"" = (SELECT ""Id"" FROM ""Workspaces"" ORDER BY ""Id"" LIMIT 1)
+                WHERE ""WorkspaceId"" IS NULL OR ""WorkspaceId"" = 0;
             ");
 
             migrationBuilder.Sql(@"
-                UPDATE Tags
-                SET WorkspaceId = (SELECT Id FROM Workspaces ORDER BY Id LIMIT 1)
-                WHERE WorkspaceId IS NULL OR WorkspaceId = 0;
+                UPDATE ""Tags""
+                SET ""WorkspaceId"" = (SELECT ""Id"" FROM ""Workspaces"" ORDER BY ""Id"" LIMIT 1)
+                WHERE ""WorkspaceId"" IS NULL OR ""WorkspaceId"" = 0;
             ");
 
             migrationBuilder.Sql(@"
-                INSERT INTO WorkspaceMembers (WorkspaceId, UserId, Role, AddedAt)
+                INSERT INTO ""WorkspaceMembers"" (""WorkspaceId"", ""UserId"", ""Role"", ""AddedAt"")
                 SELECT
-                    ws.Id,
-                    u.Id,
-                    CASE WHEN u.Id = ws.CreatedByUserId THEN 3 ELSE 1 END,
-                    datetime('now')
-                FROM Users u
-                CROSS JOIN (SELECT Id, CreatedByUserId FROM Workspaces ORDER BY Id LIMIT 1) ws;
+                    ws.""Id"",
+                    u.""Id"",
+                    CASE WHEN u.""Id"" = ws.""CreatedByUserId"" THEN 3 ELSE 1 END,
+                    CURRENT_TIMESTAMP
+                FROM ""Users"" u
+                CROSS JOIN (SELECT ""Id"", ""CreatedByUserId"" FROM ""Workspaces"" ORDER BY ""Id"" LIMIT 1) ws;
             ");
 
             migrationBuilder.CreateIndex(

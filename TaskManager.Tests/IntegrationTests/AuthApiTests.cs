@@ -13,6 +13,7 @@ using TaskManager.Application.Interfaces;
 using TaskManager.Domain.Entities;
 using TaskManager.Domain.Enums;
 using TaskManager.Infrastructure.Data;
+using TaskManager.Tests.Helpers;
 using Xunit;
 
 namespace TaskManager.Tests.IntegrationTests
@@ -20,9 +21,11 @@ namespace TaskManager.Tests.IntegrationTests
     [Trait("Category", "Auth")]
     public class AuthApiTests : IClassFixture<WebApplicationFactory<Program>>, IDisposable
     {
-        private const string JwtIssuer = "GoodTaskTracker";
-        private const string JwtAudience = "GoodTaskTracker.Client";
-        private const string JwtSigningKey = "BTT_JWT_5c2a9d1f7e4b8a6c3d0f2e1a9b7c4d6e8f0a1b2c3d4e5f6a7b8c9d0e1f2a3b";
+        private static readonly string JwtIssuer = TestConfigurationResolver.ResolveJwtSetting("Jwt__Issuer", "GoodTaskTracker");
+        private static readonly string JwtAudience = TestConfigurationResolver.ResolveJwtSetting("Jwt__Audience", "GoodTaskTracker.Client");
+        private static readonly string JwtSigningKey = TestConfigurationResolver.ResolveJwtSetting(
+            "Jwt__SigningKey",
+            "CHANGE_ME_IN_PRODUCTION_WITH_32_PLUS_CHARS");
 
         private readonly HttpClient _client;
         private readonly WebApplicationFactory<Program> _factory;

@@ -35,5 +35,8 @@ namespace TaskManager.Domain.Entities
         public virtual ICollection<TaskItem> Tasks { get; set; } = new List<TaskItem>();
         public virtual ICollection<WorkspaceMember> WorkspaceMemberships { get; set; } = new List<WorkspaceMember>();
         public virtual ICollection<Workspace> OwnedWorkspaces { get; set; } = new List<Workspace>();
+        public virtual ICollection<ChatRoomMember> ChatRoomMemberships { get; set; } = new List<ChatRoomMember>();
+        public virtual ICollection<ChatMessage> SentMessages { get; set; } = new List<ChatMessage>();
+        public virtual ICollection<ChatReadState> ChatReadStates { get; set; } = new List<ChatReadState>();
     }
 }

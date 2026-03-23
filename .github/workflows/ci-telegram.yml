@@ -42,7 +42,18 @@ jobs:
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '8.0.x'
-    
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+
+    - name: Check workspace DOM ids
+      run: node tools/frontend/check-workspace-dom-ids.mjs
+
+    - name: Workspace frontend smoke contract
+      run: node tools/frontend/smoke-workspace-contract.mjs
+
     - name: Restore
       run: dotnet restore
     

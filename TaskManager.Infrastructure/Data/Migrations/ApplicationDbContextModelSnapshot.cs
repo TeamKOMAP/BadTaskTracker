@@ -15,7 +15,239 @@ namespace TaskManager.Infrastructure.Data.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.0");
+            modelBuilder.HasAnnotation("ProductVersion", "8.0.4");
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatMessage", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BodyCipher")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("ChatRoomId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClientMessageId")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EditedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ForwardedFromMessageId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ReplyToMessageId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SenderUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ChatRoomId");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("ReplyToMessageId");
+
+                    b.HasIndex("SenderUserId");
+
+                    b.HasIndex("ChatRoomId", "ClientMessageId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ChatMessages_ChatRoomId_ClientMessageId")
+                        .HasFilter("\"ClientMessageId\" IS NOT NULL");
+
+                    b.HasIndex("ChatRoomId", "CreatedAtUtc");
+
+                    b.ToTable("ChatMessages");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatMessageAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("DurationMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("MessageId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ObjectKey")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Size")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId");
+
+                    b.ToTable("ChatMessageAttachments");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatReadState", b =>
+                {
+                    b.Property<Guid>("ChatRoomId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("LastReadMessageId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ChatRoomId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ChatReadStates");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatRoom", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("CreatedByUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("DirectKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TaskId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("WorkspaceId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskId")
+                        .IsUnique();
+
+                    b.HasIndex("WorkspaceId");
+
+                    b.HasIndex("WorkspaceId", "Type")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ChatRooms_WorkspaceId_General")
+                        .HasFilter("\"Type\" = 1");
+
+                    b.HasIndex("WorkspaceId", "Type", "DirectKey")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ChatRooms_WorkspaceId_DirectKey")
+                        .HasFilter("\"Type\" = 3 AND \"DirectKey\" IS NOT NULL");
+
+                    b.ToTable("ChatRooms");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatRoomMember", b =>
+                {
+                    b.Property<Guid>("ChatRoomId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("JoinedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ChatRoomId", "UserId");
+
+                    b.HasIndex("Role");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ChatRoomMembers");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatUserPreferences", b =>
+                {
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ChatRoomId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("BackgroundImageKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsMuted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("SoundEnabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.HasKey("UserId", "ChatRoomId");
+
+                    b.HasIndex("ChatRoomId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ChatUserPreferences");
+                });
 
             modelBuilder.Entity("TaskManager.Domain.Entities.EmailAuthCode", b =>
                 {
@@ -84,7 +316,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<bool>("IsRead")
                         .HasColumnType("INTEGER");
@@ -137,7 +369,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -209,7 +441,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<bool>("DeadlineNotificationSent")
                         .HasColumnType("INTEGER");
@@ -284,7 +516,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.HasKey("TaskId", "TagId");
 
@@ -310,7 +542,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -357,7 +589,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<int>("CreatedByUserId")
                         .HasColumnType("INTEGER");
@@ -437,7 +669,7 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Property<DateTime>("AddedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT")
-                        .HasDefaultValueSql("datetime('now')");
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
                     b.Property<int>("Role")
                         .HasColumnType("INTEGER");
@@ -449,6 +681,111 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("WorkspaceMembers");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatMessage", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.ChatRoom", "ChatRoom")
+                        .WithMany("Messages")
+                        .HasForeignKey("ChatRoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManager.Domain.Entities.ChatMessage", "ReplyToMessage")
+                        .WithMany()
+                        .HasForeignKey("ReplyToMessageId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TaskManager.Domain.Entities.User", "SenderUser")
+                        .WithMany("SentMessages")
+                        .HasForeignKey("SenderUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ChatRoom");
+
+                    b.Navigation("ReplyToMessage");
+
+                    b.Navigation("SenderUser");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatMessageAttachment", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.ChatMessage", "Message")
+                        .WithMany("Attachments")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatReadState", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.ChatRoom", "ChatRoom")
+                        .WithMany()
+                        .HasForeignKey("ChatRoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManager.Domain.Entities.User", "User")
+                        .WithMany("ChatReadStates")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChatRoom");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatRoom", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.Workspace", "Workspace")
+                        .WithMany("ChatRooms")
+                        .HasForeignKey("WorkspaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatRoomMember", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.ChatRoom", "ChatRoom")
+                        .WithMany("Members")
+                        .HasForeignKey("ChatRoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManager.Domain.Entities.User", "User")
+                        .WithMany("ChatRoomMemberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChatRoom");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatUserPreferences", b =>
+                {
+                    b.HasOne("TaskManager.Domain.Entities.ChatRoom", "ChatRoom")
+                        .WithMany()
+                        .HasForeignKey("ChatRoomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("TaskManager.Domain.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ChatRoom");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("TaskManager.Domain.Entities.Notification", b =>
@@ -591,6 +928,18 @@ namespace TaskManager.Infrastructure.Data.Migrations
                     b.Navigation("Workspace");
                 });
 
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatMessage", b =>
+                {
+                    b.Navigation("Attachments");
+                });
+
+            modelBuilder.Entity("TaskManager.Domain.Entities.ChatRoom", b =>
+                {
+                    b.Navigation("Members");
+
+                    b.Navigation("Messages");
+                });
+
             modelBuilder.Entity("TaskManager.Domain.Entities.Tag", b =>
                 {
                     b.Navigation("TaskTags");
@@ -605,7 +954,13 @@ namespace TaskManager.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("TaskManager.Domain.Entities.User", b =>
                 {
+                    b.Navigation("ChatReadStates");
+
+                    b.Navigation("ChatRoomMemberships");
+
                     b.Navigation("OwnedWorkspaces");
+
+                    b.Navigation("SentMessages");
 
                     b.Navigation("Tasks");
 
@@ -614,6 +969,8 @@ namespace TaskManager.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("TaskManager.Domain.Entities.Workspace", b =>
                 {
+                    b.Navigation("ChatRooms");
+
                     b.Navigation("Members");
 
                     b.Navigation("Tags");

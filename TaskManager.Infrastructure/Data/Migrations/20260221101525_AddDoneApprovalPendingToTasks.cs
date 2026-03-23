@@ -14,14 +14,14 @@ namespace TaskManager.Infrastructure.Data.Migrations
             migrationBuilder.AddColumn<bool>(
                 name: "DoneApprovalPending",
                 table: "Tasks",
-                type: "INTEGER",
+                type: "boolean",
                 nullable: false,
                 defaultValue: false);
 
             migrationBuilder.AddColumn<DateTime>(
                 name: "DoneApprovalRequestedAtUtc",
                 table: "Tasks",
-                type: "TEXT",
+                type: "timestamp with time zone",
                 nullable: true);
 
             migrationBuilder.AddColumn<int>(
