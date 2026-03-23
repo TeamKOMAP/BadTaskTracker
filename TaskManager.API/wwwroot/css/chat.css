@@ -708,6 +708,8 @@ body[data-theme="light"] .chat-shell-input {
   display: grid;
   grid-template-columns: 32px minmax(0, 1fr);
   grid-template-rows: auto auto minmax(0, 1fr);
+  height: calc(100dvh - 150px);
+  max-height: calc(100dvh - 150px);
   align-content: stretch;
   gap: 6px;
   padding: 8px 6px;
@@ -729,10 +731,33 @@ body[data-theme="light"] .chat-shell-input {
   border-radius: 12px;
 }
 
+.chat-rail.is-docked-tabs .chat-rail-home.is-active {
+  min-height: 46px;
+  padding: 6px 10px;
+  border-color: rgba(68, 210, 199, 0.58);
+  background: linear-gradient(135deg, rgba(68, 210, 199, 0.22), rgba(44, 115, 255, 0.24));
+}
+
 .chat-rail.is-docked-tabs .chat-rail-home .chat-rail-avatar {
   width: 32px;
   height: 32px;
   border-radius: 10px;
+  font-size: 12px;
+}
+
+.chat-rail.is-docked-tabs .chat-rail-home.is-active .chat-rail-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  font-size: 13px;
+}
+
+.chat-rail.is-docked-tabs .chat-rail-home.is-active .chat-rail-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.chat-rail.is-docked-tabs .chat-rail-home.is-active .chat-rail-preview {
   font-size: 12px;
 }
 
@@ -2271,6 +2296,11 @@ body[data-theme="light"] .chat-image-viewer-zoom-label {
     overflow-x: auto;
     overflow-y: hidden;
     padding: 8px;
+  }
+
+  .chat-rail.is-docked-tabs {
+    height: auto;
+    max-height: none;
   }
 
   .chat-rail-home,
