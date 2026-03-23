@@ -215,6 +215,15 @@ public class ChatMessageRepository : IChatMessageRepository
         return await _db.ChatMessages.CountAsync(m => m.ChatRoomId == chatRoomId, ct);
     }
 
+    public async Task<int> GetUnreadCountByChatRoomIdAsync(Guid chatRoomId, int userId, long lastReadMessageId, CancellationToken ct = default)
+    {
+        return await _db.ChatMessages.CountAsync(
+            m => m.ChatRoomId == chatRoomId
+              && m.Id > lastReadMessageId
+              && m.SenderUserId != userId,
+            ct);
+    }
+
     public async Task<ChatMessage?> GetByClientMessageIdAsync(Guid chatRoomId, string clientMessageId, CancellationToken ct = default)
     {
         return await _db.ChatMessages

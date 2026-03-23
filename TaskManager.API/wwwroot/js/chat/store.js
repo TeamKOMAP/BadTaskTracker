@@ -74,6 +74,19 @@ export const createChatStore = () => {
     });
   };
 
+  const syncChatActivityFromMessages = (chatId) => {
+    const key = normalizeChatId(chatId);
+    if (!key) return;
+    const list = getMessages(key);
+    const last = list.length ? list[list.length - 1] : null;
+    const createdAtUtc = normalizeUtcDateValue(last?.createdAtUtc || "");
+    if (!createdAtUtc) return;
+
+    chats = chats.map((chat) => normalizeChatId(chat?.id) === key
+      ? { ...chat, updatedAtUtc: createdAtUtc }
+      : chat);
+  };
+
   const syncPreviewFromMessages = (chatId) => {
     const key = normalizeChatId(chatId);
     if (!key) return "";
@@ -150,6 +163,7 @@ export const createChatStore = () => {
       messagesByChatId.set(key, mergeMessages(messages));
       setHistoryMeta(key, meta);
       syncPreviewFromMessages(key);
+      syncChatActivityFromMessages(key);
     },
 
     prependMessages(chatId, messages, meta = {}) {
@@ -159,6 +173,7 @@ export const createChatStore = () => {
       messagesByChatId.set(key, mergeMessages(messages, current));
       setHistoryMeta(key, meta);
       syncPreviewFromMessages(key);
+      syncChatActivityFromMessages(key);
     },
 
     upsertMessage(chatId, message) {
@@ -167,6 +182,7 @@ export const createChatStore = () => {
       const current = getMessages(key);
       messagesByChatId.set(key, mergeMessages(current, [message]));
       syncPreviewFromMessages(key);
+      syncChatActivityFromMessages(key);
     },
 
     reconcileMessage(chatId, clientMessageId, message) {
@@ -187,6 +203,7 @@ export const createChatStore = () => {
 
       messagesByChatId.set(key, mergeMessages(current, [message]));
       syncPreviewFromMessages(key);
+      syncChatActivityFromMessages(key);
     },
 
     removeMessageByClientMessageId(chatId, clientMessageId) {
@@ -196,6 +213,7 @@ export const createChatStore = () => {
       const current = getMessages(key).filter((item) => String(item?.clientMessageId || "").trim() !== clientKey);
       messagesByChatId.set(key, mergeMessages(current));
       syncPreviewFromMessages(key);
+      syncChatActivityFromMessages(key);
     },
 
     patchMessage(chatId, messageId, patch) {
@@ -214,6 +232,7 @@ export const createChatStore = () => {
       });
       messagesByChatId.set(key, mergeMessages(next));
       syncPreviewFromMessages(key);
+      syncChatActivityFromMessages(key);
     },
 
     getMessages,

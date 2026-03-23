@@ -12,6 +12,8 @@ public sealed class ChatServiceImpl : IChatService
 {
     private readonly IChatRepository _chatRepository;
     private readonly IChatRoomMemberRepository _memberRepository;
+    private readonly IChatMessageRepository _messageRepository;
+    private readonly IChatReadStateRepository _readStateRepository;
     private readonly IWorkspaceMemberRepository _workspaceMemberRepository;
     private readonly ITaskRepository _taskRepository;
     private readonly IUserRepository _userRepository;
@@ -20,6 +22,8 @@ public sealed class ChatServiceImpl : IChatService
     public ChatServiceImpl(
         IChatRepository chatRepository,
         IChatRoomMemberRepository memberRepository,
+        IChatMessageRepository messageRepository,
+        IChatReadStateRepository readStateRepository,
         IWorkspaceMemberRepository workspaceMemberRepository,
         ITaskRepository taskRepository,
         IUserRepository userRepository,
@@ -27,6 +31,8 @@ public sealed class ChatServiceImpl : IChatService
     {
         _chatRepository = chatRepository;
         _memberRepository = memberRepository;
+        _messageRepository = messageRepository;
+        _readStateRepository = readStateRepository;
         _workspaceMemberRepository = workspaceMemberRepository;
         _taskRepository = taskRepository;
         _userRepository = userRepository;
@@ -424,6 +430,10 @@ public sealed class ChatServiceImpl : IChatService
             }
         }
 
+        var readState = await _readStateRepository.GetAsync(chat.Id, currentUserId, ct);
+        var lastReadMessageId = readState?.LastReadMessageId ?? 0;
+        var unreadCount = await _messageRepository.GetUnreadCountByChatRoomIdAsync(chat.Id, currentUserId, lastReadMessageId, ct);
+
         return new ChatRoomDto
         {
             Id = chat.Id,
@@ -437,7 +447,8 @@ public sealed class ChatServiceImpl : IChatService
             DirectPeerDisplayName = directPeerDisplayName,
             CreatedByUserId = chat.CreatedByUserId,
             CreatedAtUtc = chat.CreatedAtUtc,
-            UpdatedAtUtc = chat.UpdatedAtUtc
+            UpdatedAtUtc = chat.UpdatedAtUtc,
+            UnreadCount = unreadCount
         };
     }
 
