@@ -1261,6 +1261,8 @@ body[data-theme="light"] .chat-settings-panel {
 
 .chat-settings-hero-avatar {
   appearance: none;
+  position: relative;
+  overflow: hidden;
   width: 64px;
   height: 64px;
   border-radius: 20px;
@@ -1281,6 +1283,47 @@ body[data-theme="light"] .chat-settings-panel {
 
 .chat-settings-hero-avatar.has-image {
   color: transparent;
+}
+
+.chat-settings-hero-avatar.is-group-editable::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 9, 16, 0.48);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.chat-settings-hero-avatar.is-group-editable::after {
+  content: "+";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -46%) scale(0.86);
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(245, 252, 255, 0.96);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+
+.chat-settings-hero-avatar.is-group-editable:hover::before,
+.chat-settings-hero-avatar.is-group-editable:focus-visible::before {
+  opacity: 1;
+}
+
+.chat-settings-hero-avatar.is-group-editable:hover::after,
+.chat-settings-hero-avatar.is-group-editable:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+body[data-theme="light"] .chat-settings-hero-avatar.is-group-editable::before {
+  background: rgba(15, 23, 42, 0.4);
 }
 
 .chat-settings-hero-main {

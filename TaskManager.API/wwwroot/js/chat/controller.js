@@ -384,6 +384,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   const chatShellSettingsBtn = deps.chatShellSettingsBtn ?? null;
   const chatSettingsModal = deps.chatSettingsModal ?? null;
   const chatSettingsModalAvatar = deps.chatSettingsModalAvatar ?? null;
+  const chatSettingsAvatarInput = deps.chatSettingsAvatarInput ?? null;
   const chatSettingsModalMain = deps.chatSettingsModalMain ?? null;
   const chatSettingsModalName = deps.chatSettingsModalName ?? null;
   const chatSettingsModalSub = deps.chatSettingsModalSub ?? null;
@@ -569,6 +570,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     const taskIdRaw = Number(chat?.taskId ?? chat?.TaskId);
     const taskId = Number.isFinite(taskIdRaw) && taskIdRaw > 0 ? taskIdRaw : null;
     const updatedAtUtc = normalizeUtcDateValue(chat?.updatedAtUtc ?? chat?.UpdatedAtUtc ?? "");
+    const avatarPath = normalizeToken(chat?.avatarPath ?? chat?.AvatarPath);
 
     return {
       id,
@@ -579,7 +581,8 @@ export const createWorkspaceChatController = (deps = {}) => {
       directPeerUserId: Number.isFinite(directPeerUserIdRaw) && directPeerUserIdRaw > 0 ? directPeerUserIdRaw : null,
       directPeerDisplayName: directPeerDisplayName || null,
       createdByUserId: Number.isFinite(createdByUserIdRaw) && createdByUserIdRaw > 0 ? createdByUserIdRaw : null,
-      updatedAtUtc
+      updatedAtUtc,
+      avatarPath: avatarPath || null
     };
   };
 
@@ -755,7 +758,15 @@ export const createWorkspaceChatController = (deps = {}) => {
       return;
     }
 
-    applyAccountAvatarToElement(element, null, toInitials(fallbackTitle || chat?.title || "GR", "GR"), "");
+    const chatId = toChatId(chat?.id);
+    const avatarFromUi = getStoredGroupAvatarDataUrl(chatId);
+    const avatarFromApi = normalizeToken(chat?.avatarPath);
+    applyAccountAvatarToElement(
+      element,
+      null,
+      toInitials(fallbackTitle || chat?.title || "GR", "GR"),
+      avatarFromUi || avatarFromApi
+    );
   };
 
   const syncHomeButtonAvatar = () => {
@@ -2075,6 +2086,17 @@ export const createWorkspaceChatController = (deps = {}) => {
     writeUiSettings(all);
   };
 
+  const getStoredGroupAvatarDataUrl = (chatId) => {
+    const key = String(chatId || "").trim();
+    if (!key) return "";
+    const ui = getStoredUiSetting(key);
+    const value = normalizeToken(ui?.chatGroupAvatarDataUrl);
+    if (!value || !value.startsWith("data:image/")) {
+      return "";
+    }
+    return value;
+  };
+
   const getPreference = (chatId) => {
     const key = String(chatId || "").trim();
     const persisted = preferencesByChatId.get(key) || { isMuted: false, soundEnabled: true, backgroundImageKey: null };
@@ -2124,6 +2146,7 @@ export const createWorkspaceChatController = (deps = {}) => {
   };
 
   const isDirectChat = (chat) => Number(chat?.type) === 3;
+  const isGroupChat = (chat) => Number(chat?.type) === 2;
 
   const openSettingsModal = () => {
     const activeChatId = store.getActiveChatId();
@@ -2236,15 +2259,26 @@ export const createWorkspaceChatController = (deps = {}) => {
     if (chatSettingsModalSub instanceof HTMLElement) {
       chatSettingsModalSub.textContent = getChatTypeLabel(chat?.type);
     }
+
+    const canEditGroupAvatar = isGroupChat(chat);
+
     if (chatSettingsModalAvatar instanceof HTMLElement) {
       applyChatAvatar(chatSettingsModalAvatar, chat, chat?.title || "Чат");
-      chatSettingsModalAvatar.setAttribute("aria-label", isDirectChat(chat) ? "Открыть профиль пользователя" : "Аватар чата");
+      if (isDirectChat(chat)) {
+        chatSettingsModalAvatar.setAttribute("aria-label", "Открыть профиль пользователя");
+      } else if (canEditGroupAvatar) {
+        chatSettingsModalAvatar.setAttribute("aria-label", "Сменить аватар группы");
+      } else {
+        chatSettingsModalAvatar.setAttribute("aria-label", "Аватар чата");
+      }
+
+      chatSettingsModalAvatar.classList.toggle("is-group-editable", canEditGroupAvatar);
     }
     if (chatSettingsModalMain instanceof HTMLButtonElement) {
       chatSettingsModalMain.disabled = !isDirectChat(chat);
     }
     if (chatSettingsModalAvatar instanceof HTMLButtonElement) {
-      chatSettingsModalAvatar.disabled = !isDirectChat(chat);
+      chatSettingsModalAvatar.disabled = !(isDirectChat(chat) || canEditGroupAvatar);
     }
 
     if (chatSettingsMuted instanceof HTMLInputElement) {
@@ -4213,6 +4247,60 @@ export const createWorkspaceChatController = (deps = {}) => {
     await openChat(normalized.id);
   };
 
+  const createGroupChat = async (title, options = {}) => {
+    const workspaceId = Number(getWorkspaceId());
+    if (!Number.isFinite(workspaceId) || workspaceId <= 0) {
+      return null;
+    }
+
+    const safeTitle = normalizeToken(title);
+    if (!safeTitle) {
+      return null;
+    }
+
+    const openAfterCreate = options?.open !== false;
+
+    if (store.isUsingMockData()) {
+      const mockId = `mock-group-${Date.now()}`;
+      const chat = {
+        id: mockId,
+        type: 2,
+        title: safeTitle,
+        taskId: null,
+        updatedAtUtc: new Date().toISOString()
+      };
+      store.upsertChat(chat);
+      store.setMessages(mockId, [], { hasMore: false });
+      renderRailList();
+      if (openAfterCreate) {
+        const openOptions = options?.openOptions && typeof options.openOptions === "object"
+          ? options.openOptions
+          : {};
+        await openChat(mockId, openOptions);
+      }
+      return chat;
+    }
+
+    const payload = await api.createGroupChat(workspaceId, safeTitle);
+    const normalized = normalizeChatRoom(payload || {});
+    if (!normalized?.id) {
+      return null;
+    }
+
+    store.upsertChat(normalized);
+    await realtimeClient.joinChat(normalized.id);
+    renderRailList();
+
+    if (openAfterCreate) {
+      const openOptions = options?.openOptions && typeof options.openOptions === "object"
+        ? options.openOptions
+        : {};
+      await openChat(normalized.id, openOptions);
+    }
+
+    return normalized;
+  };
+
   const openDirectChatByUser = async (userId) => {
     await openDirectChat(userId);
   };
@@ -5000,7 +5088,15 @@ export const createWorkspaceChatController = (deps = {}) => {
       chatSettingsModalAvatar.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        openProfileFromSettingsModal();
+        const chat = store.getChatById(store.getActiveChatId());
+        if (isDirectChat(chat)) {
+          openProfileFromSettingsModal();
+          return;
+        }
+
+        if (isGroupChat(chat)) {
+          chatSettingsAvatarInput?.click();
+        }
       });
     }
 
@@ -5073,6 +5169,34 @@ export const createWorkspaceChatController = (deps = {}) => {
         const dataUrl = await resizeImageToDataUrl(file);
         selectedBackground = String(dataUrl || "");
         applyChatBackground(store.getActiveChatId(), selectedBackground);
+        syncSettingsPanel();
+      });
+    }
+
+    if (chatSettingsAvatarInput instanceof HTMLInputElement) {
+      chatSettingsAvatarInput.addEventListener("change", async () => {
+        const file = chatSettingsAvatarInput.files?.[0] || null;
+        chatSettingsAvatarInput.value = "";
+        if (!file) return;
+
+        const activeChatId = store.getActiveChatId();
+        const chat = store.getChatById(activeChatId);
+        if (!activeChatId || !isGroupChat(chat)) {
+          return;
+        }
+
+        const dataUrl = await resizeImageToDataUrl(file);
+        const avatarDataUrl = String(dataUrl || "").trim();
+        if (!avatarDataUrl) {
+          return;
+        }
+
+        setStoredUiSetting(activeChatId, {
+          chatGroupAvatarDataUrl: avatarDataUrl
+        });
+
+        renderRailList();
+        updateHeader(store.getChatById(activeChatId) || chat);
         syncSettingsPanel();
       });
     }
@@ -5249,6 +5373,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     refreshChats,
     openChat,
     openDirectChatByUser,
+    createGroupChat,
     openActiveChatSettings,
     ensureTaskChat,
     focusFirstUnreadInActiveChat,

@@ -39,7 +39,7 @@ import {
   taskAttachmentsEmpty,
   taskAttachmentsInput,
   taskBgInput
-} from "./dom.js?v=authflow15";
+} from "./dom.js?v=authflow17";
 
 import { normalizeToken } from "../shared/utils.js";
 import {

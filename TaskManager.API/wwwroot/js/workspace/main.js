@@ -67,6 +67,12 @@ import {
   panelWorkspaceEditBtn,
   panelWorkspaceAvatarEl,
   panelWorkspaceAvatarInput,
+  panelWorkspaceCreateGroupWrap,
+  panelWorkspaceCreateGroupBtn,
+  panelWorkspaceGroupMenu,
+  panelWorkspaceGroupInput,
+  panelWorkspaceGroupCancelBtn,
+  panelWorkspaceGroupSubmitBtn,
   panelWorkspaceDanger,
   panelWorkspaceDeleteBtn,
   accountAvatarEl,
@@ -119,7 +125,7 @@ import {
   confirmModalInputWrap,
   confirmModalInputHintEl,
   confirmModalInputEl
-} from "./dom.js?v=authflow15";
+} from "./dom.js?v=authflow17";
 
 import {
   buildApiUrl,
@@ -193,12 +199,12 @@ import {
 import { createWorkspaceTaskActions } from "./task-actions.js?v=actions2";
 import { bindWorkspacePanelEvents } from "./panel-events.js?v=panel1";
 import { bindWorkspaceToolbarEvents } from "./toolbar-events.js?v=toolbar1";
-import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge18";
+import { createWorkspaceChatBridge } from "./chat-bridge.js?v=chatbridge20";
 import { createBoardViewController } from "./board-view.js?v=perf2";
 import { createCalendarViewController } from "./calendar-view.js?v=perf2";
 import { createPriorityViewController } from "./priority-view.js?v=perf3";
 import { createFlowEditorController } from "./flow-editor.js?v=perf6";
-import { createTaskDetailController } from "./task-detail.js?v=perf19";
+import { createTaskDetailController } from "./task-detail.js?v=perf20";
 import { createInviteControls } from "./invite-controls.js?v=invctrl1";
 import { createProfileModalsController } from "./profile-modals.js?v=profile7";
 
@@ -228,6 +234,8 @@ const toolbarTagFilter = new Set();
 let toolbarSearchDebounceId = null;
 
 let panelWorkspaceEditing = false;
+let panelWorkspaceGroupMenuOpen = false;
+let panelWorkspaceGroupCreateInFlight = false;
 
 const setWorkspaceEditing = (editing) => {
   panelWorkspaceEditing = !!editing;
@@ -257,6 +265,68 @@ const setWorkspaceEditing = (editing) => {
     delete panelWorkspaceNameEl.dataset.original;
   }
 };
+
+const setPanelWorkspaceGroupCreateBusy = (busy) => {
+  panelWorkspaceGroupCreateInFlight = Boolean(busy);
+  if (panelWorkspaceCreateGroupBtn instanceof HTMLButtonElement) {
+    panelWorkspaceCreateGroupBtn.disabled = panelWorkspaceGroupCreateInFlight;
+  }
+  if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+    panelWorkspaceGroupInput.disabled = panelWorkspaceGroupCreateInFlight;
+  }
+  if (panelWorkspaceGroupCancelBtn instanceof HTMLButtonElement) {
+    panelWorkspaceGroupCancelBtn.disabled = panelWorkspaceGroupCreateInFlight;
+  }
+  if (panelWorkspaceGroupSubmitBtn instanceof HTMLButtonElement) {
+    panelWorkspaceGroupSubmitBtn.disabled = panelWorkspaceGroupCreateInFlight;
+    panelWorkspaceGroupSubmitBtn.textContent = panelWorkspaceGroupCreateInFlight ? "Создаем..." : "Создать";
+  }
+};
+
+const setPanelWorkspaceGroupMenuOpen = (open) => {
+  panelWorkspaceGroupMenuOpen = Boolean(open);
+
+  if (panelWorkspaceCreateGroupBtn instanceof HTMLButtonElement) {
+    panelWorkspaceCreateGroupBtn.setAttribute("aria-expanded", panelWorkspaceGroupMenuOpen ? "true" : "false");
+  }
+
+  if (!(panelWorkspaceGroupMenu instanceof HTMLElement)) {
+    panelWorkspaceGroupMenuOpen = false;
+    return;
+  }
+
+  panelWorkspaceGroupMenu.toggleAttribute("hidden", !panelWorkspaceGroupMenuOpen);
+
+  if (!panelWorkspaceGroupMenuOpen) {
+    setPanelWorkspaceGroupCreateBusy(false);
+    if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+      panelWorkspaceGroupInput.classList.remove("is-invalid");
+      panelWorkspaceGroupInput.value = "";
+    }
+    return;
+  }
+
+  setPanelWorkspaceGroupCreateBusy(false);
+  if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+    panelWorkspaceGroupInput.classList.remove("is-invalid");
+    window.setTimeout(() => {
+      if (panelWorkspaceGroupMenuOpen) {
+        panelWorkspaceGroupInput.focus();
+        panelWorkspaceGroupInput.select();
+      }
+    }, 0);
+  }
+};
+
+const closePanelWorkspaceGroupMenu = () => {
+  setPanelWorkspaceGroupMenuOpen(false);
+};
+
+const openPanelWorkspaceGroupMenu = () => {
+  if (!currentWorkspaceId) return;
+  setPanelWorkspaceGroupMenuOpen(true);
+};
+
 let actorUser = null;
 let nicknameSaveInFlight = false;
 let nicknameCooldownEndsAt = 0;
@@ -1161,6 +1231,7 @@ const setPanelOpen = (open) => {
   if (!appShell) return;
   appShell.classList.toggle("is-panel-open", open);
   if (!open) {
+    closePanelWorkspaceGroupMenu();
     closeUserMiniMenu();
   }
   if (!open && panelWorkspaceEditing && panelWorkspaceNameEl) {
@@ -1666,6 +1737,22 @@ const setWorkspaceContext = (space) => {
     panelWorkspaceEditBtn.hidden = !isAdmin();
     panelWorkspaceEditBtn.disabled = false;
     panelWorkspaceEditBtn.title = "Редактировать";
+  }
+
+  if (panelWorkspaceCreateGroupWrap instanceof HTMLElement) {
+    panelWorkspaceCreateGroupWrap.toggleAttribute("hidden", !currentWorkspaceId);
+  }
+
+  if (panelWorkspaceCreateGroupBtn instanceof HTMLButtonElement) {
+    panelWorkspaceCreateGroupBtn.disabled = !currentWorkspaceId;
+  }
+
+  if (!currentWorkspaceId) {
+    closePanelWorkspaceGroupMenu();
+  }
+
+  if (changed) {
+    closePanelWorkspaceGroupMenu();
   }
 
   if (panelWorkspaceDanger) {
@@ -4068,6 +4155,18 @@ document.addEventListener("click", (event) => {
   closeUserMiniMenu();
 });
 
+document.addEventListener("click", (event) => {
+  if (!panelWorkspaceGroupMenuOpen) return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target) {
+    closePanelWorkspaceGroupMenu();
+    return;
+  }
+  if (target.closest("#panel-workspace-group-menu")) return;
+  if (target.closest("#panel-workspace-create-group")) return;
+  closePanelWorkspaceGroupMenu();
+});
+
 if (confirmModal) {
   confirmModal.addEventListener("click", (event) => {
     const target = event.target instanceof Element ? event.target : null;
@@ -4148,6 +4247,10 @@ document.addEventListener("keydown", (event) => {
       return;
     }
     if (profileModalsController.closeProfileModal()) {
+      return;
+    }
+    if (panelWorkspaceGroupMenuOpen) {
+      closePanelWorkspaceGroupMenu();
       return;
     }
     if (activeUserMiniMenu instanceof Element) {
@@ -4287,6 +4390,77 @@ if (panelWorkspaceEditBtn) {
     if (!panelWorkspaceNameEl) return;
     if (panelWorkspaceEditing) return;
     setWorkspaceEditing(true);
+  });
+}
+
+if (panelWorkspaceCreateGroupBtn) {
+  panelWorkspaceCreateGroupBtn.addEventListener("click", () => {
+    if (!currentWorkspaceId) return;
+    if (panelWorkspaceGroupCreateInFlight) return;
+    if (panelWorkspaceGroupMenuOpen) {
+      closePanelWorkspaceGroupMenu();
+      return;
+    }
+    openPanelWorkspaceGroupMenu();
+  });
+}
+
+if (panelWorkspaceGroupCancelBtn) {
+  panelWorkspaceGroupCancelBtn.addEventListener("click", () => {
+    if (panelWorkspaceGroupCreateInFlight) return;
+    closePanelWorkspaceGroupMenu();
+  });
+}
+
+if (panelWorkspaceGroupInput) {
+  panelWorkspaceGroupInput.addEventListener("input", () => {
+    panelWorkspaceGroupInput.classList.remove("is-invalid");
+  });
+
+  panelWorkspaceGroupInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!panelWorkspaceGroupCreateInFlight) {
+        closePanelWorkspaceGroupMenu();
+      }
+    }
+  });
+}
+
+if (panelWorkspaceGroupMenu) {
+  panelWorkspaceGroupMenu.addEventListener("submit", (event) => {
+    event.preventDefault();
+    void (async () => {
+      if (!currentWorkspaceId) return;
+      if (panelWorkspaceGroupCreateInFlight) return;
+
+      const title = normalizeToken(panelWorkspaceGroupInput?.value);
+      if (!title) {
+        if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+          panelWorkspaceGroupInput.classList.add("is-invalid");
+          panelWorkspaceGroupInput.focus();
+        }
+        return;
+      }
+
+      setPanelWorkspaceGroupCreateBusy(true);
+      const created = await chatController?.createGroupChat(title, {
+        open: true
+      });
+      setPanelWorkspaceGroupCreateBusy(false);
+
+      if (!created?.id) {
+        if (panelWorkspaceGroupInput instanceof HTMLInputElement) {
+          panelWorkspaceGroupInput.focus();
+          panelWorkspaceGroupInput.select();
+        }
+        return;
+      }
+
+      closePanelWorkspaceGroupMenu();
+      setPanelOpen(false);
+    })();
   });
 }
 

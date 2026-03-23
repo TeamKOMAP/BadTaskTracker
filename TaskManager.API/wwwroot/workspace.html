@@ -9,8 +9,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Spline+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/base.css?v=base6">
   <link rel="stylesheet" href="css/components.css?v=comp2">
-  <link rel="stylesheet" href="css/chat.css?v=chat20">
-  <link rel="stylesheet" href="css/workspace.css?v=perf73">
+  <link rel="stylesheet" href="css/chat.css?v=chat21">
+  <link rel="stylesheet" href="css/workspace.css?v=perf76">
   <link rel="stylesheet" href="css/workspace-members.css?v=wm1">
 </head>
 <body data-theme="dark">
@@ -33,6 +33,35 @@
                 <path d="M13.5 6.5l4 4" />
               </svg>
             </button>
+          </div>
+
+          <div class="panel-workspace-group-create" id="panel-workspace-group-create-wrap">
+            <button
+              class="primary-btn panel-workspace-group-create-btn"
+              id="panel-workspace-create-group"
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-controls="panel-workspace-group-menu"
+            >
+              Создать группу
+            </button>
+
+            <form class="panel-workspace-group-menu" id="panel-workspace-group-menu" autocomplete="off" hidden>
+              <label class="panel-workspace-group-menu-label" for="panel-workspace-group-input">Название группы</label>
+              <input
+                class="panel-workspace-group-menu-input"
+                id="panel-workspace-group-input"
+                type="text"
+                maxlength="120"
+                placeholder="Например: Дизайн-ревью"
+                required
+              >
+              <div class="panel-workspace-group-menu-actions">
+                <button class="ghost-btn" id="panel-workspace-group-cancel" type="button">Отмена</button>
+                <button class="primary-btn" id="panel-workspace-group-submit" type="submit">Создать</button>
+              </div>
+            </form>
           </div>
 
           <div class="panel-workspace-danger" id="panel-workspace-danger" hidden>
@@ -989,6 +1018,7 @@
 
       <div class="chat-settings-hero">
         <button class="chat-settings-hero-avatar" id="chat-settings-modal-avatar" type="button" aria-label="Открыть профиль или чат">CH</button>
+        <input id="chat-settings-avatar-input" type="file" accept="image/*" hidden>
         <button class="chat-settings-hero-main" id="chat-settings-modal-main" type="button">
           <span class="chat-settings-hero-title" id="chat-settings-modal-name">Чат</span>
           <span class="chat-settings-hero-sub" id="chat-settings-modal-sub">Настройки текущего чата</span>
@@ -1088,6 +1118,6 @@
   <input id="task-bg-input" type="file" accept="image/*" hidden>
   <input id="task-attachments-input" type="file" hidden multiple>
   <script src="https://cdn.jsdelivr.net/npm/@microsoft/signalr@8.0.7/dist/browser/signalr.min.js"></script>
-  <script type="module" src="js/workspace/main.js?v=authflow137"></script>
+  <script type="module" src="js/workspace/main.js?v=authflow139"></script>
 </body>
 </html>

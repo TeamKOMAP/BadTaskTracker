@@ -16,6 +16,7 @@ import {
   chatShellSettingsBtn,
   chatSettingsModal,
   chatSettingsModalAvatar,
+  chatSettingsAvatarInput,
   chatSettingsModalMain,
   chatSettingsModalName,
   chatSettingsModalSub,
@@ -69,8 +70,8 @@ import {
   chatShellUploadList,
   chatShellFileInput,
   chatShellJumpBottomBtn
-} from "./dom.js?v=authflow15";
-import { createWorkspaceChatController } from "../chat/controller.js?v=chat57";
+} from "./dom.js?v=authflow17";
+import { createWorkspaceChatController } from "../chat/controller.js?v=chat59";
 
 export const createWorkspaceChatBridge = (deps = {}) => {
   const controller = createWorkspaceChatController({
@@ -91,6 +92,7 @@ export const createWorkspaceChatBridge = (deps = {}) => {
     chatShellSettingsBtn,
     chatSettingsModal,
     chatSettingsModalAvatar,
+    chatSettingsAvatarInput,
     chatSettingsModalMain,
     chatSettingsModalName,
     chatSettingsModalSub,
@@ -165,6 +167,7 @@ export const createWorkspaceChatBridge = (deps = {}) => {
     refreshChats: () => controller.refreshChats(),
     openChat: (chatId, options) => controller.openChat(chatId, options),
     openDirectChatByUser: (userId) => controller.openDirectChatByUser(userId),
+    createGroupChat: (title, options) => controller.createGroupChat(title, options),
     openActiveChatSettings: () => controller.openActiveChatSettings(),
     ensureTaskChat: (taskId, options) => controller.ensureTaskChat(taskId, options),
     focusFirstUnreadInActiveChat: (options) => controller.focusFirstUnreadInActiveChat(options),

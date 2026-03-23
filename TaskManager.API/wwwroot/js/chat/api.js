@@ -166,6 +166,30 @@ export const createChatApi = () => {
     return await parseJson(response);
   };
 
+  const createGroupChat = async (workspaceId, title) => {
+    const response = await request(
+      buildApiUrl("/chats/groups"),
+      {
+        method: "POST",
+        headers: JSON_BODY_HEADERS,
+        body: JSON.stringify({
+          workspaceId,
+          title
+        })
+      },
+      "Создание группового чата"
+    );
+
+    if (!response || !response.ok) {
+      if (response) {
+        await handleApiError(response, "Создание группового чата");
+      }
+      return null;
+    }
+
+    return await parseJson(response);
+  };
+
   const openTaskChat = async (workspaceId, taskId) => {
     const response = await request(
       buildApiUrl(`/tasks/${taskId}/chat/open`, { workspaceId }),
@@ -515,6 +539,7 @@ export const createChatApi = () => {
     getChats,
     getMessages,
     openDirectChat,
+    createGroupChat,
     openTaskChat,
     getMembers,
     getPreferences,
