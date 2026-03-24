@@ -1430,7 +1430,7 @@ export const createWorkspaceChatController = (deps = {}) => {
 
   const setVoiceStatus = (text) => {
     if (chatShellVoiceStatus instanceof HTMLElement) {
-      chatShellVoiceStatus.textContent = text || "Голосовые сообщения готовы";
+      chatShellVoiceStatus.textContent = text || "";
     }
   };
 
@@ -4702,7 +4702,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     mediaRecorder = null;
     cleanupRecorderStream();
     voiceChunks = [];
-    setVoiceStatus("Голосовые сообщения готовы");
+    setVoiceStatus("");
     syncVoiceRecordingUi();
   };
 
@@ -4798,7 +4798,7 @@ export const createWorkspaceChatController = (deps = {}) => {
         if (shouldDiscard) {
           discardCurrentRecording = false;
           voiceRecordingIntent = "cancel";
-          setVoiceStatus("Голосовые сообщения готовы");
+          setVoiceStatus("");
           syncVoiceRecordingUi();
           syncComposerUi();
           return;
@@ -4817,7 +4817,6 @@ export const createWorkspaceChatController = (deps = {}) => {
         voiceRecordingIntent = "cancel";
         syncVoiceRecordingUi();
         void handleSelectedFiles([file], 4).finally(() => {
-          setVoiceStatus("Голосовые сообщения готовы");
           syncVoiceRecordingUi();
           syncComposerUi();
         });
@@ -5558,7 +5557,7 @@ export const createWorkspaceChatController = (deps = {}) => {
     }
 
     renderUploadQueue();
-    setVoiceStatus("Голосовые сообщения готовы");
+    setVoiceStatus("");
     syncJumpBottomButton();
     resizeComposerInput();
     syncComposerUi();
