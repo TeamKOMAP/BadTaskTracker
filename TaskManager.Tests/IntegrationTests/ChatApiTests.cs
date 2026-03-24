@@ -465,4 +465,28 @@ public class ChatApiTests : TestBase
         public long MessageId { get; set; }
         public string FileName { get; set; } = string.Empty;
     }
+    [Fact]
+    [Trait("Category", "Other")]
+    public async Task MarkAsRead_MissingPayload_ReturnsBadRequest()
+    {
+        var peerId = await CreateWorkspaceUserAsync("Read Missing Peer");
+        var chatId = await CreateDirectChatAsync(peerId);
+        var response = await _client.PostAsync($"/api/chats/{chatId}/read", null);
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    [Trait("Category", "Other")]
+    public async Task Attachments_UploadWithoutMessageId_ReturnsBadRequest()
+    {
+        var peerId = await CreateWorkspaceUserAsync("Attachment Peer NoMsgId");
+        var chatId = await CreateDirectChatAsync(peerId);
+        using var form = new MultipartFormDataContent();
+        var payloadBytes = Encoding.UTF8.GetBytes("chat-attachment-content");
+        var payload = new ByteArrayContent(payloadBytes);
+        payload.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/plain");
+        form.Add(payload, "file", "note.txt");
+        var response = await _client.PostAsync($"/api/chats/{chatId}/attachments", form);
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.BadRequest);
+    }
 }
