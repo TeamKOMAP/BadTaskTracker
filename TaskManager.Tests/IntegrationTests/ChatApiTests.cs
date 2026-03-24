@@ -476,6 +476,55 @@ public class ChatApiTests : TestBase
     }
 
     [Fact]
+    public async Task Post_Message_ByNonMember_ReturnsForbidden()
+    {
+        // Arrange: create a chat with a peer, then use a non-member to post a message
+        var peerId = await CreateWorkspaceUserAsync("Forbidden Poster");
+        var chatId = await CreateDirectChatAsync(peerId);
+        var outsiderId = await CreateWorkspaceUserAsync("Forbidden Outsider 3");
+
+        using var outsiderClient = CreateAuthorizedClient(workspaceId: TestWorkspaceId, userId: outsiderId);
+        var response = await outsiderClient.PostAsJsonAsync($"/api/chats/{chatId}/messages", new
+        {
+            kind = ChatMessageKind.Text,
+            bodyCipher = "should be forbidden"
+        });
+
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task Post_Attachment_ByNonMember_ReturnsForbidden()
+    {
+        var peerId = await CreateWorkspaceUserAsync("Forbidden Attacher 2");
+        var chatId = await CreateDirectChatAsync(peerId);
+        var outsiderId = await CreateWorkspaceUserAsync("Forbidden Outsider 4");
+
+        using var outsiderClient = CreateAuthorizedClient(workspaceId: TestWorkspaceId, userId: outsiderId);
+        using var form = new MultipartFormDataContent();
+        var payloadBytes = Encoding.UTF8.GetBytes("test");
+        var payload = new ByteArrayContent(payloadBytes);
+        payload.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("text/plain");
+        form.Add(payload, "file", "note.txt");
+
+        var response = await outsiderClient.PostAsync($"/api/chats/{chatId}/attachments", form);
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task MarkAsRead_ByNonMember_ReturnsForbidden()
+    {
+        var peerId = await CreateWorkspaceUserAsync("Read Peer 2");
+        var chatId = await CreateDirectChatAsync(peerId);
+        var outsiderId = await CreateWorkspaceUserAsync("Forbidden Outsider 5");
+
+        using var outsiderClient = CreateAuthorizedClient(workspaceId: TestWorkspaceId, userId: outsiderId);
+        var messageId = await SendMessageAsync(chatId, "hello");
+        var response = await outsiderClient.PostAsJsonAsync($"/api/chats/{chatId}/read", new { lastReadMessageId = messageId });
+        response.StatusCode.Should().Be(System.Net.HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     [Trait("Category", "Other")]
     public async Task Attachments_UploadWithoutMessageId_ReturnsBadRequest()
     {
